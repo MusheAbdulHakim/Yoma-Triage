@@ -3,10 +3,14 @@
 | Field | Value |
 |-------|-------|
 | **Date** | 2026-07-24 |
-| **Status** | Draft for user review |
+| **Status** | Draft for user review (revised) |
 | **Approach** | Thin CHO client (Approach 1) |
 | **Depends on** | Backend MVP on `main` (`docs/superpowers/specs/2026-07-24-relayai-backend-mvp-design.md`) |
 | **Supersedes (scope)** | Flutter Chunk 6 from `docs/superpowers/plans/2026-07-23-relayai-hackathon-mvp.md`, narrowed |
+
+### Alignment with existing backend
+
+Already implemented and reused as-is: MOEWS (`moews_calculator.py`), SMS codec, clinical agent (MOEWS + RAG + optional Gemini), coordinator graph. This feature is primarily a Flutter UI layer plus two small API fields (`client_request_id`, `ai_screen_result` / `ai_confidence`).
 
 ---
 
@@ -26,12 +30,13 @@ Demo targets: **Android (emulator/device) + Flutter web/desktop fallback**.
 
 ## 2. Non-Goals
 
-- OTP / CHO authentication
+- OTP / CHO authentication — **Phase 2:** phone number + OTP per backend product spec §10.7 (pilot)
 - SQLCipher / certificate pinning (Phase 2 hardening)
 - Phone-originated Africa’s Talking or SMS codec dispatch
 - Dagbani TTS, real MoMo, hospital dashboard
 - On-device SLM / Whisper
 - Full 60-second mandatory recording for the hackathon pitch (see §5)
+- `GET /api/v1/dispatch/{id}/logs` in the Flutter MVP UI (endpoint may exist on backend; **Phase 2** for richer audit UI — status polling uses `GET /api/v1/dispatch/{id}` only)
 
 ---
 
@@ -85,7 +90,7 @@ Low-literacy: large tap targets, GREEN/RED, short English copy for hackathon.
    - Web/desktop: **Demo: Normal** / **Demo: Code Red** only (no mic/TFLite)
 3. **Result** — GREEN / RED / Inconclusive + one-line reason; **Confirm Referral** or continue monitoring
 4. **Referral form** — vitals (SBP, DBP, HR, RR, Temp, SpO2, AVPU), emergency type, patient name; prefill AI fields if screened
-5. **Dispatch status** — poll dispatch; show queued/syncing/accepted/hospital notified
+5. **Dispatch status** — poll `GET /api/v1/dispatch/{id}` every **2 seconds** (`pollInterval: Duration(seconds: 2)`); show queued/syncing/accepted/hospital notified. Stop polling on terminal-ish states (`COMPLETED`, `FAILED`, `DIVERTED`, or after CHO leaves the screen).
 
 **Demo facility picker:** default Tamale South CHPS → Tamale Teaching Hospital (IDs aligned with `data/demo_data.json`).
 
@@ -93,10 +98,20 @@ Low-literacy: large tap targets, GREEN/RED, short English copy for hackathon.
 
 ## 5. Edge ML (YAMNet)
 
-### Android
-- `tflite_flutter` + asset `assets/models/yamnet.tflite`
+### Model acquisition (Android)
+
+| Strategy | When |
+|----------|------|
+| **A. Bundle `assets/models/yamnet.tflite` (~4.13 MB)** | **Default / recommended** — ship in the APK; no first-run download |
+| **B. First-run download from TensorFlow Hub** | Not used for hackathon MVP (latency + network dependency) |
+| **C. Stub classifier** | **Required fallback** if the real `.tflite` cannot be obtained or fails to load |
+
+**Stub fallback behavior:** If the bundled model is missing or `Interpreter.fromAsset` fails, use an in-app **stub** that returns deterministic demo classifications (e.g. alternate or config-selectable GREEN / Code Red with fixed confidence), documented in README. The Result → Refer → backend path must still work. Prefer real YAMNet when the asset is present.
+
+### Android inference
+- `tflite_flutter` + bundled asset `assets/models/yamnet.tflite` (Strategy A)
 - 16 kHz mono PCM
-- Hackathon recording: **15s default**, early stop allowed; product/production may restore 60s later
+- Hackathon recording: **15s default** (~15× 0.975s YAMNet windows — enough for short wheeze/crackle bursts); **Stop & Analyze Early** always available; product/production may restore 60s later
 - Thresholds: confidence **> 0.7** → Code Red candidates; **< 0.5** → Inconclusive (clinical judgment); else GREEN if no abnormal class
 - Audio never uploaded; discarded after inference
 
@@ -121,10 +136,11 @@ Low-literacy: large tap targets, GREEN/RED, short English copy for hackathon.
 
 | Endpoint | Use |
 |----------|-----|
-| `POST /api/v1/referral` | Create referral; body includes vitals, compound/facility ids, optional AI fields, **`client_request_id`** |
+| `POST /api/v1/referral` | Create referral; body includes vitals, compound/facility ids, optional `ai_screen_result` / `ai_confidence`, **`client_request_id`** |
 | `GET /api/v1/referral/{id}` | Status |
-| `GET /api/v1/dispatch/{id}` | Dispatch status for UI |
-| `GET /api/v1/dispatch/{id}/logs` | Optional richer status |
+| `GET /api/v1/dispatch/{id}` | Dispatch status for UI (MVP polling) |
+
+**Not in Flutter MVP:** richer log UI via `GET /api/v1/dispatch/{id}/logs` (Phase 2). Backend may keep the endpoint for `demo_flow.py`.
 
 **Base URL config:**
 - Android emulator → host machine: `http://10.0.2.2:8000`
@@ -150,8 +166,10 @@ Low-literacy: large tap targets, GREEN/RED, short English copy for hackathon.
 
 - Unit: outbox enqueue/flush; threshold mapping; `client_request_id` reuse
 - Widget: home → simulator RED → confirm smoke (web path)
-- Manual: Android 15s / early-stop screen → confirm → backend → USSD accept via existing `demo_flow` or status poll
-- **Success:** Judge sees Screen → RED → Confirm → dispatch status without curl; web works without a phone; airplane-mode queue then sync works once
+- Widget: **Home → Emergency Referral → Vitals form → Confirm** (clinical bypass path)
+- Integration / manual: Android YAMNet (or stub) → Result → Confirm → backend → dispatch status; USSD accept via existing `demo_flow` as needed
+- Backend unit: duplicate `client_request_id` does not start a second cascade
+- **Success:** Judge sees Screen → RED → Confirm → dispatch status without curl; web works without a phone; airplane-mode queue then sync works once; bypass path never forces AI
 
 ---
 
@@ -165,10 +183,11 @@ Low-literacy: large tap targets, GREEN/RED, short English copy for hackathon.
 
 ## 11. Success criteria checklist
 
-- [ ] Android YAMNet path (or clearly documented stub model if Hub download blocked)
+- [ ] Bundled YAMNet asset **or** documented stub fallback that still completes Refer → dispatch
 - [ ] Web simulator path
-- [ ] Clinical bypass (Emergency Referral)
+- [ ] Clinical bypass (Emergency Referral) with widget coverage
 - [ ] 15s + Stop & Analyze Early
 - [ ] Offline outbox + never silent-drop
-- [ ] Idempotent sync via `client_request_id`
-- [ ] Dispatch status after confirm against live backend
+- [ ] Idempotent sync via `client_request_id` (client + backend)
+- [ ] `ai_screen_result` / `ai_confidence` persisted when screened
+- [ ] Dispatch status poll every 2s after confirm against live backend
