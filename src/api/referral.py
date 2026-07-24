@@ -32,6 +32,9 @@ class ReferralCreate(BaseModel):
     emergency_type: str
     vitals: VitalsInput
     gestational_weeks: int = 0
+    client_request_id: Optional[str] = Field(default=None, max_length=36)
+    ai_screen_result: Optional[str] = None
+    ai_confidence: Optional[float] = None
 
 
 def _referral_response(referral: Referral) -> dict[str, Any]:
@@ -49,6 +52,9 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "compressed_sms_payload": referral.compressed_sms_payload,
         "status": referral.status,
         "vitals": referral.vitals_json,
+        "client_request_id": referral.client_request_id,
+        "ai_screen_result": referral.ai_screen_result,
+        "ai_confidence": referral.ai_confidence,
     }
 
 
@@ -72,6 +78,20 @@ async def create_referral(
         raise HTTPException(status_code=404, detail="CHPS compound not found")
     if not await session.get(Facility, payload.facility_id):
         raise HTTPException(status_code=404, detail="Facility not found")
+
+    if payload.client_request_id:
+        existing = await session.scalar(
+            select(Referral).where(Referral.client_request_id == payload.client_request_id)
+        )
+        if existing:
+            dispatch = await session.scalar(
+                select(Dispatch).where(Dispatch.referral_id == existing.id)
+            )
+            return {
+                "referral": _referral_response(existing),
+                "dispatch": _dispatch_response(dispatch) if dispatch else None,
+                "idempotent": True,
+            }
 
     state = {
         "chps_id": str(payload.chps_compound_id),
@@ -98,6 +118,9 @@ async def create_referral(
         compressed_sms_payload=assessed.get("compressed_sms_payload"),
         vitals_json=payload.vitals.model_dump(),
         status="CONFIRMED",
+        client_request_id=payload.client_request_id,
+        ai_screen_result=payload.ai_screen_result,
+        ai_confidence=payload.ai_confidence,
     )
     session.add(referral)
     await session.flush()

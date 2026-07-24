@@ -54,6 +54,9 @@ class Referral(Base):
     compressed_sms_payload: Mapped[Optional[str]] = mapped_column(String(256), nullable=True)
     status: Mapped[str] = mapped_column(String(32), default="CREATED")
     vitals_json: Mapped[Optional[dict]] = mapped_column(JSON, nullable=True)
+    client_request_id: Mapped[Optional[str]] = mapped_column(String(36), unique=True, nullable=True)
+    ai_screen_result: Mapped[Optional[str]] = mapped_column(String(32), nullable=True)
+    ai_confidence: Mapped[Optional[float]] = mapped_column(Float, nullable=True)
     initiated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 class Dispatch(Base):
