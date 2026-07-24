@@ -2,12 +2,13 @@
 Clinical Reasoning Node: Validates patient vitals using MOEWS, pulls GHS guidance via RAG,
 and synthesizes a triage summary using Google Gemini.
 """
+import contextlib
 from typing import Any
 
-from src.config import settings
 from src.agents.state import ReferralState
-from src.tools.moews_calculator import calculate_moews
+from src.config import settings
 from src.rag.engine import ProtocolRAGEngine
+from src.tools.moews_calculator import calculate_moews
 
 rag_engine: ProtocolRAGEngine | None = None
 llm: Any = None
@@ -59,7 +60,7 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
     pulls relevant GHS clinical protocols, and uses Gemini for clinical summarization.
     """
     vitals = state.get("vitals", {})
-    
+
     # 1. Execute deterministic MOEWS scoring tool
     moews_result = calculate_moews.invoke({
         "sbp": vitals.get("systolic_bp"),
@@ -70,7 +71,7 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
         "spo2": vitals.get("spo2"),
         "consciousness": _consciousness_code(vitals.get("consciousness_level")),
     })
-    
+
     # 2. Query vector DB for GHS referral guidelines
     query_str = f"MOEWS risk {moews_result['risk_level']} score {moews_result['moews_score']} pregnant referral protocol"
     retrieved_docs: list[str] = []
@@ -80,7 +81,7 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
             retrieved_docs = engine.query_protocols(query_str, k=2)
         except Exception:
             retrieved_docs = []
-    
+
     # 3. Prompt Gemini for a clinical summary using the retrieved context
     prompt = f"""
     You are an emergency maternal care AI assistant for Ghana Health Service (GHS).
@@ -92,19 +93,17 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
 
     Provide only a professional, structured clinical triage summary:
     """
-    
+
     summary = _template_summary(state, moews_result)
     model = _get_llm()
     if model:
-        try:
+        with contextlib.suppress(Exception):
             summary = model.invoke(prompt).content
-        except Exception:
-            pass
-    
+
     # 4. Update LangGraph state
     state["moews_score"] = moews_result["moews_score"]
     state["risk_level"] = moews_result["risk_level"]
     state["retrieved_protocol_citations"] = retrieved_docs
     state["clinical_summary"] = summary
-    
+
     return state

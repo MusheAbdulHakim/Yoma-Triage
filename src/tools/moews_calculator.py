@@ -1,7 +1,6 @@
 """
 Deterministic Modified Obstetric Early Warning Score (MOEWS) calculator.
 """
-from typing import Optional
 
 from langchain_core.tools import tool
 
@@ -72,12 +71,12 @@ def _risk_level(scores: list[int], total: int) -> str:
 
 @tool
 def calculate_moews(
-    sbp: Optional[int],
-    dbp: Optional[int],
-    hr: Optional[int],
-    rr: Optional[int],
-    temp: Optional[float],
-    spo2: Optional[int] = None,
+    sbp: int | None,
+    dbp: int | None,
+    hr: int | None,
+    rr: int | None,
+    temp: float | None,
+    spo2: int | None = None,
     consciousness: str = "A",
 ) -> dict:
     """

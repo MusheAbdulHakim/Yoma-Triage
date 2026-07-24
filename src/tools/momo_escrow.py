@@ -2,9 +2,12 @@
 Mobile Money (MoMo) Escrow Tool interfacing with MTN MoMo Sandbox/Production API.
 """
 import uuid
+
 import requests
 from langchain_core.tools import tool
+
 from src.config import settings
+
 
 @tool
 def disburse_fuel_stipend(driver_phone: str, amount_ghs: float) -> dict:
@@ -20,7 +23,7 @@ def disburse_fuel_stipend(driver_phone: str, amount_ghs: float) -> dict:
             "recipient": driver_phone,
             "note": "Sandbox disbursement successful (Mock Mode)"
         }
-    
+
     # Production / Live Sandbox Endpoint Execution
     endpoint = f"{settings.MOMO_API_URL}/disbursement/v1_0/transfer"
     tx_ref = str(uuid.uuid4())
@@ -30,7 +33,7 @@ def disburse_fuel_stipend(driver_phone: str, amount_ghs: float) -> dict:
         "Ocp-Apim-Subscription-Key": settings.MOMO_PRIMARY_KEY,
         "Content-Type": "application/json"
     }
-    
+
     payload = {
         "amount": str(amount_ghs),
         "currency": "GHS",
@@ -42,7 +45,7 @@ def disburse_fuel_stipend(driver_phone: str, amount_ghs: float) -> dict:
         "payerMessage": "RelayAI Emergency Fuel Stipend",
         "payeeNote": "30% Fuel Advance for Patient Referral"
     }
-    
+
     try:
         response = requests.post(endpoint, json=payload, headers=headers, timeout=10)
         if response.status_code == 202:

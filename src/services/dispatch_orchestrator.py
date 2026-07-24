@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -138,7 +138,7 @@ class DispatchOrchestrator:
 
         dispatch.status = "ACCEPTED"
         dispatch.driver_id = driver_id
-        dispatch.driver_assigned_at = datetime.now(timezone.utc)
+        dispatch.driver_assigned_at = datetime.now(UTC)
         session.add(
             DispatchLog(
                 dispatch_id=dispatch.id,

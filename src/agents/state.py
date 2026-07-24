@@ -1,7 +1,8 @@
 """
 Defines the shared state for the LangGraph multi-agent workflow.
 """
-from typing import TypedDict, List, Dict, Any, Optional
+from typing import TypedDict
+
 
 class PatientVitals(TypedDict, total=False):
     systolic_bp: int
@@ -9,7 +10,7 @@ class PatientVitals(TypedDict, total=False):
     heart_rate: int
     respiratory_rate: int
     temperature: float
-    spo2: Optional[int]
+    spo2: int | None
     consciousness_level: str  # 'alert', 'voice', 'pain', 'unresponsive'
 
 class ReferralState(TypedDict):
@@ -18,18 +19,18 @@ class ReferralState(TypedDict):
     patient_hash: str
     gestational_weeks: int
     vitals: PatientVitals
-    
+
     # Clinical Agent Outputs
-    moews_score: Optional[int]
-    risk_level: Optional[str]  # 'GREEN', 'YELLOW', 'RED', 'UNKNOWN'
-    clinical_summary: Optional[str]
-    retrieved_protocol_citations: Optional[List[str]]
-    
+    moews_score: int | None
+    risk_level: str | None  # 'GREEN', 'YELLOW', 'RED', 'UNKNOWN'
+    clinical_summary: str | None
+    retrieved_protocol_citations: list[str] | None
+
     # Dispatch Agent Outputs
-    assigned_driver_id: Optional[str]
-    escrow_status: Optional[str]  # 'PENDING', 'INITIAL_DISBURSED', 'COMPLETED'
-    compressed_sms_payload: Optional[str]
-    
+    assigned_driver_id: str | None
+    escrow_status: str | None  # 'PENDING', 'INITIAL_DISBURSED', 'COMPLETED'
+    compressed_sms_payload: str | None
+
     # Execution Tracking
-    next_node: Optional[str]
-    errors: List[str]
+    next_node: str | None
+    errors: list[str]

@@ -1,5 +1,5 @@
 """Referral creation and read APIs."""
-from typing import Any, Optional
+from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
@@ -15,13 +15,13 @@ router = APIRouter(prefix="/api/v1", tags=["Referrals"])
 
 
 class VitalsInput(BaseModel):
-    systolic_bp: Optional[int] = None
-    diastolic_bp: Optional[int] = None
-    heart_rate: Optional[int] = None
-    respiratory_rate: Optional[int] = None
-    temperature: Optional[float] = None
-    spo2: Optional[int] = None
-    consciousness_level: Optional[str] = None
+    systolic_bp: int | None = None
+    diastolic_bp: int | None = None
+    heart_rate: int | None = None
+    respiratory_rate: int | None = None
+    temperature: float | None = None
+    spo2: int | None = None
+    consciousness_level: str | None = None
 
 
 class ReferralCreate(BaseModel):
@@ -32,9 +32,9 @@ class ReferralCreate(BaseModel):
     emergency_type: str
     vitals: VitalsInput
     gestational_weeks: int = 0
-    client_request_id: Optional[str] = Field(default=None, max_length=36)
-    ai_screen_result: Optional[str] = None
-    ai_confidence: Optional[float] = None
+    client_request_id: str | None = Field(default=None, max_length=36)
+    ai_screen_result: str | None = None
+    ai_confidence: float | None = None
 
 
 def _referral_response(referral: Referral) -> dict[str, Any]:

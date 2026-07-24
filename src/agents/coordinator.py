@@ -1,9 +1,10 @@
 """
 LangGraph DAG assembling the Care Coordinator, Clinical Validator, and Dispatcher.
 """
-from langgraph.graph import StateGraph, END
-from src.agents.state import ReferralState
+from langgraph.graph import END, StateGraph
+
 from src.agents.clinical_agent import run_clinical_assessment
+from src.agents.state import ReferralState
 from src.tools.sms_codec import compress_referral_payload
 
 RISK_CODE_MAP = {"GREEN": 0, "YELLOW": 1, "RED": 2, "UNKNOWN": 3}
@@ -22,7 +23,7 @@ def prepare_dispatch_node(state: ReferralState) -> ReferralState:
         "hr": vitals.get("heart_rate") or 0,
         "sbp": vitals.get("systolic_bp") or 0,
     })
-    
+
     state["compressed_sms_payload"] = compressed
     return state
 

@@ -1,17 +1,19 @@
 import os
+
 from langchain_chroma import Chroma
-from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_core.documents import Document
+from langchain_huggingface import HuggingFaceEmbeddings
+
 
 class ProtocolRAGEngine:
     def __init__(self, persist_directory: str = "./data/vector_store"):
         self.persist_directory = persist_directory
-        
+
         # Local, free, keyless embedding model
         self.embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
-        
+
         os.makedirs(self.persist_directory, exist_ok=True)
-        
+
         # Modern Chroma vector store initialization
         self.vector_store = Chroma(
             collection_name="ghs_protocols",
