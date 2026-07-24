@@ -7,3 +7,7 @@
 - Added FastAPI lifespan database initialization and all API router mounts.
 - Verification: `./venv/bin/python -m pytest -q` — 18 passed.
 - Verification: `./venv/bin/python -c "from main import app; print(app.title)"` — RelayAI Logistics Engine.
+- Review fixes: inbound hospital SMS now requires the current facility's normalized Ghana phone number and an `ACCEPTED` or `HOSPITAL_NOTIFIED` dispatch; clinical prompts tolerate absent vitals and gestational weeks.
+- Added authorization, pre-acceptance rejection, phone normalization, and missing-clinical-input regression coverage.
+- Verification: `./venv/bin/python -m pytest -q tests/test_task8_referral_flow.py` — 6 passed.
+- Verification: `./venv/bin/python -m pytest -q` — 21 passed.

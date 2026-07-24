@@ -85,7 +85,7 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
     You are an emergency maternal care AI assistant for Ghana Health Service (GHS).
     Synthesize a 2-sentence concise clinical assessment for the receiving hospital.
 
-    Patient Vitals: SBP {vitals['systolic_bp']} mmHg, DBP {vitals['diastolic_bp']} mmHg, HR {vitals['heart_rate']} bpm, Gestational Weeks {state['gestational_weeks']}.
+    Patient Vitals: SBP {vitals.get('systolic_bp')} mmHg, DBP {vitals.get('diastolic_bp')} mmHg, HR {vitals.get('heart_rate')} bpm, Gestational Weeks {state.get('gestational_weeks', 'unknown')}.
     Calculated MOEWS Score: {moews_result['moews_score']} ({moews_result['risk_level']} Risk).
     GHS Guidelines Context: {retrieved_docs}
 

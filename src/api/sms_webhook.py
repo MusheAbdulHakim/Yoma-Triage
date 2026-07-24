@@ -17,6 +17,18 @@ class InboundSMS(BaseModel):
     text: str
 
 
+def _normalize_ghana_phone(phone: str) -> str:
+    """Normalize local Ghana phone numbers to their +233 representation."""
+    normalized = "".join(str(phone).split())
+    if normalized.startswith("+233"):
+        return normalized
+    if normalized.startswith("233"):
+        return f"+{normalized}"
+    if normalized.startswith("0"):
+        return f"+233{normalized[1:]}"
+    return f"+233{normalized}"
+
+
 def _parse_command(text: str) -> tuple[str, int, int | None]:
     parts = text.strip().upper().split()
     if len(parts) < 2 or parts[0] not in {"CONFIRM", "DIVERT"}:
@@ -44,6 +56,13 @@ async def process_inbound_sms(
     referral = await session.get(Referral, dispatch.referral_id)
     if not referral:
         raise ValueError("Referral not found")
+    current_facility = await session.get(Facility, dispatch.facility_id)
+    if not current_facility:
+        raise ValueError("Current facility not found")
+    if _normalize_ghana_phone(sender) != _normalize_ghana_phone(current_facility.phone):
+        raise ValueError("Unauthorized sender")
+    if dispatch.status not in {"ACCEPTED", "HOSPITAL_NOTIFIED"}:
+        raise ValueError("Hospital command not available for this dispatch status")
 
     if command == "CONFIRM":
         dispatch.status = "HOSPITAL_CONFIRMED"
