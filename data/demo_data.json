@@ -1,0 +1,19 @@
+{
+  "compounds": [
+    {"id": 1, "name": "Tamale South CHPS", "zone": "Tamale Metro", "latitude": 9.403, "longitude": -0.842, "cho_phone": "+233240000100"},
+    {"id": 2, "name": "Navrongo Central CHPS", "zone": "Kassena-Nankana East", "latitude": 10.895, "longitude": -1.092, "cho_phone": "+233240000101"},
+    {"id": 3, "name": "Savelugu CHPS", "zone": "Savelugu Municipal", "latitude": 9.624, "longitude": -0.825, "cho_phone": "+233240000102"}
+  ],
+  "facilities": [
+    {"id": 1, "name": "Tamale Teaching Hospital", "type": "teaching_hospital", "phone": "+233240000200", "district": "Tamale", "has_maternity": true, "has_icu": true},
+    {"id": 2, "name": "Navrongo War Memorial Hospital", "type": "district_hospital", "phone": "+233240000201", "district": "Kassena-Nankana East", "has_maternity": true, "has_icu": false},
+    {"id": 3, "name": "Savelugu Municipal Hospital", "type": "municipal_hospital", "phone": "+233240000202", "district": "Savelugu", "has_maternity": true, "has_icu": false}
+  ],
+  "drivers": [
+    {"name": "Ibrahim", "phone": "+233240000001", "vehicle_type": "Motor-King", "vehicle_desc": "Red tricycle", "chps_compound_id": 1, "is_motor_king": true},
+    {"name": "Musah", "phone": "+233240000002", "vehicle_type": "Motor-King", "vehicle_desc": "Blue tricycle", "chps_compound_id": 1, "is_motor_king": true},
+    {"name": "Abdul", "phone": "+233240000003", "vehicle_type": "motorcycle", "vehicle_desc": "Black Honda", "chps_compound_id": 1, "is_motor_king": false},
+    {"name": "Kwame", "phone": "+233240000004", "vehicle_type": "Motor-King", "vehicle_desc": "Yellow tricycle", "chps_compound_id": 2, "is_motor_king": true},
+    {"name": "Yakubu", "phone": "+233240000005", "vehicle_type": "pickup", "vehicle_desc": "White Toyota", "chps_compound_id": 2, "is_motor_king": false}
+  ]
+}
