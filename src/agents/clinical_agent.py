@@ -2,40 +2,83 @@
 Clinical Reasoning Node: Validates patient vitals using MOEWS, pulls GHS guidance via RAG,
 and synthesizes a triage summary using Google Gemini.
 """
-from langchain_google_genai import ChatGoogleGenerativeAI
+from typing import Any
+
 from src.config import settings
 from src.agents.state import ReferralState
 from src.tools.moews_calculator import calculate_moews
 from src.rag.engine import ProtocolRAGEngine
 
-# Initialize RAG Engine and Gemini LLM
-rag_engine = ProtocolRAGEngine()
+rag_engine: ProtocolRAGEngine | None = None
+llm: Any = None
 
-llm = ChatGoogleGenerativeAI(
-    model=settings.DEFAULT_GEMINI_MODEL,
-    google_api_key=settings.GEMINI_API_KEY,
-    temperature=0.2
-)
+
+def _get_rag_engine() -> ProtocolRAGEngine | None:
+    """Initialize local RAG only when an assessment needs it."""
+    global rag_engine
+    if rag_engine is None:
+        try:
+            rag_engine = ProtocolRAGEngine()
+        except Exception:
+            return None
+    return rag_engine
+
+
+def _get_llm() -> Any:
+    """Return Gemini only when it is configured and available."""
+    global llm
+    if llm is None and settings.GEMINI_API_KEY:
+        try:
+            from langchain_google_genai import ChatGoogleGenerativeAI
+
+            llm = ChatGoogleGenerativeAI(
+                model=settings.DEFAULT_GEMINI_MODEL,
+                google_api_key=settings.GEMINI_API_KEY,
+                temperature=0.2,
+            )
+        except Exception:
+            return None
+    return llm
+
+
+def _consciousness_code(value: Any) -> str:
+    return "A" if str(value or "A").strip().upper() in {"A", "ALERT"} else str(value)
+
+
+def _template_summary(state: ReferralState, moews_result: dict) -> str:
+    return (
+        f"Maternal referral assessment: {moews_result['risk_level']} risk "
+        f"(MOEWS {moews_result['moews_score']}). "
+        f"Gestational age: {state.get('gestational_weeks', 'unknown')} weeks."
+    )
 
 def run_clinical_assessment(state: ReferralState) -> ReferralState:
     """
     Evaluates maternal vitals, calculates deterministic MOEWS score,
     pulls relevant GHS clinical protocols, and uses Gemini for clinical summarization.
     """
-    vitals = state["vitals"]
+    vitals = state.get("vitals", {})
     
     # 1. Execute deterministic MOEWS scoring tool
     moews_result = calculate_moews.invoke({
-        "sbp": vitals["systolic_bp"],
-        "dbp": vitals["diastolic_bp"],
-        "hr": vitals["heart_rate"],
-        "rr": vitals["respiratory_rate"],
-        "temp": vitals["temperature"]
+        "sbp": vitals.get("systolic_bp"),
+        "dbp": vitals.get("diastolic_bp"),
+        "hr": vitals.get("heart_rate"),
+        "rr": vitals.get("respiratory_rate"),
+        "temp": vitals.get("temperature"),
+        "spo2": vitals.get("spo2"),
+        "consciousness": _consciousness_code(vitals.get("consciousness_level")),
     })
     
     # 2. Query vector DB for GHS referral guidelines
     query_str = f"MOEWS risk {moews_result['risk_level']} score {moews_result['moews_score']} pregnant referral protocol"
-    retrieved_docs = rag_engine.query_protocols(query_str, k=2)
+    retrieved_docs: list[str] = []
+    engine = _get_rag_engine()
+    if engine:
+        try:
+            retrieved_docs = engine.query_protocols(query_str, k=2)
+        except Exception:
+            retrieved_docs = []
     
     # 3. Prompt Gemini for a clinical summary using the retrieved context
     prompt = f"""
@@ -49,12 +92,18 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
     Provide only a professional, structured clinical triage summary:
     """
     
-    llm_response = llm.invoke(prompt)
+    summary = _template_summary(state, moews_result)
+    model = _get_llm()
+    if model:
+        try:
+            summary = model.invoke(prompt).content
+        except Exception:
+            pass
     
     # 4. Update LangGraph state
     state["moews_score"] = moews_result["moews_score"]
     state["risk_level"] = moews_result["risk_level"]
     state["retrieved_protocol_citations"] = retrieved_docs
-    state["clinical_summary"] = llm_response.content
+    state["clinical_summary"] = summary
     
     return state

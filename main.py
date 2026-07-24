@@ -2,19 +2,34 @@
 RelayAI Emergency Logistics Engine
 Single Master Entry Point serving FastAPI Webhooks and LangGraph Workflows.
 """
+from contextlib import asynccontextmanager
+
 import uvicorn
 from fastapi import FastAPI
+from src.api.referral import router as referral_router
+from src.api.sms_webhook import router as sms_router
 from src.api.ussd import router as ussd_router
 from src.agents.coordinator import relayai_graph
+from src.db.database import init_db
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    await init_db()
+    yield
+
 
 app = FastAPI(
     title="RelayAI Logistics Engine",
     description="Offline-First Emergency Maternal Referral & Transport Broker for Ghana Health Service",
-    version="1.0.0"
+    version="1.0.0",
+    lifespan=lifespan,
 )
 
 # Mount USSD & Carrier Webhook API Routers
 app.include_router(ussd_router)
+app.include_router(referral_router)
+app.include_router(sms_router)
 
 @app.get("/")
 def health_check():

@@ -3,10 +3,17 @@ Compresses clinical state into a Base64 string fitting into a single 140-octet 2
 """
 import base64
 import struct
+from typing import Optional
 from langchain_core.tools import tool
 
 @tool
-def compress_referral_payload(chps_id_int: int, moews_score: int, risk_code: int, hr: int, sbp: int) -> str:
+def compress_referral_payload(
+    chps_id_int: int,
+    moews_score: Optional[int],
+    risk_code: int,
+    hr: int,
+    sbp: int,
+) -> str:
     """
     Compresses emergency referral metrics into a compact Base64 payload for 2G SMS transmission.
     
@@ -19,7 +26,9 @@ def compress_referral_payload(chps_id_int: int, moews_score: int, risk_code: int
     """
     # Packed format: unsigned short (CHPS ID), unsigned char (MOEWS), unsigned char (Risk), unsigned char (HR), unsigned char (SBP)
     # Total byte size = 2 + 1 + 1 + 1 + 1 = 6 bytes!
-    binary_data = struct.pack("!HBBBB", chps_id_int, moews_score, risk_code, hr, sbp)
+    binary_data = struct.pack(
+        "!HBBBB", chps_id_int, moews_score or 0, risk_code, hr, sbp
+    )
     encoded = base64.b64encode(binary_data).decode('ascii')
     return encoded
 
