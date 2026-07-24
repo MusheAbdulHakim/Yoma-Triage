@@ -143,15 +143,18 @@ class DispatchOrchestrator:
     async def handle_decline(
         self, session: AsyncSession, dispatch_id: int, driver_id: int
     ) -> dict:
+        """Record a decline and indicate whether escalation should run after commit."""
         dispatch = await session.scalar(
             select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
         )
         if not dispatch:
-            return {"ussd": "END No active dispatch."}
+            return {"ussd": "END No active dispatch.", "run_side_effects": False}
 
         declined = list(dispatch.declined_driver_ids or [])
-        if driver_id not in declined:
-            declined.append(driver_id)
+        if driver_id in declined:
+            return {"ussd": "END Decline noted.", "run_side_effects": False}
+
+        declined.append(driver_id)
         dispatch.declined_driver_ids = declined
         session.add(
             DispatchLog(
@@ -165,14 +168,9 @@ class DispatchOrchestrator:
 
         # Never advance a dispatch claimed by any driver.
         if dispatch.status == "ACCEPTED" or dispatch.status not in CLAIMABLE:
-            return {"ussd": "END Decline noted."}
+            return {"ussd": "END Decline noted.", "run_side_effects": False}
 
-        referral = await session.get(Referral, dispatch.referral_id)
-        next_tier = 2 if dispatch.current_tier <= 1 else 3
-        await self._notify_tier(session, dispatch, referral, tier=next_tier)
-        if dispatch.status.startswith("TIER"):
-            self.schedule_tier_timeouts(dispatch.id, tier=dispatch.current_tier)
-        return {"ussd": "END Referral declined."}
+        return {"ussd": "END Referral declined.", "run_side_effects": True}
 
     async def run_accept_side_effects(self, dispatch_id: int, driver_id: int) -> None:
         """Run payment and hospital notification once after a successful claim."""
@@ -230,6 +228,27 @@ class DispatchOrchestrator:
             )
             dispatch.status = "HOSPITAL_NOTIFIED"
             await session.commit()
+
+    async def run_decline_side_effects(self, dispatch_id: int, driver_id: int) -> None:
+        """Escalate an eligible decline after its USSD response has returned."""
+        async with async_session() as session:
+            dispatch = await session.scalar(
+                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+            )
+            if (
+                not dispatch
+                or driver_id not in (dispatch.declined_driver_ids or [])
+                or dispatch.status == "ACCEPTED"
+                or dispatch.status not in CLAIMABLE
+            ):
+                return
+
+            referral = await session.get(Referral, dispatch.referral_id)
+            next_tier = 2 if dispatch.current_tier <= 1 else 3
+            await self._notify_tier(session, dispatch, referral, tier=next_tier)
+            await session.commit()
+            if dispatch.status.startswith("TIER"):
+                self.schedule_tier_timeouts(dispatch.id, tier=dispatch.current_tier)
 
     async def _tier_timeout(self, dispatch_id: int, tier: int) -> None:
         await asyncio.sleep(settings.CASCADE_TIER_SECONDS)

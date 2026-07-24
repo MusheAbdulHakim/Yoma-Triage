@@ -14,7 +14,7 @@ def test_claimable_statuses():
 
 
 @pytest.mark.asyncio
-async def test_decline_escalates_to_next_tier_when_unclaimed():
+async def test_decline_marks_unclaimed_dispatch_for_background_escalation():
     from src.services.dispatch_orchestrator import DispatchOrchestrator
 
     dispatch = SimpleNamespace(
@@ -24,25 +24,19 @@ async def test_decline_escalates_to_next_tier_when_unclaimed():
         current_tier=1,
         declined_driver_ids=[],
     )
-    referral = SimpleNamespace(id=20)
     session = MagicMock()
     session.scalar = AsyncMock(return_value=dispatch)
-    session.get = AsyncMock(return_value=referral)
-    orchestrator = DispatchOrchestrator()
-
-    async def notify_tier(_session, dispatched, _referral, tier):
-        dispatched.current_tier = tier
-        dispatched.status = f"TIER{tier}_NOTIFIED"
-
-    orchestrator._notify_tier = AsyncMock(side_effect=notify_tier)
-    orchestrator.schedule_tier_timeouts = MagicMock()
+    gateway = MagicMock()
+    gateway.send_sms = AsyncMock()
+    orchestrator = DispatchOrchestrator(gateway=gateway)
 
     result = await orchestrator.handle_decline(session, dispatch.id, driver_id=3)
 
     assert result["ussd"] == "END Referral declined."
+    assert result["run_side_effects"] is True
     assert dispatch.declined_driver_ids == [3]
-    orchestrator._notify_tier.assert_awaited_once_with(session, dispatch, referral, tier=2)
-    orchestrator.schedule_tier_timeouts.assert_called_once_with(dispatch.id, tier=2)
+    assert dispatch.current_tier == 1
+    gateway.send_sms.assert_not_awaited()
 
 
 @pytest.mark.asyncio

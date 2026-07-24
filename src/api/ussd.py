@@ -63,6 +63,10 @@ async def process_ussd(
 
     result = await orchestrator.handle_decline(session, dispatch.id, driver.id)
     await session.commit()
+    if result["run_side_effects"]:
+        background_tasks.add_task(
+            orchestrator.run_decline_side_effects, dispatch.id, driver.id
+        )
     return Response(content=result["ussd"], media_type="text/plain")
 
 
