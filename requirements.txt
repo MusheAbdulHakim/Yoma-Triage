@@ -1,0 +1,20 @@
+# Orchestration & Frameworks
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.2.0
+
+# RAG & Vector Database
+chromadb>=0.5.0
+tiktoken>=0.7.0
+
+# Data Models & Utilities
+pydantic>=2.8.0
+python-dotenv>=1.0.1
+bitstring>=4.2.0
+
+# API Gateway (for USSD / SMS Webhooks)
+fastapi>=0.111.0
+uvicorn>=0.30.0
+sentence-transformers>=3.0.0
+langchain-huggingface>=0.1.0
