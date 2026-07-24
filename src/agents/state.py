@@ -3,12 +3,13 @@ Defines the shared state for the LangGraph multi-agent workflow.
 """
 from typing import TypedDict, List, Dict, Any, Optional
 
-class PatientVitals(TypedDict):
+class PatientVitals(TypedDict, total=False):
     systolic_bp: int
     diastolic_bp: int
     heart_rate: int
     respiratory_rate: int
     temperature: float
+    spo2: Optional[int]
     consciousness_level: str  # 'alert', 'voice', 'pain', 'unresponsive'
 
 class ReferralState(TypedDict):
@@ -20,7 +21,7 @@ class ReferralState(TypedDict):
     
     # Clinical Agent Outputs
     moews_score: Optional[int]
-    risk_level: Optional[str]  # 'NORMAL', 'MEDIUM', 'HIGH', 'CRITICAL'
+    risk_level: Optional[str]  # 'GREEN', 'YELLOW', 'RED', 'UNKNOWN'
     clinical_summary: Optional[str]
     retrieved_protocol_citations: Optional[List[str]]
     
