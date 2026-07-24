@@ -3,11 +3,12 @@ from typing import Any, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.coordinator import relayai_graph
 from src.db.database import get_db
-from src.db.models import CHPSCompound, Dispatch, Facility, Referral
+from src.db.models import CHPSCompound, Dispatch, DispatchLog, Facility, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
 
 router = APIRouter(prefix="/api/v1", tags=["Referrals"])
@@ -123,3 +124,30 @@ async def get_dispatch(
     if not dispatch:
         raise HTTPException(status_code=404, detail="Dispatch not found")
     return _dispatch_response(dispatch)
+
+
+@router.get("/dispatch/{dispatch_id}/logs")
+async def get_dispatch_logs(
+    dispatch_id: int, session: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """Return the dispatch audit trail used by the local demo timeline."""
+    logs = await session.scalars(
+        select(DispatchLog)
+        .where(DispatchLog.dispatch_id == dispatch_id)
+        .order_by(DispatchLog.id)
+    )
+    return {
+        "dispatch_id": dispatch_id,
+        "logs": [
+            {
+                "id": log.id,
+                "action": log.action,
+                "target_phone": log.target_phone,
+                "target_role": log.target_role,
+                "response": log.response,
+                "metadata": log.metadata_json,
+                "created_at": log.created_at,
+            }
+            for log in logs
+        ],
+    }
