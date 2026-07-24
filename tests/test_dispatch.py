@@ -21,6 +21,7 @@ async def test_decline_marks_unclaimed_dispatch_for_background_escalation():
         id=10,
         referral_id=20,
         status="TIER1_NOTIFIED",
+        driver_id=None,
         current_tier=1,
         declined_driver_ids=[],
     )
@@ -75,6 +76,37 @@ async def test_second_driver_cannot_accept_claimed_dispatch():
     result = await DispatchOrchestrator().handle_accept(session, dispatch.id, driver_id=4)
 
     assert result == {"ussd": "END Already assigned.", "run_side_effects": False}
+
+
+@pytest.mark.asyncio
+async def test_tier_two_driver_cannot_accept_while_tier_one_is_active():
+    from src.services.dispatch_orchestrator import DispatchOrchestrator
+
+    tier_two_driver = SimpleNamespace(id=4)
+    tier_one_driver = SimpleNamespace(id=3)
+    dispatch = SimpleNamespace(
+        id=10,
+        referral_id=20,
+        status="TIER1_NOTIFIED",
+        driver_id=None,
+        current_tier=1,
+        declined_driver_ids=[],
+    )
+    referral = SimpleNamespace(chps_compound_id=1)
+    session = MagicMock()
+    session.scalar = AsyncMock(return_value=dispatch)
+    session.get = AsyncMock(return_value=referral)
+    orchestrator = DispatchOrchestrator()
+    orchestrator.pool.get_candidates = AsyncMock(return_value=[tier_one_driver])
+
+    result = await orchestrator.handle_accept(session, dispatch.id, tier_two_driver.id)
+
+    assert result == {
+        "ussd": "END You are not eligible for this dispatch.",
+        "run_side_effects": False,
+    }
+    assert dispatch.status == "TIER1_NOTIFIED"
+    assert dispatch.driver_id is None
 
 
 @pytest.mark.asyncio

@@ -6,17 +6,29 @@ from fastapi import BackgroundTasks
 
 
 @pytest.mark.asyncio
-async def test_double_accept_returns_the_same_terminal_response():
+async def test_double_accept_returns_the_same_terminal_response(monkeypatch):
     from src.api.ussd import process_ussd
+    from src.services.driver_pool import DriverPoolManager
 
     driver = SimpleNamespace(id=3, chps_compound_id=1)
-    dispatch = SimpleNamespace(id=10, status="TIER1_NOTIFIED", driver_id=None)
+    dispatch = SimpleNamespace(
+        id=10,
+        referral_id=20,
+        status="TIER1_NOTIFIED",
+        driver_id=None,
+        current_tier=1,
+        declined_driver_ids=[],
+    )
     session = MagicMock()
     session.scalar = AsyncMock(
         side_effect=[driver, dispatch, dispatch, driver, dispatch, dispatch]
     )
+    session.get = AsyncMock(return_value=SimpleNamespace(chps_compound_id=1))
     session.commit = AsyncMock()
     session.add = MagicMock()
+    monkeypatch.setattr(
+        DriverPoolManager, "get_candidates", AsyncMock(return_value=[driver])
+    )
     background_tasks = BackgroundTasks()
 
     first = await process_ussd(session, background_tasks, "+233240000001", "1")

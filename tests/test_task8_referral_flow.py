@@ -42,6 +42,17 @@ def test_clinical_assessment_handles_absent_vitals_and_gestational_weeks(monkeyp
     assert "Gestational age: unknown weeks." in result["clinical_summary"]
 
 
+def test_clinical_rag_initialization_seeds_protocols(monkeypatch):
+    from src.agents import clinical_agent
+
+    engine = MagicMock()
+    monkeypatch.setattr(clinical_agent, "rag_engine", None)
+    monkeypatch.setattr(clinical_agent, "ProtocolRAGEngine", lambda: engine)
+
+    assert clinical_agent._get_rag_engine() is engine
+    engine.seed_initial_protocols.assert_called_once_with()
+
+
 def test_prepare_dispatch_encodes_unknown_score_as_zero():
     from src.agents.coordinator import prepare_dispatch_node
 

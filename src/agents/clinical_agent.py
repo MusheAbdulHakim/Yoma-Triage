@@ -19,6 +19,7 @@ def _get_rag_engine() -> ProtocolRAGEngine | None:
     if rag_engine is None:
         try:
             rag_engine = ProtocolRAGEngine()
+            rag_engine.seed_initial_protocols()
         except Exception:
             return None
     return rag_engine

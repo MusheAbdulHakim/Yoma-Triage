@@ -20,7 +20,7 @@ def compress_referral_payload(
     Parameters:
       chps_id_int: Integer ID of the CHPS compound.
       moews_score: Calculated MOEWS risk score (0-15).
-      risk_code: 0=Normal, 1=Medium, 2=High, 3=Critical.
+      risk_code: 0=GREEN, 1=YELLOW, 2=RED, 3=UNKNOWN.
       hr: Heart rate in BPM.
       sbp: Systolic blood pressure in mmHg.
     """
@@ -40,7 +40,7 @@ def decompress_referral_payload(encoded_str: str) -> dict:
     binary_data = base64.b64decode(encoded_str.encode('ascii'))
     chps_id_int, moews_score, risk_code, hr, sbp = struct.unpack("!HBBBB", binary_data)
     
-    risk_map = {0: "NORMAL", 1: "MEDIUM", 2: "HIGH", 3: "CRITICAL"}
+    risk_map = {0: "GREEN", 1: "YELLOW", 2: "RED", 3: "UNKNOWN"}
     return {
         "chps_id_int": chps_id_int,
         "moews_score": moews_score,

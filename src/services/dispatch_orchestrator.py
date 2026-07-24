@@ -123,6 +123,19 @@ class DispatchOrchestrator:
         if dispatch.status not in CLAIMABLE:
             return {"ussd": "END Dispatch not available.", "run_side_effects": False}
 
+        referral = await session.get(Referral, dispatch.referral_id)
+        candidates = await self.pool.get_candidates(
+            session,
+            referral.chps_compound_id,
+            dispatch.current_tier,
+            list(dispatch.declined_driver_ids or []),
+        )
+        if driver_id not in {candidate.id for candidate in candidates}:
+            return {
+                "ussd": "END You are not eligible for this dispatch.",
+                "run_side_effects": False,
+            }
+
         dispatch.status = "ACCEPTED"
         dispatch.driver_id = driver_id
         dispatch.driver_assigned_at = datetime.now(timezone.utc)

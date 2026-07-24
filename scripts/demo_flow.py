@@ -125,7 +125,7 @@ async def main() -> None:
         except httpx.HTTPError as exc:
             raise RuntimeError(
                 "RelayAI API is unavailable at http://127.0.0.1:8000. "
-                "Start it with ./venv/bin/python -m uvicorn main:app --host 127.0.0.1 --port 8000"
+                "Start it with ./venv/bin/python main.py"
             ) from exc
 
         # Happy path: accept, mock payment, hospital notification, and confirmation.

@@ -72,11 +72,11 @@ async def process_ussd(
 
 @router.post("/callback")
 async def handle_ussd(
+    background_tasks: BackgroundTasks,
     session_id: str = Form(...),
     service_code: str = Form(...),
     phone_number: str = Form(...),
     text: str = Form(""),
-    background_tasks: BackgroundTasks = None,
     session: AsyncSession = Depends(get_db),
 ):
     """Return the gateway response immediately after the database transaction."""
