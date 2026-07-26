@@ -1,10 +1,10 @@
-# RelayAI: Product Specification & Technical Design
+# Yoma Triage: Product Specification & Technical Design
 
 ## Document Control
 
 | Field | Value |
 |-------|-------|
-| **Document Title** | RelayAI: Intelligent Clinical Triage, Edge Computing Decision Support, and Resilient Multi-Channel Emergency Referral Orchestration Platform for Northern Ghana |
+| **Document Title** | Yoma Triage: Intelligent Clinical Triage, Edge Computing Decision Support, and Resilient Multi-Channel Emergency Referral Orchestration Platform for Northern Ghana |
 | **Version** | 2.0 |
 | **Date** | 23 July 2026 |
 | **Status** | Final Draft for UNICEF StartUp Lab Hackathon |
@@ -28,19 +28,19 @@ This clinical crisis exists alongside a rapidly growing digital infrastructure. 
 
 Simultaneously, progress in edge computing has enabled highly quantized Small Language Models (SLMs) to execute complex natural language processing and clinical decision support directly on inexpensive mobile hardware. This technical convergence allows the deployment of diagnostic support and logistical orchestration tools at the absolute edge of the primary care network, operating independently of cloud connectivity.
 
-The UNICEF StartUp Lab hackathon explicitly calls for "early risk detection" and "improved referral follow-up" — the exact two problems RelayAI solves.
+The UNICEF StartUp Lab hackathon explicitly calls for "early risk detection" and "improved referral follow-up" — the exact two problems Yoma Triage solves.
 
 ## The Solution
 
-RelayAI is an offline-first, intelligent clinical triage and emergency referral orchestration platform designed specifically for rural primary care environments. Rather than introducing redundant diagnostic or physical transport assets, RelayAI acts as an intelligent coordination layer that bridges the gap between frontline clinical detection and definitive hospital care. The platform consists of two core components:
+Yoma Triage is an offline-first, intelligent clinical triage and emergency referral orchestration platform designed specifically for rural primary care environments. Rather than introducing redundant diagnostic or physical transport assets, Yoma Triage acts as an intelligent coordination layer that bridges the gap between frontline clinical detection and definitive hospital care. The platform consists of two core components:
 
-**RelayCare Mobile** — An offline-first Android application running on low-cost tablets. It utilizes highly quantized 1.5B-to-3B parameter Small Language Models to guide CHOs through standardized triage protocols, calculate physiological risk scores, and aggregate clinical data into highly compressed binary payloads. For the hackathon demo, we additionally include acoustic respiratory screening using YAMNet/HeAR event detectors as a proof-of-concept for AI-assisted detection.
+**Yoma Care (mobile / CHO app)** — An offline-first Flutter application (Android, iOS, and responsive web) for Community Health Officers. It guides CHOs through standardized triage, calculates MOEWS physiological risk scores, queues referrals offline, and aggregates clinical data into highly compressed SMS-safe payloads. For the hackathon demo, acoustic respiratory screening uses on-device YAMNet TFLite as an **advisory** AudioSet event detector — not a clinically validated obstetric diagnosis. On-device SLM triage is pilot backlog, not the current demo cut.
 
-**RelayDispatch** — A multi-channel communication gateway that transmits compressed clinical and transport data over standard USSD, binary SMS, and Interactive Voice Response (IVR) networks.
+**Yoma Dispatch (gateway)** — A backend-mediated multi-channel communication gateway that transmits compressed clinical and transport data over standard USSD, SMS, and (later) Interactive Voice Response (IVR) networks. The mobile app never calls Africa’s Talking directly.
 
 ```
 +-------------------------------------------------------------------------------+
-|                               RELAYAI PRODUCT IDENTITY                        |
+|                               YOMA TRIAGE PRODUCT IDENTITY                        |
 +-------------------------------------------------------------------------------+
 |         WHAT IT IS                        |         WHAT IT IS NOT            |
 +-------------------------------------------+-----------------------------------+
@@ -64,13 +64,13 @@ RelayAI is an offline-first, intelligent clinical triage and emergency referral 
 
 Northern Ghana bears a disproportionate burden of maternal and child mortality. The Upper East and Upper West regions have the highest facility-based maternal mortality ratios in the country. CHPS compounds in these regions are understaffed (average 2.1 staff per zone in Karaga district), underequipped, and operating with paper-based systems. The SERC model originated here. The need is here. The hackathon is here.
 
-## Why RelayAI
+## Why Yoma Triage
 
-No existing solution connects AI-powered screening to emergency transport dispatch. LHIMS is online-only and lacks offline capabilities. DHIS2 is for epidemiological tracking, not real-time dispatch. CommCare supports custom forms but lacks automated multi-channel voice/USSD dispatching and real-time escrow payment integrations. MaaCheck, iMedic, and DeepBreath all stop at "detect and alert." RelayAI bridges these gaps by providing an offline-first clinical decision support system that converts clinical vitals into low-bandwidth coordination metrics, linking frontline workers with emergency logistics.
+No existing solution connects AI-powered screening to emergency transport dispatch. LHIMS is online-only and lacks offline capabilities. DHIS2 is for epidemiological tracking, not real-time dispatch. CommCare supports custom forms but lacks automated multi-channel voice/USSD dispatching and real-time escrow payment integrations. MaaCheck, iMedic, and DeepBreath all stop at "detect and alert." Yoma Triage bridges these gaps by providing an offline-first clinical decision support system that converts clinical vitals into low-bandwidth coordination metrics, linking frontline workers with emergency logistics.
 
 ## Contextual Viability
 
-Deploying health technology in Northern Ghana requires addressing severe systemic constraints, including frequent power grid failures, absent or intermittent internet connectivity, high clinical staff turnover, and strict budget limitations. RelayAI is engineered to function reliably on a remote Tuesday afternoon during a rainstorm when cellular towers are offline, the local nurse is alone, and a mother is actively bleeding. By converting the mobile devices already present in the field into a reliable clinical router, RelayAI eliminates the coordination failures that contribute to preventable rural mortality.
+Deploying health technology in Northern Ghana requires addressing severe systemic constraints, including frequent power grid failures, absent or intermittent internet connectivity, high clinical staff turnover, and strict budget limitations. Yoma Triage is engineered to function reliably on a remote Tuesday afternoon during a rainstorm when cellular towers are offline, the local nurse is alone, and a mother is actively bleeding. By converting the mobile devices already present in the field into a reliable clinical router, Yoma Triage eliminates the coordination failures that contribute to preventable rural mortality.
 
 ---
 
@@ -94,7 +94,7 @@ To address the limitations of the traditional Three Delays framework, recent pub
 5. **Delay in reaching the referral center** — the inter-facility transfer logistics
 6. **Delay in receiving care at the referral center** — the hospital's preparation and response
 
-By separating the initial care-seeking journey from the subsequent inter-facility transfer, this model highlights the critical role of inter-facility communication and transport logistics in patient survival. RelayAI specifically targets Delays 4 and 5 — the decision to refer and the coordination of transport.
+By separating the initial care-seeking journey from the subsequent inter-facility transfer, this model highlights the critical role of inter-facility communication and transport logistics in patient survival. Yoma Triage specifically targets Delays 4 and 5 — the decision to refer and the coordination of transport.
 
 ## The Second Delay in Northern Ghana
 
@@ -363,7 +363,7 @@ Each persona represents a real role in the CHPS ecosystem with constraints drawn
 
 **Opportunities:**
 - Would use a dashboard showing real-time referral activity across his catchment area
-- Would advocate for RelayAI adoption if he saw evidence of reduced delays
+- Would advocate for Yoma Triage adoption if he saw evidence of reduced delays
 - Wants data to justify budget requests to the District Health Directorate
 
 ---
@@ -468,7 +468,7 @@ No follow-up mechanism
 
 ## Bottleneck Analysis
 
-| Phase | Bottleneck | Impact | RelayAI Solution |
+| Phase | Bottleneck | Impact | Yoma Triage Solution |
 |-------|-----------|--------|-----------------|
 | Detection | No auscultation tool | Delayed recognition of distress | Acoustic AI screening (Breathe) |
 | Coordination | Sequential phone calls | 30-90 minute delay | Parallel SMS dispatch (Go) |
@@ -480,38 +480,38 @@ No follow-up mechanism
 
 ---
 
-# PART V — RelayAI Vision
+# PART V — Yoma Triage Vision
 
-## What RelayAI Is
+## What Yoma Triage Is
 
-RelayAI is the intelligent coordination layer between frontline detection and definitive care.
+Yoma Triage is the intelligent coordination layer between frontline detection and definitive care.
 
 It is not a diagnostic system. It does not tell the CHO what disease the child has. It provides a screening signal — Normal or Code Red — that helps the CHO make a faster, more confident referral decision.
 
 It is not an ambulance service. It does not own vehicles or employ drivers. It coordinates existing community transport resources — Motor-King drivers, volunteer drivers, personal contacts — through a structured dispatch system that works over SMS and voice.
 
-It is not a replacement for clinical judgment. The CHO remains the decision-maker at every step. RelayAI provides data and coordination; the CHO provides expertise and authority.
+It is not a replacement for clinical judgment. The CHO remains the decision-maker at every step. Yoma Triage provides data and coordination; the CHO provides expertise and authority.
 
-## What RelayAI Solves
+## What Yoma Triage Solves
 
-RelayAI addresses the two failures that kill children in Northern Ghana:
+Yoma Triage addresses the two failures that kill children in Northern Ghana:
 
-1. **Detection failure** — By providing acoustic respiratory screening that runs on a smartphone, RelayAI helps CHOs detect breathing distress earlier than visual observation alone.
+1. **Detection failure** — By providing acoustic respiratory screening that runs on a smartphone, Yoma Triage helps CHOs detect breathing distress earlier than visual observation alone.
 
-2. **Transport failure** — By providing a cascading dispatch system that works over SMS and voice, RelayAI ensures that when a referral is needed, transport is arranged in minutes, not hours.
+2. **Transport failure** — By providing a cascading dispatch system that works over SMS and voice, Yoma Triage ensures that when a referral is needed, transport is arranged in minutes, not hours.
 
-## What RelayAI Does Not Solve
+## What Yoma Triage Does Not Solve
 
-RelayAI does not solve:
+Yoma Triage does not solve:
 - Road infrastructure (requires government investment)
 - Hospital capacity (requires health system strengthening)
 - CHPS compound staffing (requires workforce development)
 - Family willingness to seek care (requires community education)
 - Treatment quality (requires clinical training and supplies)
 
-RelayAI focuses on the narrow, addressable gap between detection and transport. Everything else is outside its scope.
+Yoma Triage focuses on the narrow, addressable gap between detection and transport. Everything else is outside its scope.
 
-**Critical design choice:** RelayAI respects patient and family autonomy. If a family refuses transport, the system documents the refusal but never forces referral. The CHO manages the relationship, provides health education, and remains available if the family changes their mind. See Journey 5 in Part XII for a detailed scenario.
+**Critical design choice:** Yoma Triage respects patient and family autonomy. If a family refuses transport, the system documents the refusal but never forces referral. The CHO manages the relationship, provides health education, and remains available if the family changes their mind. See Journey 5 in Part XII for a detailed scenario.
 
 ---
 
@@ -519,7 +519,7 @@ RelayAI focuses on the narrow, addressable gap between detection and transport. 
 
 ## Principle 1: Offline-First
 
-RelayAI must work with no internet connectivity. The acoustic AI runs entirely on-device. The dispatch system operates via SMS and USSD, which work on 2G networks. The backend syncs when connectivity is available but never requires it for core functionality.
+Yoma Triage must work with no internet connectivity. The acoustic AI runs entirely on-device. The dispatch system operates via SMS and USSD, which work on 2G networks. The backend syncs when connectivity is available but never requires it for core functionality.
 
 **Test:** Would this work in a CHPS compound in Karaga district where the only connectivity is 2G and the power goes out twice a day?
 
@@ -549,7 +549,7 @@ Voice notifications are not a fallback — they are the primary interface for dr
 
 ## Principle 6: SMS/USSD as the Backbone
 
-SMS and USSD work on every phone, on every network, in every village. They are the most reliable communication channels in Northern Ghana. RelayAI builds on them, not around them.
+SMS and USSD work on every phone, on every network, in every village. They are the most reliable communication channels in Northern Ghana. Yoma Triage builds on them, not around them.
 
 **Test:** Does the core dispatch flow work entirely via SMS and USSD, with no dependency on smartphones or data connections?
 
@@ -567,9 +567,9 @@ Every AI output must be explainable in plain language. "This child's breathing s
 
 ## Principle 9: Fail Safely
 
-When any component fails — network, AI, dispatch — the system degrades gracefully. The CHO can always fall back to manual coordination. The driver can always call the CHO directly. The hospital can always be reached by phone. RelayAI enhances the existing system; it never replaces it to the point where failure is catastrophic.
+When any component fails — network, AI, dispatch — the system degrades gracefully. The CHO can always fall back to manual coordination. The driver can always call the CHO directly. The hospital can always be reached by phone. Yoma Triage enhances the existing system; it never replaces it to the point where failure is catastrophic.
 
-**Test:** If RelayAI's servers go down tomorrow, does the CHPS compound's emergency referral process revert to today's manual system — or does it break entirely?
+**Test:** If Yoma Triage's servers go down tomorrow, does the CHPS compound's emergency referral process revert to today's manual system — or does it break entirely?
 
 ---
 
@@ -582,7 +582,7 @@ When any component fails — network, AI, dispatch — the system degrades grace
 **Trigger:** CHO suspects respiratory distress in a child under 5.
 
 **Flow:**
-1. CHO opens RelayAI app on smartphone
+1. CHO opens Yoma Triage app on smartphone
 2. CHO selects "Screen Breathing"
 3. CHO holds phone near child's chest (microphone facing the child)
 4. App records 60 seconds of audio
@@ -612,7 +612,7 @@ When any component fails — network, AI, dispatch — the system degrades grace
 
 For cases where the acoustic screening is not applicable (maternal hemorrhage, neonatal sepsis, etc.), the CHO can trigger a referral manually:
 
-1. CHO opens RelayAI app
+1. CHO opens Yoma Triage app
 2. CHO selects "Emergency Referral"
 3. CHO selects emergency type from dropdown:
    - Respiratory distress
@@ -623,7 +623,7 @@ For cases where the acoustic screening is not applicable (maternal hemorrhage, n
 4. CHO enters patient name (or "Unknown")
 5. CHO confirms referral
 
-This ensures RelayAI is useful beyond respiratory screening.
+This ensures Yoma Triage is useful beyond respiratory screening.
 
 ## 7.2 Transport Brokerage
 
@@ -659,7 +659,7 @@ T+450 seconds: No response → CHO notified: "No driver available — coordinate
 Drivers respond via USSD:
 
 1. Driver receives SMS: "EMERGENCY: Patient at [CHPS compound]. Reply via *XXX# to accept or decline."
-2. Driver dials `*XXX#` (RelayAI USSD code)
+2. Driver dials `*XXX#` (Yoma Triage USSD code)
 3. USSD menu displays:
    ```
    EMERGENCY DISPATCH
@@ -714,7 +714,7 @@ For personal emergency contacts:
 When a driver accepts the dispatch, the system automatically sends an SMS to the receiving hospital:
 
 ```
-RELAYAI EMERGENCY REFERRAL
+YOMA TRIAGE EMERGENCY REFERRAL
 From: [CHPS compound name]
 Patient: [Patient name]
 Age: [Age/Gender]
@@ -755,7 +755,7 @@ Transport costs are a primary barrier to emergency referral in Northern Ghana. N
 
 **Escrow Contract Engine:**
 
-To remove the transport cost barrier, RelayAI integrates an automated, multi-party escrow framework using local mobile money APIs. Each registered facility has access to an Emergency Transport Wallet funded by development partners (such as UNICEF) or GHS regional budgets.
+To remove the transport cost barrier, Yoma Triage integrates an automated, multi-party escrow framework using local mobile money APIs. Each registered facility has access to an Emergency Transport Wallet funded by development partners (such as UNICEF) or GHS regional budgets.
 
 **Verifiable Transaction Flow:**
 
@@ -833,7 +833,7 @@ When no Motor-King drivers are available:
 
 ### 7.7.1 Purpose
 
-In emergencies, the patient's personal network is often the fastest source of transport. RelayAI allows CHOs to register personal emergency contacts for each patient.
+In emergencies, the patient's personal network is often the fastest source of transport. Yoma Triage allows CHOs to register personal emergency contacts for each patient.
 
 ### 7.7.2 Flow
 
@@ -928,7 +928,7 @@ In emergencies, the patient's personal network is often the fastest source of tr
 - Diagnosis requires clinical training, laboratory tests, and imaging
 - AI-based diagnosis in LMICs without validation is dangerous
 - Regulatory burden for diagnostic AI is significant
-- RelayAI is a screening and coordination tool, not a diagnostic system
+- Yoma Triage is a screening and coordination tool, not a diagnostic system
 
 ### 8.6 Drug Prescribing
 
@@ -980,7 +980,7 @@ In emergencies, the patient's personal network is often the fastest source of tr
 
 ## 9.3 The Standardized MOEWS Triage Protocol
 
-To ensure objective clinical triage, RelayAI implements a Modified Obstetric Early Warning Score (MOEWS) framework tailored for low-resource primary care settings. This system converts physiological vitals into a standardized, color-coded risk assessment.
+To ensure objective clinical triage, Yoma Triage implements a Modified Obstetric Early Warning Score (MOEWS) framework tailored for low-resource primary care settings. This system converts physiological vitals into a standardized, color-coded risk assessment.
 
 ### Scoring Criteria
 
@@ -1078,14 +1078,14 @@ Negative outcomes feed into:
 ## 9.7 Escalation Paths
 
 ```
-Level 1: CHO detects emergency → RelayAI dispatch
+Level 1: CHO detects emergency → Yoma Triage dispatch
 Level 2: No driver responds → CHO calls drivers directly
 Level 3: No transport available → CHO contacts District Health Directorate
 Level 4: District hospital unable to receive → CHO arranges transfer to regional hospital
 Level 5: All systems fail → CHO uses personal judgment and community resources
 ```
 
-At no point does the failure of RelayAI leave the CHO without options.
+At no point does the failure of Yoma Triage leave the CHO without options.
 
 ---
 
@@ -1095,7 +1095,7 @@ At no point does the failure of RelayAI leave the CHO without options.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
-│                    RELAYAI SYSTEM ARCHITECTURE                   │
+│                    YOMA TRIAGE SYSTEM ARCHITECTURE                   │
 ├─────────────────────────────────────────────────────────────────┤
 │                                                                  │
 │  ┌─────────────────────┐                                        │
@@ -1236,14 +1236,14 @@ dependencies:
 
 ## 10.5 Low-Bandwidth Data Compression Protocol
 
-To transmit detailed clinical vitals over standard 2G GSM cellular SMS channels, RelayAI implements a highly efficient binary compression format similar to the DHIS2 Android SMS protocol. This system packs variables into ultra-dense, Base64-encoded strings.
+To transmit detailed clinical vitals over standard 2G GSM cellular SMS channels, Yoma Triage implements a highly efficient binary compression format similar to the DHIS2 Android SMS protocol. This system packs variables into ultra-dense, Base64-encoded strings.
 
 ### Payload Structure (140-octet SMS)
 
 A standard 140-octet SMS payload (1,120 bits) is allocated as follows:
 
 **Header Core (112 bits):**
-- Application Identifier (8 bits): Identifies the RelayAI packet format
+- Application Identifier (8 bits): Identifies the Yoma Triage packet format
 - Schema Version (8 bits): Ensures compatibility with server-side parsers
 - CRC-16 Payload Checksum (16 bits): Validates data integrity
 - Hashed Facility Identifier (32 bits): Identifies the initiating CHPS compound
@@ -1334,7 +1334,7 @@ The mobile application uses a hybrid synchronization engine that monitors networ
 
 ## 10.7 Authentication & Security
 
-**Compliance:** RelayAI handles patient data and must comply with Ghana's Data Protection Act, 2012 (Act 843). All patient data is processed with minimal collection principles, stored with encryption, and retained only as long as necessary for the referral to succeed.
+**Compliance:** Yoma Triage handles patient data and must comply with Ghana's Data Protection Act, 2012 (Act 843). All patient data is processed with minimal collection principles, stored with encryption, and retained only as long as necessary for the referral to succeed.
 
 **Authentication:**
 - CHOs authenticate via phone number + OTP (SMS)
@@ -1485,7 +1485,7 @@ Network security protocols: Active cellular data transfers use secure HTTPS chan
 
 08:05 — CHO Abiba observes Kwame
         Chest indrawing visible. Breathing rate elevated.
-        Abiba opens RelayAI app → selects "Screen Breathing"
+        Abiba opens Yoma Triage app → selects "Screen Breathing"
 
 08:06 — Abiba holds phone near Kwame's chest
         60-second recording begins
@@ -1538,7 +1538,7 @@ COMPARED TO: 2-4 hours (current manual process)
 
 ```
 14:00 — CHO Fatima detects postpartum hemorrhage in Amina
-        Fatima triggers emergency referral via RelayAI
+        Fatima triggers emergency referral via Yoma Triage
 
 14:00 — SMS sent to all Motor-King drivers in zone
         Driver 1: On a trip — no response
@@ -1574,7 +1574,7 @@ FALLBACK SUCCESS: Personal contact provided faster transport than registered dri
         2G and 3G unavailable
 
 09:15 — CHO Abiba detects respiratory distress
-        Opens RelayAI app
+        Opens Yoma Triage app
         App displays: "Network unavailable. Referral will be sent when connection returns."
 
 09:16 — Abiba triggers referral
@@ -1630,7 +1630,7 @@ LESSON: Diversion protocol ensures patient reaches a facility that can treat the
         Abiba explains risks in Dagbani
         Mother still refuses
 
-11:05 — Abiba documents refusal in RelayAI
+11:05 — Abiba documents refusal in Yoma Triage
         System logs: "Referral declined by caregiver. Reason: caregiver preference."
         Abiba provides health education materials
         Abiba asks mother to return if child worsens
@@ -1643,7 +1643,7 @@ LESSON: Diversion protocol ensures patient reaches a facility that can treat the
         Driver dispatched immediately
         Child transported to hospital
 
-LESSON: RelayAI documents refusals but never forces referrals. The CHO manages the relationship.
+LESSON: Yoma Triage documents refusals but never forces referrals. The CHO manages the relationship.
 ```
 
 ---
@@ -1712,7 +1712,7 @@ LESSON: RelayAI documents refusals but never forces referrals. The CHO manages t
 7. Monthly reconciliation with MoMo statement
 
 **Phase 3: Pilot Launch (Week 4)**
-- CHOs use RelayAI for all referrals
+- CHOs use Yoma Triage for all referrals
 - Weekly check-ins with CHOs
 - Daily monitoring of dispatch metrics
 
@@ -1978,4 +1978,4 @@ dependencies:
 ---
 
 *Document prepared for UNICEF StartUp Lab Hackathon, July 2026.*
-*RelayAI — Bridging the Detection-to-Care Gap in Primary Healthcare.*
+*Yoma Triage — Bridging the Detection-to-Care Gap in Primary Healthcare.*

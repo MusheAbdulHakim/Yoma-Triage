@@ -1,4 +1,4 @@
-# **RelayAI: Intelligent Clinical Triage, Edge Computing Decision Support, and Resilient Multi-Channel Emergency Referral Orchestration Platform for Northern Ghana**
+# **Yoma Triage: Intelligent Clinical Triage, Edge Computing Decision Support, and Resilient Multi-Channel Emergency Referral Orchestration Platform for Northern Ghana**
 
 ## **Part I — Executive Summary**
 
@@ -15,16 +15,16 @@ Simultaneously, progress in edge computing has enabled highly quantized Small La
 
 ### **The Solution**
 
-RelayAI is an offline-first, intelligent clinical triage and emergency referral orchestration platform designed specifically for rural primary care environments20. Rather than introducing redundant diagnostic or physical transport assets, RelayAI acts as an intelligent coordination layer that bridges the gap between frontline clinical detection and definitive hospital care23. The platform consists of two core components:
+Yoma Triage is an offline-first, intelligent clinical triage and emergency referral orchestration platform designed specifically for rural primary care environments20. Rather than introducing redundant diagnostic or physical transport assets, Yoma Triage acts as an intelligent coordination layer that bridges the gap between frontline clinical detection and definitive hospital care23. The platform consists of two core components:
 
-* **RelayCare Mobile**: An offline-first Android application running on low-cost tablets20. It utilizes highly quantized 1.5B-to-3B parameter Small Language Models to guide CHOs through standardized triage protocols, calculate physiological risk scores, and aggregate clinical data into highly compressed binary payloads20.  
-* **RelayDispatch**: A multi-channel communication gateway that transmits compressed clinical and transport data over standard USSD, binary SMS, and Interactive Voice Response (IVR) networks24.
+* **Yoma Care (mobile / CHO app)**: An offline-first Flutter application (Android, iOS, and responsive web) for Community Health Officers. Hackathon demo uses MOEWS + advisory on-device YAMNet TFLite screening; on-device SLM triage remains pilot backlog.  
+* **Yoma Dispatch (gateway)**: A backend-mediated multi-channel communication gateway that transmits compressed clinical and transport data over standard USSD, SMS, and (later) Interactive Voice Response (IVR) networks. The mobile app never calls Africa’s Talking directly.
 
-RelayAI coordinates the emergency response by matching the clinical urgency of the patient with available community transport providers—such as "Motor-King" tricycle ambulances and National Ambulance Service (NAS) units—while preparing the receiving district hospital before the patient arrives9.
+Yoma Triage coordinates the emergency response by matching the clinical urgency of the patient with available community transport providers—such as "Motor-King" tricycle ambulances and National Ambulance Service (NAS) units—while preparing the receiving district hospital before the patient arrives9.
 
 ### **Contextual Viability**
 
-Deploying health technology in Northern Ghana requires addressing severe systemic constraints, including frequent power grid failures, absent or intermittent internet connectivity, high clinical staff turnover, and strict budget limitations3. RelayAI is engineered to function reliably on a remote Tuesday afternoon during a rainstorm when cellular towers are offline, the local nurse is alone, and a mother is actively bleeding2. By converting the mobile devices already present in the field into a reliable clinical router, RelayAI eliminates the coordination failures that contribute to preventable rural mortality25.
+Deploying health technology in Northern Ghana requires addressing severe systemic constraints, including frequent power grid failures, absent or intermittent internet connectivity, high clinical staff turnover, and strict budget limitations3. Yoma Triage is engineered to function reliably on a remote Tuesday afternoon during a rainstorm when cellular towers are offline, the local nurse is alone, and a mother is actively bleeding2. By converting the mobile devices already present in the field into a reliable clinical router, Yoma Triage eliminates the coordination failures that contribute to preventable rural mortality25.
 
 ## **Part II — Understanding the Problem**
 
@@ -75,7 +75,7 @@ The current mechanism for coordinating referrals within the Ghana Health Service
 
 The table below outlines the primary actors within the rural referral network of Northern Ghana, detailing their operational goals, constraints, and opportunities for digital integration:
 
-| Persona Role | Primary Operational Goals | Core Constraints & Pain Points | Digital Literacy & Tech Profile | Core Opportunities for RelayAI |
+| Persona Role | Primary Operational Goals | Core Constraints & Pain Points | Digital Literacy & Tech Profile | Core Opportunities for Yoma Triage |
 | :---- | :---- | :---- | :---- | :---- |
 | **Community Health Officer (CHO)** \[cite: 13, 14\] | Stabilize patients locally; initiate safe, rapid referrals when complications exceed facility capacity23. | Clinical isolation; lack of specialist support; out-of-pocket airtime costs to coordinate transfers3. | High comfort with Android interfaces and WhatsApp; limited by frequent power and network outages29. | Offline clinical decision support; automated, free communication over subsidized USSD/SMS20. |
 | **Frontline Midwife** \[cite: 38, 40\] | Deliver babies safely; prevent postpartum hemorrhage (PPH) and manage pre-eclampsia/eclampsia2. | Rapid maternal deterioration; high administrative burden of manual paper registries45. | Competent smartphone and computer user30; single-midwife staffing limits availability for manual logging. | Automated physiological risk calculations; instant generation of complete digital referral notes24. |
@@ -128,15 +128,15 @@ The baseline emergency workflow within Northern Ghana's rural districts operates
 * **The Telecommunication Cost Barrier**: Referral coordination is frequently delayed because frontline health workers must use personal mobile airtime to call drivers and receiving hospitals38. If a CHO is out of prepaid credits, they must purchase airtime or send a physical message, creating a direct point of failure38.  
 * **Complete Absence of Hospital Telemetry**: Paper-based referral forms are rarely completed or delivered during acute transfers45. Consequently, receiving hospitals have no advance notice of a patient's arrival or clinical status38. This forces emergency department staff to perform redundant diagnostic workups and delays the mobilization of critical resources like blood units or surgical teams23.
 
-## **Part V — RelayAI Vision**
+## **Part V — Yoma Triage Vision**
 
 ### **The Core Philosophy**
 
-RelayAI is designed around a clear operational philosophy: it is not a diagnostic system, nor is it a transport fleet owner9. Instead, RelayAI serves as the *intelligent coordination layer* between frontline clinical detection and definitive hospital care23.  
+Yoma Triage is designed around a clear operational philosophy: it is not a diagnostic system, nor is it a transport fleet owner9. Instead, Yoma Triage serves as the *intelligent coordination layer* between frontline clinical detection and definitive hospital care23.  
 The platform does not attempt to replace human clinical judgment or bypass existing health structures14. Rather, it optimizes the utilization of existing resources—such as community tricycle ambulances, national EMS units, and district hospital beds—by automating the exchange of data and logistics23.
 
 \+-------------------------------------------------------------------------------------+  
-|                               RELAYAI PRODUCT IDENTITY                              |  
+|                               YOMA TRIAGE PRODUCT IDENTITY                              |  
 \+-------------------------------------------------------------------------------------+  
 |         WHAT IT IS         │                      WHAT IT IS NOT                    |  
 \+----------------------------+--------------------------------------------------------+  
@@ -156,11 +156,11 @@ While several digital health tools operate in Ghana, they are not designed to co
 * **DHIS2 (e-Tracker)**: The District Health Information Software 2 (DHIS2) e-Tracker is a robust, national-level aggregate and case-based surveillance platform15. While it supports offline form caching, its primary function is long-term epidemiological tracking rather than real-time emergency dispatching15.  
 * **CommCare (Dimagi)**: A widely used mobile data collection platform designed for community health workers29. While CommCare supports custom forms, it relies on rule-based logic and lacks automated, multi-channel voice/USSD dispatching and real-time escrow payment integrations26.
 
-RelayAI bridges these gaps by providing an offline-first clinical decision support system that converts clinical vitals into low-bandwidth coordination metrics, linking frontline workers with emergency logistics20.
+Yoma Triage bridges these gaps by providing an offline-first clinical decision support system that converts clinical vitals into low-bandwidth coordination metrics, linking frontline workers with emergency logistics20.
 
 ## **Part VI — Product Principles**
 
-To maintain operational integrity in the field, every design decision within the RelayAI ecosystem must align with nine fundamental product principles:
+To maintain operational integrity in the field, every design decision within the Yoma Triage ecosystem must align with nine fundamental product principles:
 
 ### **1\. Offline-First Architecture**
 
@@ -184,7 +184,7 @@ The platform must assume that standard network connections will fail29. Telemetr
 
 ### **6\. Minimal and Ephemeral Data Footprint**
 
-To comply with data protection regulations and protect patient privacy, RelayAI collects only the minimum data required to execute the emergency referral64. All personally identifiable information is encrypted on-device and removed from active transit caches once the referral is resolved29.
+To comply with data protection regulations and protect patient privacy, Yoma Triage collects only the minimum data required to execute the emergency referral64. All personally identifiable information is encrypted on-device and removed from active transit caches once the referral is resolved29.
 
 ### **7\. Explicit and Explainable Decisions**
 
@@ -218,7 +218,7 @@ The platform must align with existing administrative and cultural structures wit
   * **Priority 1**: Formal National Ambulance Service (NAS) units, if available and nearby42.  
   * **Priority 2**: KOICA or community-owned Motor-King tricycle ambulances based at nearby facilities9.  
   * **Priority 3**: Certified local commercial transport operators registered with the community network28.  
-* **Multi-Channel Dispatching**: The dispatch request is pushed to the targeted driver's phone using a priority queue. To ensure compatibility with basic feature phones, RelayAI uses a three-tier communication protocol26:  
+* **Multi-Channel Dispatching**: The dispatch request is pushed to the targeted driver's phone using a priority queue. To ensure compatibility with basic feature phones, Yoma Triage uses a three-tier communication protocol26:  
   * **Tier 1 (USSD Push)**: Triggers an interactive USSD alert directly on the driver's handset, displaying the pickup location and a numeric menu to accept or decline: CON Emergency pickup at CHPS Compound X. Press 1 to Accept, 2 to Decline26.  
   * **Tier 2 (IVR Call)**: If the USSD push is unacknowledged within 180 seconds, the Viamo API initiates an automated phone call in the driver's preferred language, reading the dispatch request and parsing DTMF keyboard tones to confirm acceptance25.  
   * **Tier 3 (Binary SMS Fallback)**: If the voice call fails, a standard SMS is dispatched with a simple, direct reply instruction24.
@@ -226,7 +226,7 @@ The platform must align with existing administrative and cultural structures wit
 ### **3\. Emergency Digital Wallet and Micro-Incentive Module**
 
 * **The Out-of-Pocket Transport Barrier**: In Ghana, while the Free Maternal Care Policy covers medical services, it explicitly excludes emergency transport11. This leaves rural families facing high out-of-pocket transport costs, which is a major driver of delays11.  
-* **Escrow Contract Engine**: To remove this barrier, RelayAI integrates an automated, multi-party escrow framework using local mobile money APIs17. Each registered facility has access to an Emergency Transport Wallet funded by development partners (such as UNICEF) or GHS regional budgets72.  
+* **Escrow Contract Engine**: To remove this barrier, Yoma Triage integrates an automated, multi-party escrow framework using local mobile money APIs17. Each registered facility has access to an Emergency Transport Wallet funded by development partners (such as UNICEF) or GHS regional budgets72.  
 * **Verifiable Transaction Flow**:  
   * **Activation**: When a driver accepts an emergency referral via USSD or IVR, the system locks a pre-calculated transit fee (based on distance and road quality) in the platform's escrow wallet27.  
   * **Fuel Payout**: A small, automated mobile money payout (30% of the total fare) is immediately disbursed to the driver's registered MTN MoMo or Telecel Cash wallet to cover immediate fuel costs17.  
@@ -251,7 +251,7 @@ The platform must align with existing administrative and cultural structures wit
 
 ## **Part VIII — AI Strategy**
 
-The table below outlines the scope of artificial intelligence components within the RelayAI architecture, detailing what is included or excluded and the operational justification for each decision5:
+The table below outlines the scope of artificial intelligence components within the Yoma Triage architecture, detailing what is included or excluded and the operational justification for each decision5:
 
 | Core AI Capability | Included status | Technical Implementation Approach | Strategic and Operational Justification |
 | :---- | :---- | :---- | :---- |
@@ -268,12 +268,12 @@ The table below outlines the scope of artificial intelligence components within 
 
 ### **Defining AI Operational Boundaries**
 
-The AI components of RelayAI operate strictly as assistive administrative tools38. Under no circumstances can the edge model generate primary clinical diagnoses, modify established clinical pathways, or prescribe drug regimens5.  
+The AI components of Yoma Triage operate strictly as assistive administrative tools38. Under no circumstances can the edge model generate primary clinical diagnoses, modify established clinical pathways, or prescribe drug regimens5.  
 The software serves to structure, summarize, and compress clinical notes entered by human operators, helping them apply official GHS treatment protocols more consistently44. All clinical authority and accountability remain with the licensed healthcare professional operating the system23.
 
 ### **The Standardized MOEWS Triage Protocol**
 
-To ensure objective clinical triage, RelayAI implements a Modified Obstetric Early Warning Score (MOEWS) framework tailored for low-resource primary care settings48. This system converts physiological vitals into a standardized, color-coded risk assessment4.  
+To ensure objective clinical triage, Yoma Triage implements a Modified Obstetric Early Warning Score (MOEWS) framework tailored for low-resource primary care settings48. This system converts physiological vitals into a standardized, color-coded risk assessment4.  
 The on-device triage engine processes physiological observations based on the criteria in the table below:
 
 | Physiological Parameter | Red Alert Score (3 pts) | Yellow Alert Score (2 pts) | Normal Range (0 pts) | Yellow Alert Score (2 pts) | Red Alert Score (3 pts) |
@@ -304,15 +304,15 @@ Every transition, manual override, clinical data point, and telemetry message is
 \+-------------------------------------------------------------------------------+  
 |                            TECHNICAL ARCHITECTURE                             |  
 \+-------------------------------------------------------------------------------+  
-|                            RelayCare Mobile Client                            |  
-|  \- Jetpack Compose UI (Kotlin)       \- ONNX Mobile Runtime (Embeddings)       |  
+|                            Yoma Care (CHO app)                                 |  
+|  \- Flutter UI (Android/iOS/Web)       \- On-device TFLite (YAMNet advisory)    |  
 |  \- Room/SQLite Local DB              \- llama.cpp / Llamatik (Offline SLM)     |  
 \+--------------------------------------+----------------------------------------+  
                                        │  
                     Data Transit Rails │ (HTTPS, USSD API, or Binary SMS)  
                                        v  
 \+--------------------------------------+----------------------------------------+  
-|                            RelayDispatch Gateway                              |  
+|                            Yoma Dispatch Gateway                              |  
 |  \- Node.js API Gateway               \- Viamo Voice/IVR Engine Integration     |  
 |  \- Redis Session Cache               \- Mobile Money Aggregator Rail           |  
 \+--------------------------------------+----------------------------------------+  
@@ -325,7 +325,7 @@ Every transition, manual override, clinical data point, and telemetry message is
 
 ### **Edge Processing and Mobile Inference Engine**
 
-The RelayCare application is developed in native Kotlin using Jetpack Compose, targeting Android tablets running on low-cost Quad-Core processors21. The local system is designed to run entirely offline20:
+The Yoma Care CHO application is implemented in Flutter (Dart), targeting Android phones, iOS phones, and responsive web for hackathon demo coverage. Historical design research considered native Kotlin/Compose; the shipping stack is Flutter. The local system is designed to run entirely offline for core CHO actions:
 
 * **Model Loading and Storage**: Quantized model binaries are stored in the application's local sandbox storage directory21. To reduce memory overhead, the app dynamically loads model weights into RAM using memory-mapped I/O (mmap), bypassing Java Native Interface (JNI) latency bottlenecks21.  
 * **Processing Execution**: Inference is managed via localized C/C++ native bindings using a Kotlin-first wrapper (such as Llamatik or the ONNX Runtime Mobile engine)21. This setup isolates background processing threads from the main UI thread, ensuring the interface remains smooth and responsive during active background processing22.
@@ -359,11 +359,11 @@ The mobile application uses a hybrid synchronization engine that monitors networ
 
 ### **Low-Bandwidth Data Compression Protocol**
 
-To transmit detailed clinical vitals over standard 2G GSM cellular SMS channels, RelayAI implements a highly efficient binary compression format similar to the DHIS2 Android SMS protocol24. This system packs variables into ultra-dense, Base64-encoded strings24.  
+To transmit detailed clinical vitals over standard 2G GSM cellular SMS channels, Yoma Triage implements a highly efficient binary compression format similar to the DHIS2 Android SMS protocol24. This system packs variables into ultra-dense, Base64-encoded strings24.  
 An standard 140-octet SMS payload (1,120 bits) is allocated as follows69:
 
 * **Header Core (112 bits)**:  
-  * Application Identifier (8 bits): Identifies the RelayAI packet format.  
+  * Application Identifier (8 bits): Identifies the Yoma Triage packet format.  
   * Schema Version (8 bits): Ensures compatibility with server-side parsers.  
   * MD5 Payload Checksum (32 bits): Validates data integrity24.  
   * Hashed Facility Identifier (32 bits): Identifies the initiating CHPS compound24.  
@@ -396,7 +396,7 @@ The transport dispatch and matching system operates as a stateless, real-time in
        \[GSM Network routes to Carrier USSD Gateway\]  
                      │  
                      ▼  
-  \[Stateless HTTP POST to RelayAI Gateway (Session ID & PhoneNumber)\]  
+  \[Stateless HTTP POST to Yoma Triage Gateway (Session ID & PhoneNumber)\]  
                      │  
                      ▼  
      \[Gateway queries DB & maps Session State\] \[cite: 27, 82\]  
@@ -416,7 +416,7 @@ Each menu selection translates to a round-trip latency of less than 2 seconds, s
 
 ### **Platform Security, Authentication, and Encryption Standard**
 
-To protect patient privacy, RelayAI applies end-to-end security measures across the entire data pipeline29:
+To protect patient privacy, Yoma Triage applies end-to-end security measures across the entire data pipeline29:
 
 * **On-Device Database Encryption**: The local Room/SQLite database is secured using SQLCipher, applying AES-256 symmetric encryption to protect all stored records63. The decryption keys are managed via the Android Keystore system and are bound to biometric or clinical PIN credentials.  
 * **Network Security Protocols**: Active cellular data transfers use secure HTTPS channels with TLS 1.3 encryption and strict certificate pinning65. SMS telemetry strings are encrypted locally using AES-256-GCM prior to Base64 encoding, ensuring data remains secure during transit over carrier networks24.  
@@ -426,7 +426,7 @@ To protect patient privacy, RelayAI applies end-to-end security measures across 
 
 ### **Database Entity Relationship Model**
 
-The RelayAI backend database is structured around eight core relational entities to coordinate clinical triage, transport dispatches, and financial transactions:
+The Yoma Triage backend database is structured around eight core relational entities to coordinate clinical triage, transport dispatches, and financial transactions:
 
 \+------------------+             \+------------------+             \+------------------+  
 |    FACILITY      |             |     REFERRAL     |             |      PATIENT     |  
@@ -462,7 +462,7 @@ The RelayAI backend database is structured around eight core relational entities
 
 ### **Core Schema Definitions**
 
-The tables below define the structure of the database tables within the RelayAI system:
+The tables below define the structure of the database tables within the Yoma Triage system:
 
 SQL  
 \-- 1\. Facility Entity Schema  
@@ -678,7 +678,7 @@ To support pilot operations and regional scale-up, the platform's cost structure
 
 ### **Stakeholder Partnerships and Policy Alignment**
 
-To support deployment and adoption, RelayAI maintains close alignment with three key stakeholder groups in Ghana:
+To support deployment and adoption, Yoma Triage maintains close alignment with three key stakeholder groups in Ghana:
 
 * **UNICEF Innovation Office**: Coordinates the initial pilot funding, supports hardware procurement, and leads the integration of IVR training modules72.  
 * **Ghana Health Service (Policy, Planning, Monitoring, and Evaluation Directorate)**: Ensures the platform aligns with the National Digital Health Strategy 2023-2027 and the Networks of Practice operational guidelines64.  
@@ -686,7 +686,7 @@ To support deployment and adoption, RelayAI maintains close alignment with three
 
 ### **Integration with National Health Finance Frameworks**
 
-The core financial sustainability of RelayAI depends on its integration with existing national health financing structures, moving away from a long-term reliance on donor grants11:
+The core financial sustainability of Yoma Triage depends on its integration with existing national health financing structures, moving away from a long-term reliance on donor grants11:
 
 \+---------------------------------------------------------------------------------------------------------+  
 |                                     SUSTAINABLE HEALTH FINANCING MODEL                                  |  
@@ -712,8 +712,8 @@ The core financial sustainability of RelayAI depends on its integration with exi
 |                                                                                                         |  
 \+---------------------------------------------------------------------------------------------------------+
 
-* **National Health Insurance Scheme (NHIS) Integration**: Under the Free Maternal Care Policy, the National Health Insurance Authority (NHIA) waives registration fees and premiums for pregnant mothers, reimbursing clinics for maternal services11. RelayAI proposes integrating emergency transit costs directly into this reimbursement framework, allowing clinics to claim transit fees from the NHIS to replenish their local emergency wallets11.  
-* **Livelihood Empowerment Against Poverty (LEAP) Linkages**: The platform aligns with the LEAP program, which provides direct cash transfers and health insurance waivers to vulnerable households91. By integrating these social registries, RelayAI ensures that the poorest families receive complete, automated out-of-pocket exemptions during emergency transits11.
+* **National Health Insurance Scheme (NHIS) Integration**: Under the Free Maternal Care Policy, the National Health Insurance Authority (NHIA) waives registration fees and premiums for pregnant mothers, reimbursing clinics for maternal services11. Yoma Triage proposes integrating emergency transit costs directly into this reimbursement framework, allowing clinics to claim transit fees from the NHIS to replenish their local emergency wallets11.  
+* **Livelihood Empowerment Against Poverty (LEAP) Linkages**: The platform aligns with the LEAP program, which provides direct cash transfers and health insurance waivers to vulnerable households91. By integrating these social registries, Yoma Triage ensures that the poorest families receive complete, automated out-of-pocket exemptions during emergency transits11.
 
 ## **Part XV — Risks and Mitigations**
 
@@ -746,12 +746,12 @@ Deploying a clinical coordination platform in Northern Ghana's rural primary car
 
 ### **Phase 5: National Expansion and Global Good Certification (Months 25+)**
 
-* **Milestones**: Deploy RelayAI as a standardized, national clinical triage and emergency referral protocol integrated across all 16 regions of Ghana2. Transition the hosting and technical maintenance of the core servers to the GHS Central Health Information Management Unit15. Complete certification as a global digital health good to support replication across other low-resource primary care networks72.
+* **Milestones**: Deploy Yoma Triage as a standardized, national clinical triage and emergency referral protocol integrated across all 16 regions of Ghana2. Transition the hosting and technical maintenance of the core servers to the GHS Central Health Information Management Unit15. Complete certification as a global digital health good to support replication across other low-resource primary care networks72.
 
 ## **Part XVII — Conclusion and Recommendations**
 
 The analysis of rural primary healthcare systems in Northern Ghana indicates that reducing maternal and neonatal mortality depends on systematically resolving the second delay: the fragmentation of communication and transport coordination during emergency transit9. Traditional, uncoordinated voice calls and paper-based referral cards are insufficient under high cognitive loads and poor network conditions, contributing to preventable delays and negative outcomes38.  
-RelayAI offers a practical, highly resilient alternative by serving as an intelligent coordination layer designed to align with existing community resources and GHS protocols14. To ensure successful deployment and adoption, three key recommendations are proposed for pilot managers and policy stakeholders:
+Yoma Triage offers a practical, highly resilient alternative by serving as an intelligent coordination layer designed to align with existing community resources and GHS protocols14. To ensure successful deployment and adoption, three key recommendations are proposed for pilot managers and policy stakeholders:
 
 > 1. **Prioritize Edge-First Reliability**: Developers should maintain a strict focus on offline performance. Core clinical calculations, risk triage, and data compression must execute locally on-device, bypassing unstable cellular networks to protect patient safety20.  
 > 2. **Automate Transport Payouts**: Implementers should secure direct integrations with mobile money APIs to automate driver reimbursements. Providing instant, guaranteed payouts is essential to build driver trust and maintain active community transport networks17.  

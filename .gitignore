@@ -9,3 +9,8 @@ __pycache__/
 .superpowers/
 .worktrees/
 data/vector_store/
+docs/superpowers
+.cursor
+.ruff_cache
+.cursorrules
+.idea

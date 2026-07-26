@@ -1,4 +1,4 @@
-"""Run the RelayAI MVP's judge-visible local API demonstration."""
+"""Run the Yoma Triage MVP's judge-visible local API demonstration."""
 import asyncio
 import subprocess
 import sys
@@ -15,6 +15,8 @@ IBRAHIM = "+233240000001"
 MUSAH = "+233240000002"
 ABDUL = "+233240000003"
 HOSPITAL = "+233240000200"
+HAPPY_PATH_HASH = "0123456789abcdef" * 4
+DECLINE_PATH_HASH = "fedcba9876543210" * 4
 
 
 class Demo:
@@ -37,12 +39,11 @@ def ensure_seed() -> None:
         raise RuntimeError(result.stderr.strip() or "Unable to seed demo data")
 
 
-def critical_referral(patient_hash: str, patient_name: str) -> dict[str, Any]:
+def critical_referral(patient_hash: str) -> dict[str, Any]:
     return {
         "chps_compound_id": 1,
         "facility_id": 1,
         "patient_hash": patient_hash,
-        "patient_name": patient_name,
         "emergency_type": "Obstetric haemorrhage",
         "gestational_weeks": 38,
         "vitals": {
@@ -124,14 +125,16 @@ async def main() -> None:
             health.raise_for_status()
         except httpx.HTTPError as exc:
             raise RuntimeError(
-                "RelayAI API is unavailable at http://127.0.0.1:8000. "
+                "Yoma Triage API is unavailable at http://127.0.0.1:8000. "
                 "Start it with ./venv/bin/python main.py"
             ) from exc
 
         # Happy path: accept, mock payment, hospital notification, and confirmation.
         referral, dispatch = await create_referral(
-            client, critical_referral("demo-happy-path", "Ama")
+            client, critical_referral(HAPPY_PATH_HASH)
         )
+        assert "patient_name" not in referral
+        assert "Ama" not in str(referral)
         dispatch_id = dispatch["id"]
         demo.log(f"Referral created: #REF-{referral['id']:03d}")
         demo.log(
@@ -151,7 +154,7 @@ async def main() -> None:
         momo = next(log for log in accepted_logs if log["action"] == "momo_escrow")
         transaction_id = momo["metadata"]["transaction_id"]
         demo.log(f"Mock MoMo: GHS 22.50 fuel stipend logged (tx={transaction_id})")
-        demo.log("Hospital SMS: Tamale Teaching Hospital notified")
+        demo.log("Hospital SMS: Tamale Teaching Hospital notified (patient token only)")
 
         status = (await client.get(f"/api/v1/dispatch/{dispatch_id}")).json()["status"]
         assert status == "HOSPITAL_NOTIFIED"
@@ -165,9 +168,16 @@ async def main() -> None:
         assert confirmation.json()["status"] == "CONFIRMED"
         demo.log("Hospital: CONFIRM received ✓")
 
+        arrival_response = await ussd(client, IBRAHIM, "3")
+        assert "Arrival confirmed" in arrival_response
+        await wait_for_actions(client, dispatch_id, "arrival_confirm", "cho_arrival_notify")
+        completed = (await client.get(f"/api/v1/dispatch/{dispatch_id}")).json()["status"]
+        assert completed == "COMPLETED"
+        demo.log("Ibrahim: ARRIVAL confirmed via USSD ✓")
+
         # Decline path: Ibrahim declines; existing tier-one SMS reaches Musah and tier two reaches Abdul.
         _, decline_dispatch = await create_referral(
-            client, critical_referral("demo-decline-path", "Esi")
+            client, critical_referral(DECLINE_PATH_HASH)
         )
         decline_id = decline_dispatch["id"]
         demo.log(f"Referral created: #REF-{decline_dispatch['referral_id']:03d} (decline path)")
