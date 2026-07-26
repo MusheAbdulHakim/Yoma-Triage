@@ -8,7 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_db
-from src.db.models import CHPSCompound
+from src.db.models import CHPSCompound, Dispatch, Driver
 from src.services.driver_pool import DriverPoolManager
 
 router = APIRouter(prefix="/api/v1", tags=["Drivers"])
@@ -22,7 +22,7 @@ class AvailabilityUpdate(BaseModel):
     )
 
 
-def _driver_payload(driver) -> dict[str, Any]:
+def _driver_payload(driver: Driver) -> dict[str, Any]:
     return {
         "id": driver.id,
         "name": driver.name,
@@ -34,6 +34,34 @@ def _driver_payload(driver) -> dict[str, Any]:
         "is_active": driver.is_active,
         "availability": driver.availability,
     }
+
+
+def _active_dispatch_payload(dispatch: Dispatch | None) -> dict[str, Any] | None:
+    if dispatch is None:
+        return None
+    return {
+        "id": dispatch.id,
+        "referral_id": dispatch.referral_id,
+        "facility_id": dispatch.facility_id,
+        "status": dispatch.status,
+        "current_tier": dispatch.current_tier,
+    }
+
+
+@router.get("/driver/{driver_id}/status")
+async def get_driver_status(
+    driver_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """Return duty status and the driver's in-progress dispatch, if any."""
+    pool = DriverPoolManager()
+    driver = await pool.get_driver(session, driver_id)
+    if not driver:
+        raise HTTPException(status_code=404, detail="Driver not found")
+    active = await pool.get_active_dispatch(session, driver_id)
+    payload = _driver_payload(driver)
+    payload["active_dispatch"] = _active_dispatch_payload(active)
+    return payload
 
 
 @router.post("/driver/{driver_id}/availability")

@@ -1,12 +1,38 @@
+from __future__ import annotations
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.db.models import Driver
+from src.db.models import Dispatch, Driver
 
 VALID_AVAILABILITY = frozenset({"AVAILABLE", "ON_TRIP", "OFF_DUTY"})
+ACTIVE_DISPATCH_STATUSES = frozenset(
+    {
+        "ACCEPTED",
+        "HOSPITAL_NOTIFIED",
+        "HOSPITAL_CONFIRMED",
+    }
+)
 
 
 class DriverPoolManager:
+    async def get_driver(
+        self, session: AsyncSession, driver_id: int
+    ) -> Driver | None:
+        return await session.get(Driver, driver_id)
+
+    async def get_active_dispatch(
+        self, session: AsyncSession, driver_id: int
+    ) -> Dispatch | None:
+        return await session.scalar(
+            select(Dispatch)
+            .where(
+                Dispatch.driver_id == driver_id,
+                Dispatch.status.in_(ACTIVE_DISPATCH_STATUSES),
+            )
+            .order_by(Dispatch.id.desc())
+        )
+
     async def get_candidates(
         self,
         session: AsyncSession,
