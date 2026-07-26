@@ -101,7 +101,7 @@ async def process_inbound_sms(
 
     gateway = MessagingGateway()
     message = (
-        f"RelayAI diversion: referral #{referral.id} destination changed to "
+        f"Yoma Triage diversion: referral #{referral.id} destination changed to "
         f"{destination.name}."
     )
     recipients = []

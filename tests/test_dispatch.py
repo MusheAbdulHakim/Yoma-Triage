@@ -140,3 +140,43 @@ async def test_ussd_accept_queues_side_effects_in_background(monkeypatch):
     session.commit.assert_awaited_once()
     assert len(background_tasks.tasks) == 1
     assert background_tasks.tasks[0].args == (10, 3)
+
+
+@pytest.mark.asyncio
+async def test_two_drivers_accept_only_one_wins(db_session, seeded_db, monkeypatch):
+    """Claim race: first committed accept wins; second gets Already assigned."""
+    from src.db.models import Referral
+    from src.services.dispatch_orchestrator import DispatchOrchestrator
+
+    monkeypatch.setattr(
+        DispatchOrchestrator, "schedule_tier_timeouts", lambda self, *a, **k: None
+    )
+    gateway = MagicMock()
+    gateway.send_sms = AsyncMock(return_value={"status": "MOCKED", "provider": "mock"})
+    orch = DispatchOrchestrator(gateway=gateway)
+
+    referral = Referral(
+        chps_compound_id=1,
+        facility_id=1,
+        patient_hash="0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef",
+        emergency_type="Obstetric haemorrhage",
+        severity="RED",
+        risk_level="RED",
+        status="CONFIRMED",
+        client_request_id="bbbbbbbb-bbbb-bbbb-bbbb-bbbbbbbbbbbb",
+    )
+    db_session.add(referral)
+    await db_session.flush()
+    dispatch = await orch.initiate_dispatch(db_session, referral.id)
+    await db_session.commit()
+
+    first = await orch.handle_accept(db_session, dispatch.id, driver_id=1)
+    await db_session.commit()
+    second = await orch.handle_accept(db_session, dispatch.id, driver_id=2)
+    await db_session.commit()
+
+    assert first["run_side_effects"] is True
+    assert second == {"ussd": "END Already assigned.", "run_side_effects": False}
+    await db_session.refresh(dispatch)
+    assert dispatch.status == "ACCEPTED"
+    assert dispatch.driver_id == 1

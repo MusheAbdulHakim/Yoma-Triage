@@ -37,12 +37,12 @@ def disburse_fuel_stipend(driver_phone: str, amount_ghs: float) -> dict:
     payload = {
         "amount": str(amount_ghs),
         "currency": "GHS",
-        "externalId": f"RELAY-{tx_ref[:8]}",
+        "externalId": f"YOMA-{tx_ref[:8]}",
         "payee": {
             "partyIdType": "MSISDN",
             "partyId": driver_phone
         },
-        "payerMessage": "RelayAI Emergency Fuel Stipend",
+        "payerMessage": "Yoma Triage Emergency Fuel Stipend",
         "payeeNote": "30% Fuel Advance for Patient Referral"
     }
 

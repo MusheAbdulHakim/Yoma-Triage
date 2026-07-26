@@ -15,12 +15,25 @@ class Settings:
     MOMO_PRIMARY_KEY: str = os.getenv("MOMO_PRIMARY_KEY", "")
     DATABASE_URL: str = os.getenv(
         "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/relayai",
+        "postgresql+asyncpg://postgres:postgres@localhost:5432/yoma_triage",
     )
     AT_API_KEY: str = os.getenv("AT_API_KEY", "")
     AT_USERNAME: str = os.getenv("AT_USERNAME", "sandbox")
-    AT_SENDER_ID: str = os.getenv("AT_SENDER_ID", "RELAYAI")
+    AT_SENDER_ID: str = os.getenv("AT_SENDER_ID", "YOMATRIAGE")
     CASCADE_TIER_SECONDS: int = int(os.getenv("CASCADE_TIER_SECONDS", "5"))
+    CORS_ORIGINS: str = os.getenv(
+        "CORS_ORIGINS",
+        "http://localhost:8080,http://127.0.0.1:8080,"
+        "http://localhost:5000,http://127.0.0.1:5000",
+    )
+
+    @property
+    def cors_origins(self) -> list[str]:
+        return [
+            origin.strip()
+            for origin in self.CORS_ORIGINS.split(",")
+            if origin.strip()
+        ]
 
     @property
     def at_configured(self) -> bool:

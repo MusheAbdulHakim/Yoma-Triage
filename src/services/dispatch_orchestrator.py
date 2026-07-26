@@ -19,6 +19,7 @@ from src.services.messaging_gateway import MessagingGateway
 logger = logging.getLogger(__name__)
 
 CLAIMABLE = {"PENDING", "TIER1_NOTIFIED", "TIER2_NOTIFIED"}
+ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
 FUEL_STIPEND_GHS = 22.5
 
 
@@ -67,7 +68,7 @@ class DispatchOrchestrator:
         # never an attempt to contact an emergency contact.
         if tier >= 3 or (tier == 2 and not candidates):
             compound = await session.get(CHPSCompound, referral.chps_compound_id)
-            message = f"RelayAI: No driver for referral #{referral.id}. Coordinate manually."
+            message = f"Yoma Triage: No driver for referral #{referral.id}. Coordinate manually."
             result = await self.gateway.send_sms(
                 compound.cho_phone, message, dispatch.id, "cho"
             )
@@ -184,6 +185,92 @@ class DispatchOrchestrator:
             return {"ussd": "END Decline noted.", "run_side_effects": False}
 
         return {"ussd": "END Referral declined.", "run_side_effects": True}
+
+    async def handle_arrival(
+        self, session: AsyncSession, dispatch_id: int, driver_id: int
+    ) -> dict:
+        """Confirm patient arrival at hospital and mark dispatch complete."""
+        dispatch = await session.scalar(
+            select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+        )
+        if not dispatch:
+            return {"ussd": "END No active dispatch.", "run_side_effects": False}
+
+        if dispatch.status == "COMPLETED" and dispatch.driver_id == driver_id:
+            return {
+                "ussd": "END Arrival confirmed. Referral complete.",
+                "run_side_effects": False,
+            }
+
+        if dispatch.driver_id != driver_id:
+            return {
+                "ussd": "END You are not assigned to this dispatch.",
+                "run_side_effects": False,
+            }
+
+        if dispatch.status not in ARRIVAL_ELIGIBLE:
+            return {
+                "ussd": "END Arrival not available yet.",
+                "run_side_effects": False,
+            }
+
+        dispatch.status = "COMPLETED"
+        dispatch.completed_at = datetime.now(UTC)
+        session.add(
+            DispatchLog(
+                dispatch_id=dispatch.id,
+                action="arrival_confirm",
+                target_role="driver",
+                response="COMPLETED",
+                metadata_json={"driver_id": driver_id},
+            )
+        )
+        return {
+            "ussd": "END Arrival confirmed. Referral complete.",
+            "run_side_effects": True,
+        }
+
+    async def run_arrival_side_effects(self, dispatch_id: int, driver_id: int) -> None:
+        """Notify CHO once after a successful arrival confirmation."""
+        async with async_session() as session:
+            dispatch = await session.scalar(
+                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+            )
+            if (
+                not dispatch
+                or dispatch.status != "COMPLETED"
+                or dispatch.driver_id != driver_id
+            ):
+                return
+
+            existing = await session.scalar(
+                select(DispatchLog).where(
+                    DispatchLog.dispatch_id == dispatch_id,
+                    DispatchLog.action == "cho_arrival_notify",
+                )
+            )
+            if existing:
+                return
+
+            referral = await session.get(Referral, dispatch.referral_id)
+            compound = await session.get(CHPSCompound, referral.chps_compound_id)
+            message = (
+                f"Yoma Triage: Patient arrived at hospital for referral #{referral.id}."
+            )
+            result = await self.gateway.send_sms(
+                compound.cho_phone, message, dispatch_id, "cho"
+            )
+            session.add(
+                DispatchLog(
+                    dispatch_id=dispatch_id,
+                    action="cho_arrival_notify",
+                    target_phone=compound.cho_phone,
+                    target_role="cho",
+                    response=result["status"],
+                    metadata_json=result,
+                )
+            )
+            await session.commit()
 
     async def run_accept_side_effects(self, dispatch_id: int, driver_id: int) -> None:
         """Run payment and hospital notification once after a successful claim."""

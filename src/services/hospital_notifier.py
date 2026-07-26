@@ -16,10 +16,11 @@ class HospitalNotifier:
         facility: Facility,
         dispatch_id: int,
     ) -> None:
+        token = referral.patient_hash[:12]
         message = (
-            "RELAYAI EMERGENCY REFERRAL\n"
+            "YOMA TRIAGE EMERGENCY REFERRAL\n"
             f"From compound #{referral.chps_compound_id}\n"
-            f"Patient: {referral.patient_name}\n"
+            f"Patient token: {token}\n"
             f"Condition: {referral.emergency_type}\n"
             f"Severity: {referral.risk_level}\n"
             f"Driver: {driver.name}\n"

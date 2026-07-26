@@ -38,4 +38,4 @@ workflow.add_edge("clinical_assessment", "prepare_dispatch")
 workflow.add_edge("prepare_dispatch", END)
 
 # Compile Executable Graph
-relayai_graph = workflow.compile()
+yoma_graph = workflow.compile()

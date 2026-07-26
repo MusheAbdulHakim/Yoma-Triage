@@ -1,27 +1,15 @@
-"""Shared test fixtures for RelayAI backend tests."""
+"""Shared test fixtures for Yoma Triage backend tests."""
 from __future__ import annotations
 
-import asyncio
 from typing import AsyncGenerator
 
 import pytest
 import pytest_asyncio
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import create_engine, event
 from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
 
 from src.db.database import Base, get_db
 from src.db.models import CHPSCompound, Driver, Facility
-
-
-# ---------------------------------------------------------------------------
-# Event loop fixture (session-scoped for speed)
-# ---------------------------------------------------------------------------
-@pytest.fixture(scope="session")
-def event_loop():
-    loop = asyncio.new_event_loop()
-    yield loop
-    loop.close()
 
 
 # ---------------------------------------------------------------------------
@@ -91,7 +79,7 @@ async def seed_drivers(db_session: AsyncSession, seed_compounds):
             chps_compound_id=1,
             is_motor_king=True,
             is_active=True,
-            availability="available",
+            availability="AVAILABLE",
         ),
         Driver(
             id=2,
@@ -102,7 +90,7 @@ async def seed_drivers(db_session: AsyncSession, seed_compounds):
             chps_compound_id=1,
             is_motor_king=True,
             is_active=True,
-            availability="available",
+            availability="AVAILABLE",
         ),
         Driver(
             id=3,
@@ -113,7 +101,7 @@ async def seed_drivers(db_session: AsyncSession, seed_compounds):
             chps_compound_id=1,
             is_motor_king=False,
             is_active=True,
-            availability="available",
+            availability="AVAILABLE",
         ),
     ]
     db_session.add_all(drivers)
@@ -172,7 +160,7 @@ async def seeded_db(db_session: AsyncSession):
             chps_compound_id=1,
             is_motor_king=True,
             is_active=True,
-            availability="available",
+            availability="AVAILABLE",
         ),
         Driver(
             id=2,
@@ -183,7 +171,7 @@ async def seeded_db(db_session: AsyncSession):
             chps_compound_id=1,
             is_motor_king=True,
             is_active=True,
-            availability="available",
+            availability="AVAILABLE",
         ),
         Driver(
             id=3,
@@ -194,7 +182,7 @@ async def seeded_db(db_session: AsyncSession):
             chps_compound_id=1,
             is_motor_king=False,
             is_active=True,
-            availability="available",
+            availability="AVAILABLE",
         ),
     ]
     facilities = [
@@ -273,14 +261,16 @@ def sample_normal_vitals():
     }
 
 
+VALID_PATIENT_HASH = "0123456789abcdef" * 4
+
+
 @pytest.fixture
 def sample_referral_payload():
     """Sample referral creation payload."""
     return {
         "chps_compound_id": 1,
         "facility_id": 1,
-        "patient_hash": "demo-test-hash",
-        "patient_name": "Test Patient",
+        "patient_hash": VALID_PATIENT_HASH,
         "emergency_type": "Obstetric haemorrhage",
         "gestational_weeks": 38,
         "client_request_id": "11111111-1111-1111-1111-111111111111",

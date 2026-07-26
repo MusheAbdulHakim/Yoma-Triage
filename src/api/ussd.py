@@ -1,15 +1,36 @@
 """
 USSD Webhook Receiver for Ghana Telecom Gateways (Arkesel / Hubtel).
 """
+from __future__ import annotations
+
 from fastapi import APIRouter, BackgroundTasks, Depends, Form, Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.database import get_db
 from src.db.models import Dispatch, Driver, Referral
-from src.services.dispatch_orchestrator import CLAIMABLE, DispatchOrchestrator
+from src.services.dispatch_orchestrator import (
+    ARRIVAL_ELIGIBLE,
+    CLAIMABLE,
+    DispatchOrchestrator,
+)
 
 router = APIRouter(prefix="/ussd", tags=["USSD Gateway"])
+
+ROOT_MENU = (
+    "CON Yoma Triage Emergency Referral\n"
+    "1. Accept\n"
+    "2. Decline\n"
+    "3. Confirm arrival"
+)
+
+
+def _menu_choice(user_input: str) -> str | None:
+    if user_input in {"1", "2", "3"}:
+        return user_input
+    if user_input and user_input[-1] in {"1", "2", "3"}:
+        return user_input[-1]
+    return None
 
 
 async def process_ussd(
@@ -22,19 +43,42 @@ async def process_ussd(
     user_input = text.strip()
 
     if user_input == "":
-        return Response(
-            content="CON RelayAI Emergency Referral\n1. Accept\n2. Decline",
-            media_type="text/plain",
-        )
+        return Response(content=ROOT_MENU, media_type="text/plain")
 
-    if not (user_input == "1" or user_input.endswith("1")) and not (
-        user_input == "2" or user_input.endswith("2")
-    ):
+    choice = _menu_choice(user_input)
+    if choice is None:
         return Response(content="END Invalid option selected.", media_type="text/plain")
 
     driver = await session.scalar(select(Driver).where(Driver.phone == phone_number))
     if not driver:
         return Response(content="END Unknown driver.", media_type="text/plain")
+
+    orchestrator = DispatchOrchestrator()
+
+    if choice == "3":
+        dispatch = await session.scalar(
+            select(Dispatch)
+            .join(Referral, Dispatch.referral_id == Referral.id)
+            .where(
+                Referral.chps_compound_id == driver.chps_compound_id,
+                Dispatch.driver_id == driver.id,
+                or_(
+                    Dispatch.status.in_(ARRIVAL_ELIGIBLE),
+                    Dispatch.status == "COMPLETED",
+                ),
+            )
+            .order_by(Dispatch.initiated_at.desc())
+        )
+        if not dispatch:
+            return Response(content="END No active dispatch.", media_type="text/plain")
+
+        result = await orchestrator.handle_arrival(session, dispatch.id, driver.id)
+        await session.commit()
+        if result["run_side_effects"]:
+            background_tasks.add_task(
+                orchestrator.run_arrival_side_effects, dispatch.id, driver.id
+            )
+        return Response(content=result["ussd"], media_type="text/plain")
 
     dispatch = await session.scalar(
         select(Dispatch)
@@ -51,8 +95,7 @@ async def process_ussd(
     if not dispatch:
         return Response(content="END No active dispatch.", media_type="text/plain")
 
-    orchestrator = DispatchOrchestrator()
-    if user_input == "1" or user_input.endswith("1"):
+    if choice == "1":
         result = await orchestrator.handle_accept(session, dispatch.id, driver.id)
         await session.commit()
         if result["run_side_effects"]:
