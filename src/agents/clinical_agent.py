@@ -1,8 +1,14 @@
 """
-Clinical Reasoning Node: Validates patient vitals using MOEWS, pulls GHS guidance via RAG,
-and synthesizes a triage summary using Google Gemini.
+Clinical reasoning node (MOEWS-first).
+
+Risk level is ALWAYS from deterministic MOEWS. RAG cites GHS-aligned demo
+protocols; Gemini (if GEMINI_API_KEY set) may only add an advisory
+`protocol_assist` string — never override risk. Without Gemini/RAG the
+referral path still completes with a structured template summary.
 """
-import contextlib
+from __future__ import annotations
+
+import logging
 from typing import Any
 
 from src.agents.state import ReferralState
@@ -10,8 +16,16 @@ from src.config import settings
 from src.rag.engine import ProtocolRAGEngine
 from src.tools.moews_calculator import calculate_moews
 
+logger = logging.getLogger(__name__)
+
 rag_engine: ProtocolRAGEngine | None = None
 llm: Any = None
+
+_UNKNOWN_RESULT = {
+    "moews_score": None,
+    "risk_level": "UNKNOWN",
+    "triggered_flags": ["assessment_error"],
+}
 
 
 def _get_rag_engine() -> ProtocolRAGEngine | None:
@@ -19,15 +33,16 @@ def _get_rag_engine() -> ProtocolRAGEngine | None:
     global rag_engine
     if rag_engine is None:
         try:
-            rag_engine = ProtocolRAGEngine()
+            rag_engine = ProtocolRAGEngine(persist_directory=settings.VECTOR_STORE_DIR)
             rag_engine.seed_initial_protocols()
-        except Exception:
+        except (OSError, ImportError, RuntimeError, ValueError) as exc:
+            logger.warning("RAG engine unavailable: %s", exc)
             return None
     return rag_engine
 
 
 def _get_llm() -> Any:
-    """Return Gemini only when it is configured and available."""
+    """Return Gemini only when configured and importable."""
     global llm
     if llm is None and settings.GEMINI_API_KEY:
         try:
@@ -37,8 +52,11 @@ def _get_llm() -> Any:
                 model=settings.DEFAULT_GEMINI_MODEL,
                 google_api_key=settings.GEMINI_API_KEY,
                 temperature=0.2,
+                max_retries=1,
+                timeout=10,
             )
-        except Exception:
+        except (ImportError, OSError, RuntimeError, ValueError) as exc:
+            logger.warning("Gemini LLM unavailable: %s", exc)
             return None
     return llm
 
@@ -47,63 +65,121 @@ def _consciousness_code(value: Any) -> str:
     return "A" if str(value or "A").strip().upper() in {"A", "ALERT"} else str(value)
 
 
-def _template_summary(state: ReferralState, moews_result: dict) -> str:
+def _structured_summary(
+    state: ReferralState,
+    moews_result: dict[str, Any],
+    citations: list[str],
+) -> str:
+    """Deterministic hospital-facing summary; MOEWS is authoritative."""
+    ga = state.get("gestational_weeks", "unknown")
+    flags = moews_result.get("triggered_flags") or []
+    flag_bit = f" Flags: {', '.join(flags)}." if flags else ""
+    cite_bit = ""
+    if citations:
+        snippet = citations[0][:180].rstrip()
+        cite_bit = f" Protocol: {snippet}"
+        if len(citations[0]) > 180:
+            cite_bit += "…"
+    score = moews_result.get("moews_score")
+    score_txt = "n/a" if score is None else str(score)
     return (
         f"Maternal referral assessment: {moews_result['risk_level']} risk "
-        f"(MOEWS {moews_result['moews_score']}). "
-        f"Gestational age: {state.get('gestational_weeks', 'unknown')} weeks."
+        f"(MOEWS {score_txt}). "
+        f"Gestational age: {ga} weeks.{flag_bit}{cite_bit}"
     )
+
+
+def _optional_protocol_assist(
+    vitals: dict[str, Any],
+    state: ReferralState,
+    moews_result: dict[str, Any],
+    citations: list[str],
+) -> str | None:
+    """
+    Non-authoritative Gemini assist. Prefixed so callers never treat it as risk.
+    """
+    model = _get_llm()
+    if not model:
+        return None
+    prompt = (
+        "You assist Ghana Health Service emergency referral. "
+        "MOEWS risk is already fixed and MUST NOT be contradicted. "
+        "In at most 2 short sentences, restate relevant protocol actions from the "
+        "GHS context for the receiving hospital. Do not invent diagnoses. "
+        "Do not change or restate a different risk colour.\n\n"
+        f"Fixed MOEWS: score={moews_result.get('moews_score')} "
+        f"risk={moews_result.get('risk_level')}\n"
+        f"Vitals: SBP={vitals.get('systolic_bp')} DBP={vitals.get('diastolic_bp')} "
+        f"HR={vitals.get('heart_rate')} GA={state.get('gestational_weeks', 'unknown')}\n"
+        f"GHS context: {citations[:2]}\n"
+    )
+    try:
+        raw = model.invoke(prompt).content
+        text = raw if isinstance(raw, str) else str(raw)
+        text = text.strip()
+        if not text:
+            return None
+        return f"[advisory protocol assist] {text}"
+    except Exception as exc:
+        logger.warning("Gemini protocol assist failed: %s", exc)
+        return None
+
 
 def run_clinical_assessment(state: ReferralState) -> ReferralState:
     """
-    Evaluates maternal vitals, calculates deterministic MOEWS score,
-    pulls relevant GHS clinical protocols, and uses Gemini for clinical summarization.
+    MOEWS → optional RAG citations → structured summary → optional Gemini assist.
+    Never blocks on RAG/LLM failure; never lets LLM set risk_level.
     """
-    vitals = state.get("vitals", {})
+    vitals = state.get("vitals") or {}
+    errors = list(state.get("errors") or [])
 
-    # 1. Execute deterministic MOEWS scoring tool
-    moews_result = calculate_moews.invoke({
-        "sbp": vitals.get("systolic_bp"),
-        "dbp": vitals.get("diastolic_bp"),
-        "hr": vitals.get("heart_rate"),
-        "rr": vitals.get("respiratory_rate"),
-        "temp": vitals.get("temperature"),
-        "spo2": vitals.get("spo2"),
-        "consciousness": _consciousness_code(vitals.get("consciousness_level")),
-    })
+    try:
+        moews_result = calculate_moews.invoke(
+            {
+                "sbp": vitals.get("systolic_bp"),
+                "dbp": vitals.get("diastolic_bp"),
+                "hr": vitals.get("heart_rate"),
+                "rr": vitals.get("respiratory_rate"),
+                "temp": vitals.get("temperature"),
+                "spo2": vitals.get("spo2"),
+                "consciousness": _consciousness_code(vitals.get("consciousness_level")),
+            }
+        )
+    except (TypeError, ValueError, KeyError, RuntimeError) as exc:
+        logger.exception("MOEWS assessment failed: %s", exc)
+        moews_result = dict(_UNKNOWN_RESULT)
+        errors.append("moews_assessment_failed")
+        state["moews_score"] = None
+        state["risk_level"] = "UNKNOWN"
+        state["retrieved_protocol_citations"] = []
+        state["clinical_summary"] = (
+            "Clinical assessment unavailable — use clinical judgment (UNKNOWN risk)."
+        )
+        state["protocol_assist"] = None
+        state["errors"] = errors
+        return state
 
-    # 2. Query vector DB for GHS referral guidelines
-    query_str = f"MOEWS risk {moews_result['risk_level']} score {moews_result['moews_score']} pregnant referral protocol"
+    query_str = (
+        f"MOEWS risk {moews_result['risk_level']} score {moews_result['moews_score']} "
+        "pregnant referral protocol eclampsia haemorrhage transport"
+    )
     retrieved_docs: list[str] = []
     engine = _get_rag_engine()
     if engine:
         try:
             retrieved_docs = engine.query_protocols(query_str, k=2)
-        except Exception:
+        except (OSError, RuntimeError, ValueError) as exc:
+            logger.warning("RAG query failed: %s", exc)
             retrieved_docs = []
+            errors.append("rag_query_failed")
 
-    # 3. Prompt Gemini for a clinical summary using the retrieved context
-    prompt = f"""
-    You are an emergency maternal care AI assistant for Ghana Health Service (GHS).
-    Synthesize a 2-sentence concise clinical assessment for the receiving hospital.
+    summary = _structured_summary(state, moews_result, retrieved_docs)
+    assist = _optional_protocol_assist(vitals, state, moews_result, retrieved_docs)
 
-    Patient Vitals: SBP {vitals.get('systolic_bp')} mmHg, DBP {vitals.get('diastolic_bp')} mmHg, HR {vitals.get('heart_rate')} bpm, Gestational Weeks {state.get('gestational_weeks', 'unknown')}.
-    Calculated MOEWS Score: {moews_result['moews_score']} ({moews_result['risk_level']} Risk).
-    GHS Guidelines Context: {retrieved_docs}
-
-    Provide only a professional, structured clinical triage summary:
-    """
-
-    summary = _template_summary(state, moews_result)
-    model = _get_llm()
-    if model:
-        with contextlib.suppress(Exception):
-            summary = model.invoke(prompt).content
-
-    # 4. Update LangGraph state
-    state["moews_score"] = moews_result["moews_score"]
-    state["risk_level"] = moews_result["risk_level"]
+    state["moews_score"] = moews_result.get("moews_score")
+    state["risk_level"] = moews_result.get("risk_level") or "UNKNOWN"
     state["retrieved_protocol_citations"] = retrieved_docs
     state["clinical_summary"] = summary
-
+    state["protocol_assist"] = assist
+    state["errors"] = errors
     return state

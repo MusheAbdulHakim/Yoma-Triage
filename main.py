@@ -2,18 +2,21 @@
 Yoma Triage Emergency Logistics Engine
 Single Master Entry Point serving FastAPI Webhooks and LangGraph Workflows.
 """
+from __future__ import annotations
+
 from contextlib import asynccontextmanager
+from typing import Any
 
 import uvicorn
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.agents.coordinator import yoma_graph
-from src.config import settings
 from src.api.driver import router as driver_router
 from src.api.referral import router as referral_router
 from src.api.sms_webhook import router as sms_router
 from src.api.ussd import router as ussd_router
+from src.config import settings
 from src.db.database import init_db
 
 
@@ -47,25 +50,29 @@ app.include_router(referral_router)
 app.include_router(sms_router)
 app.include_router(driver_router)
 
+
 @app.get("/")
 def health_check():
     """Health check endpoint for local/server monitoring."""
     return {
         "status": "online",
         "system": "Yoma Triage Emergency Logistics Engine",
-        "network_mode": "2G SMS / USSD Enabled"
+        "network_mode": "2G SMS / USSD Enabled",
     }
 
+
 @app.post("/test-referral")
-def run_test_referral(payload: dict):
+def run_test_referral(payload: dict[str, Any]):
     """
-    HTTP endpoint to trigger a test run of the multi-agent graph.
-    Pass JSON with vitals to test clinical reasoning and 2G SMS encoding.
+    Dev-only graph smoke endpoint. Disabled when ENVIRONMENT=production.
+    Prefer POST /api/v1/referral for real referral + dispatch.
     """
+    if settings.ENVIRONMENT.lower() == "production":
+        raise HTTPException(status_code=404, detail="Not found")
     result = yoma_graph.invoke(payload)
     return result
 
+
 if __name__ == "__main__":
-    # Start the FastAPI server on port 8000
     print("--- Starting Yoma Triage Web Gateway on http://0.0.0.0:8000 ---")
     uvicorn.run("main:app", host="0.0.0.0", port=8000, reload=True)

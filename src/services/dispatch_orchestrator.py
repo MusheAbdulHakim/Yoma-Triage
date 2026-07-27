@@ -23,6 +23,37 @@ ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
 FUEL_STIPEND_GHS = 22.5
 
 
+def build_driver_offer_message(
+    *,
+    tier: int,
+    compound_id: int,
+    referral_id: int,
+    vehicle_label: str,
+    ussd_code: str | None = None,
+) -> str:
+    """SMS body for cascade driver offers (tier 1 Motor-King, tier 2 personal)."""
+    if tier <= 1:
+        role = "Motor-King"
+    else:
+        role = vehicle_label or "Personal vehicle"
+        if "personal" in role.lower():
+            role = "Personal vehicle backup"
+    code = (ussd_code if ussd_code is not None else settings.AT_USSD_SERVICE_CODE).strip()
+    dial = f"Dial {code} to ACCEPT." if code else "Dial USSD to ACCEPT."
+    return (
+        f"Yoma: {role} needed. CHPS #{compound_id} Ref #{referral_id}. "
+        f"{dial}"
+    )
+
+
+def build_cho_escalation_message(*, referral_id: int, compound_id: int) -> str:
+    """Tier-3 / no-candidate CHO message — NAS / manual ambulance coordination."""
+    return (
+        f"Yoma: Tier3 — no transport for Ref #{referral_id} (CHPS #{compound_id}). "
+        f"Escalate NAS / coordinate ambulance manually."
+    )
+
+
 class DispatchOrchestrator:
     def __init__(self, gateway: MessagingGateway | None = None):
         self.gateway = gateway or MessagingGateway()
@@ -68,7 +99,10 @@ class DispatchOrchestrator:
         # never an attempt to contact an emergency contact.
         if tier >= 3 or (tier == 2 and not candidates):
             compound = await session.get(CHPSCompound, referral.chps_compound_id)
-            message = f"Yoma Triage: No driver for referral #{referral.id}. Coordinate manually."
+            message = build_cho_escalation_message(
+                referral_id=referral.id,
+                compound_id=referral.chps_compound_id,
+            )
             result = await self.gateway.send_sms(
                 compound.cho_phone, message, dispatch.id, "cho"
             )
@@ -87,9 +121,11 @@ class DispatchOrchestrator:
 
         dispatch.status = f"TIER{tier}_NOTIFIED"
         for driver in candidates:
-            message = (
-                f"EMERGENCY: Patient at compound #{referral.chps_compound_id}. "
-                f"Dial USSD to accept. Ref #{referral.id}"
+            message = build_driver_offer_message(
+                tier=tier,
+                compound_id=referral.chps_compound_id,
+                referral_id=referral.id,
+                vehicle_label=driver.vehicle_type or "Personal vehicle",
             )
             result = await self.gateway.send_sms(
                 driver.phone, message, dispatch.id, "driver"

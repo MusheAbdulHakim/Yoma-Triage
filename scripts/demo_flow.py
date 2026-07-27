@@ -119,7 +119,7 @@ async def main() -> None:
     ensure_seed()
     demo.log("Seed data ready: Tamale South CHPS, drivers, and hospitals")
 
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=10.0) as client:
+    async with httpx.AsyncClient(base_url=BASE_URL, timeout=30.0) as client:
         try:
             health = await client.get("/")
             health.raise_for_status()

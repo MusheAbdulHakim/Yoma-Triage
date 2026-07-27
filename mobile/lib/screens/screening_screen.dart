@@ -5,6 +5,8 @@ import 'package:flutter/material.dart';
 
 import '../services/screening_result.dart';
 import '../services/screening_service.dart';
+import '../theme/yoma_theme.dart';
+import '../widgets/breathing_pulse.dart';
 import 'result_screen.dart';
 
 class ScreeningScreen extends StatefulWidget {
@@ -79,6 +81,8 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     try {
       if (_isWebSimulator) {
         result = _screening.simulate(forceRed: forceRed);
+        // Brief pause so the breath pulse is visible in the web demo.
+        await Future<void>.delayed(const Duration(milliseconds: 700));
       } else if (_error != null || !_recording) {
         result = stubClassify(forceRed: forceRed);
       } else {
@@ -97,6 +101,11 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
       unawaited(_screening.dispose());
       return;
     }
+    // Result ready — stop the pulse immediately, then leave the screen.
+    setState(() {
+      _analyzing = false;
+      _recording = false;
+    });
     await Navigator.of(context).pushReplacement(
       MaterialPageRoute(builder: (_) => ResultScreen(result: result)),
     );
@@ -129,6 +138,12 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     );
   }
 
+  String get _androidStatusText {
+    if (_analyzing) return 'Checking breath…';
+    if (_recording) return 'Listening… $_remaining s left';
+    return _error ?? 'Starting microphone…';
+  }
+
   Widget _buildWebSimulator() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -143,22 +158,38 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
           style: TextStyle(color: Colors.grey.shade700),
         ),
         const Spacer(),
+        if (_analyzing) ...[
+          const Center(
+            child: BreathingPulse(
+              active: true,
+              child: Text(
+                'Checking…',
+                style: TextStyle(
+                  fontSize: 22,
+                  fontWeight: FontWeight.w600,
+                  color: YomaColors.brand,
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+        ],
         FilledButton(
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(64),
-            backgroundColor: const Color(0xFF2E7D32),
+            backgroundColor: YomaColors.safe,
           ),
           onPressed: _analyzing ? null : () => _finish(forceRed: false),
-          child: const Text('Demo Normal'),
+          child: Text(_analyzing ? 'Checking…' : 'Demo Normal'),
         ),
         const SizedBox(height: 16),
         FilledButton(
           style: FilledButton.styleFrom(
             minimumSize: const Size.fromHeight(64),
-            backgroundColor: const Color(0xFFC62828),
+            backgroundColor: YomaColors.danger,
           ),
           onPressed: _analyzing ? null : () => _finish(forceRed: true),
-          child: const Text('Demo Code Red'),
+          child: Text(_analyzing ? 'Checking…' : 'Demo Code Red'),
         ),
         const Spacer(),
       ],
@@ -166,6 +197,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
   }
 
   Widget _buildAndroidCapture() {
+    final pulsing = _recording || _analyzing;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -175,9 +207,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          _recording
-              ? 'Recording for $_remaining s (YAMNet or stub if model missing)'
-              : (_error ?? 'Starting microphone…'),
+          _androidStatusText,
           style: TextStyle(color: Colors.grey.shade700),
         ),
         if (_error != null) ...[
@@ -189,12 +219,15 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         ],
         const Spacer(),
         Center(
-          child: Text(
-            '$_remaining',
-            style: const TextStyle(
-              fontSize: 72,
-              fontWeight: FontWeight.bold,
-              color: Color(0xFF1A5F7A),
+          child: BreathingPulse(
+            active: pulsing,
+            child: Text(
+              _analyzing ? '…' : '$_remaining',
+              style: const TextStyle(
+                fontSize: 72,
+                fontWeight: FontWeight.bold,
+                color: YomaColors.brand,
+              ),
             ),
           ),
         ),
@@ -204,7 +237,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
             minimumSize: const Size.fromHeight(56),
           ),
           onPressed: _analyzing ? null : () => _finish(forceRed: false),
-          child: Text(_analyzing ? 'Analyzing…' : 'Stop & Analyze Early'),
+          child: Text(_analyzing ? 'Checking breath…' : 'Stop & Analyze Early'),
         ),
       ],
     );

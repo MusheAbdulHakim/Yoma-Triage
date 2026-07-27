@@ -47,7 +47,9 @@ def test_clinical_rag_initialization_seeds_protocols(monkeypatch):
 
     engine = MagicMock()
     monkeypatch.setattr(clinical_agent, "rag_engine", None)
-    monkeypatch.setattr(clinical_agent, "ProtocolRAGEngine", lambda: engine)
+    monkeypatch.setattr(
+        clinical_agent, "ProtocolRAGEngine", lambda *args, **kwargs: engine
+    )
 
     assert clinical_agent._get_rag_engine() is engine
     engine.seed_initial_protocols.assert_called_once_with()

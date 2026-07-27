@@ -126,13 +126,11 @@ async def test_ussd_accept_queues_side_effects_in_background(monkeypatch):
     monkeypatch.setattr(ussd, "DispatchOrchestrator", lambda: orchestrator)
     background_tasks = BackgroundTasks()
 
-    response = await ussd.handle_ussd(
-        session_id="session-1",
-        service_code="*123#",
-        phone_number="+233240000003",
-        text="1",
-        session=session,
-        background_tasks=background_tasks,
+    response = await ussd.process_ussd(
+        session,
+        background_tasks,
+        "+233240000003",
+        "1",
     )
 
     assert response.body == b"END Accepted!"

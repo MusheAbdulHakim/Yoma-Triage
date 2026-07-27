@@ -8,6 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
 from src.services.messaging_gateway import MessagingGateway
+from src.utils.phones import normalize_ghana_phone
 
 router = APIRouter(prefix="/api/v1/sms", tags=["SMS Gateway"])
 
@@ -15,18 +16,6 @@ router = APIRouter(prefix="/api/v1/sms", tags=["SMS Gateway"])
 class InboundSMS(BaseModel):
     from_: str = Field(alias="from")
     text: str
-
-
-def _normalize_ghana_phone(phone: str) -> str:
-    """Normalize local Ghana phone numbers to their +233 representation."""
-    normalized = "".join(str(phone).split())
-    if normalized.startswith("+233"):
-        return normalized
-    if normalized.startswith("233"):
-        return f"+{normalized}"
-    if normalized.startswith("0"):
-        return f"+233{normalized[1:]}"
-    return f"+233{normalized}"
 
 
 def _parse_command(text: str) -> tuple[str, int, int | None]:
@@ -59,7 +48,7 @@ async def process_inbound_sms(
     current_facility = await session.get(Facility, dispatch.facility_id)
     if not current_facility:
         raise ValueError("Current facility not found")
-    if _normalize_ghana_phone(sender) != _normalize_ghana_phone(current_facility.phone):
+    if normalize_ghana_phone(sender) != normalize_ghana_phone(current_facility.phone):
         raise ValueError("Unauthorized sender")
     if dispatch.status not in {"ACCEPTED", "HOSPITAL_NOTIFIED"}:
         raise ValueError("Hospital command not available for this dispatch status")

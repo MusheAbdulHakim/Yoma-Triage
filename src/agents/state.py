@@ -1,6 +1,8 @@
 """
 Defines the shared state for the LangGraph multi-agent workflow.
 """
+from __future__ import annotations
+
 from typing import TypedDict
 
 
@@ -13,18 +15,20 @@ class PatientVitals(TypedDict, total=False):
     spo2: int | None
     consciousness_level: str  # 'alert', 'voice', 'pain', 'unresponsive'
 
-class ReferralState(TypedDict):
+
+class ReferralState(TypedDict, total=False):
     # Context
     chps_id: str
     patient_hash: str
     gestational_weeks: int
     vitals: PatientVitals
 
-    # Clinical Agent Outputs
+    # Clinical Agent Outputs (risk_level ALWAYS from MOEWS)
     moews_score: int | None
     risk_level: str | None  # 'GREEN', 'YELLOW', 'RED', 'UNKNOWN'
     clinical_summary: str | None
     retrieved_protocol_citations: list[str] | None
+    protocol_assist: str | None  # optional Gemini advisory; never authoritative
 
     # Dispatch Agent Outputs
     assigned_driver_id: str | None

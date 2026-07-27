@@ -3,6 +3,21 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:yoma_triage/screens/screening_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+/// Advance frames without [pumpAndSettle], which hangs on the breath pulse.
+Future<void> pumpUntilFound(
+  WidgetTester tester,
+  Finder finder, {
+  Duration step = const Duration(milliseconds: 100),
+  int maxSteps = 40,
+}) async {
+  for (var i = 0; i < maxSteps; i++) {
+    await tester.pump(step);
+    if (finder.evaluate().isNotEmpty) return;
+  }
+  // Final pump for any pending navigation.
+  await tester.pump();
+}
+
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
@@ -18,9 +33,12 @@ void main() {
     );
     expect(find.text('Demo Code Red'), findsOneWidget);
     await tester.tap(find.text('Demo Code Red'));
-    await tester.pumpAndSettle();
+    await tester.pump();
+    expect(find.byKey(const Key('breathing_pulse_rings')), findsOneWidget);
+    await pumpUntilFound(tester, find.text('Confirm Referral'));
     expect(find.text('RED'), findsOneWidget);
     expect(find.text('Confirm Referral'), findsOneWidget);
     expect(find.text('Continue Monitoring'), findsOneWidget);
+    expect(find.byKey(const Key('breathing_pulse_rings')), findsNothing);
   });
 }

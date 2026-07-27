@@ -9,7 +9,7 @@ class Settings:
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
-    DEFAULT_GEMINI_MODEL: str = "gemini-1.5-flash"
+    DEFAULT_GEMINI_MODEL: str = "gemini-2.0-flash"
     VECTOR_STORE_DIR: str = os.getenv("VECTOR_STORE_DIR", "./data/vector_store")
     MOMO_API_URL: str = os.getenv("MOMO_API_URL", "https://sandbox.momodeveloper.mtn.com")
     MOMO_PRIMARY_KEY: str = os.getenv("MOMO_PRIMARY_KEY", "")
@@ -20,6 +20,12 @@ class Settings:
     AT_API_KEY: str = os.getenv("AT_API_KEY", "")
     AT_USERNAME: str = os.getenv("AT_USERNAME", "sandbox")
     AT_SENDER_ID: str = os.getenv("AT_SENDER_ID", "YOMATRIAGE")
+    # USSD shortcode registered with Africa's Talking (e.g. *384*99193#).
+    # Used in driver SMS copy and optional callback validation — never hardcode in app logic.
+    AT_USSD_SERVICE_CODE: str = os.getenv("AT_USSD_SERVICE_CODE", "")
+    # Override SMS API host. Empty → sandbox host when username is "sandbox", else live.
+    AT_API_BASE_URL: str = os.getenv("AT_API_BASE_URL", "")
+    # Demo default is 5s; field/pilot should use minutes (e.g. 60–180) via env.
     CASCADE_TIER_SECONDS: int = int(os.getenv("CASCADE_TIER_SECONDS", "5"))
     CORS_ORIGINS: str = os.getenv(
         "CORS_ORIGINS",
@@ -38,5 +44,17 @@ class Settings:
     @property
     def at_configured(self) -> bool:
         return bool(self.AT_API_KEY and self.AT_USERNAME)
+
+    @property
+    def at_api_base_url(self) -> str:
+        if self.AT_API_BASE_URL.strip():
+            return self.AT_API_BASE_URL.rstrip("/")
+        if self.AT_USERNAME.strip().lower() == "sandbox":
+            return "https://api.sandbox.africastalking.com"
+        return "https://api.africastalking.com"
+
+    @property
+    def at_sms_bulk_url(self) -> str:
+        return f"{self.at_api_base_url}/version1/messaging/bulk"
 
 settings = Settings()
