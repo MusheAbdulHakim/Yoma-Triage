@@ -43,6 +43,11 @@ async def test_run_accept_side_effects_disburses_momo_and_notifies_hospital(
     await orchestrator.run_accept_side_effects(10, 3)
 
     hospital.notify_pre_arrival.assert_awaited_once()
+    call_args = hospital.notify_pre_arrival.await_args
+    assert call_args.args[1] is referral
+    assert call_args.args[2] is driver
+    assert call_args.args[3] is facility
+    assert call_args.args[4] == 10
     session.commit.assert_awaited_once()
     assert dispatch.status == "HOSPITAL_NOTIFIED"
     actions = [

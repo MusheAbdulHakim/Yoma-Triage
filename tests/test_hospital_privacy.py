@@ -64,6 +64,37 @@ async def test_hospital_sms_omits_patient_name(
     body = spy.messages[0]
     assert seeded_referral_with_name.patient_name not in body
     assert f"Patient token: {VALID_PATIENT_HASH[:12]}" in body
+    assert f"Driver phone: {driver.phone}" in body
+    assert "Driver: Ibrahim" in body
+
+
+@pytest.mark.asyncio
+async def test_hospital_notify_targets_facility_phone(
+    db_session, seeded_referral_with_name, driver, facility
+):
+    """After driver accept, clinic SMS goes to facility.phone (not patient)."""
+
+    class SpyGateway:
+        def __init__(self) -> None:
+            self.calls: list[tuple] = []
+
+        async def send_sms(self, to, message, dispatch_id, role):
+            self.calls.append((to, message, dispatch_id, role))
+            return {"status": "MOCKED"}
+
+    spy = SpyGateway()
+    notifier = HospitalNotifier(spy)
+    await notifier.notify_pre_arrival(
+        db_session, seeded_referral_with_name, driver, facility, dispatch_id=42
+    )
+
+    assert len(spy.calls) == 1
+    to, message, dispatch_id, role = spy.calls[0]
+    assert to == facility.phone
+    assert role == "hospital"
+    assert dispatch_id == 42
+    assert f"Driver phone: {driver.phone}" in message
+    assert "Reply CONFIRM 42" in message
 
 
 @pytest.mark.asyncio

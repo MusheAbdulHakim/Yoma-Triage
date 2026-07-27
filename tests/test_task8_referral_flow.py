@@ -74,15 +74,22 @@ def test_prepare_dispatch_encodes_unknown_score_as_zero():
 async def test_divert_updates_destination_and_notifies(monkeypatch):
     from src.api import sms_webhook
 
-    dispatch = MagicMock(id=11, referral_id=21, facility_id=1, status="ACCEPTED")
-    referral = MagicMock(id=21, facility_id=1, patient_name="Ama")
+    dispatch = MagicMock(id=11, referral_id=21, facility_id=1, status="ACCEPTED", driver_id=3)
+    referral = MagicMock(id=21, facility_id=1, patient_name="Ama", chps_compound_id=1)
     current_facility = MagicMock(id=1, phone="020 000 0001")
-    destination = MagicMock(id=2, phone="+233200000002")
+    destination = MagicMock(id=2, phone="+233200000002", name="Alt Hospital")
     compound = MagicMock(cho_phone="+233200000001")
     driver = MagicMock(phone="+233200000003")
     session = MagicMock()
     session.get = AsyncMock(
-        side_effect=[dispatch, referral, current_facility, destination, compound, driver]
+        side_effect=[
+            dispatch,
+            referral,
+            current_facility,  # auth
+            destination,
+            compound,
+            driver,
+        ]
     )
     session.add = MagicMock()
     session.commit = AsyncMock()
@@ -106,7 +113,9 @@ async def test_divert_updates_destination_and_notifies(monkeypatch):
 async def test_inbound_sms_rejects_sender_other_than_current_facility():
     from src.api import sms_webhook
 
-    dispatch = MagicMock(id=11, referral_id=21, facility_id=1, status="ACCEPTED")
+    dispatch = MagicMock(
+        id=11, referral_id=21, facility_id=1, status="ACCEPTED", driver_id=None
+    )
     referral = MagicMock(id=21)
     current_facility = MagicMock(id=1, phone="+233200000001")
     session = MagicMock()
@@ -124,21 +133,27 @@ async def test_inbound_sms_rejects_sender_other_than_current_facility():
 
 
 @pytest.mark.asyncio
-async def test_inbound_sms_rejects_commands_before_driver_acceptance():
+async def test_inbound_sms_status_reply_before_driver_acceptance(monkeypatch):
     from src.api import sms_webhook
 
-    dispatch = MagicMock(id=11, referral_id=21, facility_id=1, status="TIER1_NOTIFIED")
+    dispatch = MagicMock(
+        id=11, referral_id=21, facility_id=1, status="TIER1_NOTIFIED", driver_id=None
+    )
     referral = MagicMock(id=21)
-    current_facility = MagicMock(id=1, phone="+233200000001")
+    current_facility = MagicMock(id=1, phone="+233200000001", name="TTH")
     session = MagicMock()
-    session.get = AsyncMock(side_effect=[dispatch, referral, current_facility])
+    session.get = AsyncMock(side_effect=[dispatch, referral, current_facility, current_facility])
     session.add = MagicMock()
     session.commit = AsyncMock()
+    gateway = MagicMock()
+    gateway.send_sms = AsyncMock(return_value={"status": "MOCKED"})
+    monkeypatch.setattr(sms_webhook, "MessagingGateway", lambda: gateway)
 
-    with pytest.raises(ValueError, match="not available"):
-        await sms_webhook.process_inbound_sms(
-            session, "0200000001", "CONFIRM 11"
-        )
+    result = await sms_webhook.process_inbound_sms(
+        session, "0200000001", "CONFIRM 11"
+    )
 
+    assert result["status"] == "STATUS_ONLY"
     assert dispatch.status == "TIER1_NOTIFIED"
-    session.commit.assert_not_awaited()
+    gateway.send_sms.assert_awaited_once()
+    assert "TIER1_NOTIFIED" in gateway.send_sms.await_args.args[1]

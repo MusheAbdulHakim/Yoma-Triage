@@ -29,6 +29,8 @@ async def test_full_flow_accept_confirm_and_divert(
         "src.api.ussd.DispatchOrchestrator.run_accept_side_effects",
         AsyncMock(),
     )
+    # Integration uses demo shortcode; ignore sandbox AT_USSD_SERVICE_CODE from .env.
+    monkeypatch.setattr("src.api.ussd.settings.AT_USSD_SERVICE_CODE", "")
 
     create = await client.post("/api/v1/referral", json=sample_referral_payload)
     assert create.status_code == 201

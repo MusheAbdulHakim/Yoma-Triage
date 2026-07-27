@@ -24,7 +24,9 @@ class HospitalNotifier:
             f"Condition: {referral.emergency_type}\n"
             f"Severity: {referral.risk_level}\n"
             f"Driver: {driver.name}\n"
-            f"Ref: #{referral.id}"
+            f"Driver phone: {driver.phone}\n"
+            f"Dispatch: #{dispatch_id}\n"
+            f"Reply CONFIRM {dispatch_id} or DIVERT {dispatch_id} <facility_id>"
         )
         result = await self.gateway.send_sms(facility.phone, message, dispatch_id, "hospital")
         session.add(
