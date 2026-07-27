@@ -25,6 +25,11 @@ class Settings:
     AT_USSD_SERVICE_CODE: str = os.getenv("AT_USSD_SERVICE_CODE", "")
     # Override SMS API host. Empty → sandbox host when username is "sandbox", else live.
     AT_API_BASE_URL: str = os.getenv("AT_API_BASE_URL", "")
+    # Public HTTPS origin for Africa's Talking callbacks (ngrok/staging). Never hardcode tunnels.
+    # Example: https://abcd-1-2-3-4.ngrok-free.app  (no trailing slash required)
+    PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "")
+    # Local/demo API client base (scripts/demo_flow.py). Defaults to loopback.
+    DEMO_API_BASE_URL: str = os.getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000")
     # Demo default is 5s; field/pilot should use minutes (e.g. 60–180) via env.
     CASCADE_TIER_SECONDS: int = int(os.getenv("CASCADE_TIER_SECONDS", "5"))
     CORS_ORIGINS: str = os.getenv(
@@ -34,12 +39,32 @@ class Settings:
     )
 
     @property
+    def public_base_url(self) -> str:
+        return self.PUBLIC_BASE_URL.strip().rstrip("/")
+
+    @property
+    def ussd_callback_url(self) -> str | None:
+        if not self.public_base_url:
+            return None
+        return f"{self.public_base_url}/ussd/callback"
+
+    @property
+    def sms_inbound_url(self) -> str | None:
+        if not self.public_base_url:
+            return None
+        return f"{self.public_base_url}/api/v1/sms/inbound"
+
+    @property
     def cors_origins(self) -> list[str]:
-        return [
+        origins = [
             origin.strip()
             for origin in self.CORS_ORIGINS.split(",")
             if origin.strip()
         ]
+        # If Flutter (or judges) hit the API via the same public tunnel, allow it.
+        if self.public_base_url and self.public_base_url not in origins:
+            origins.append(self.public_base_url)
+        return origins
 
     @property
     def at_configured(self) -> bool:

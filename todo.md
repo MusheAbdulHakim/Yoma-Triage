@@ -1,11 +1,14 @@
 # Yoma Triage — Remaining Work (`todo.md`)
 
 **Generated:** 2026-07-26  
+**Last updated:** 2026-07-27  
 **Scope:** Everything still needed for a credible hackathon demo **and** a true production / pilot-ready system.  
 **Sources:** `TASK_BOARD.md`, `PRODUCT_SPEC.md`, `docs/yoma-triage-product-spec.md`, `docs/architecture-narrative.md`, `docs/plans/yoma-triage-production-hackathon-plan.md` (+ REVIEW / VERIFY), `docs/plans/at-sandbox-runbook.md`, `README.md`, `Yoma Triage Clinical Design Research.md`, `.cursorrules`, `src/`, `main.py`, `tests/`, `scripts/`, `mobile/`.  
 **Do not treat this as a commit plan** — tracking only.
 
 Evidence baseline (VERIFY 2026-07-26): **pytest 61 passed**, **flutter test 19 passed**; hackathon production-close table in `TASK_BOARD.md` largely `[VERIFIED]`; live AT / real MoMo / clinical models / Dagbani voice still open.
+**Session update (2026-07-26):** backend suite **74 passed** after 3.3/3.4 API + clinical/RAG work.
+**Session update (2026-07-27):** Live AT sandbox SMS + USSD shortcode `*384*99193#` working; inbound form webhook + status auto-replies; hospital notify includes driver phone; related inbound/hospital/accept tests green (19 in focused run).
 
 ---
 
@@ -20,7 +23,9 @@ Evidence baseline (VERIFY 2026-07-26): **pytest 61 passed**, **flutter test 19 p
 | Privacy tokens (unlinkable SHA-256) | `mobile/lib/services/patient_token.dart`, `tests/test_referral_privacy.py`, `tests/test_hospital_privacy.py` |
 | Dispatch cascade + concurrent accept | `src/services/dispatch_orchestrator.py`, `tests/test_dispatch.py` |
 | USSD accept / decline / arrival → `COMPLETED` | `src/api/ussd.py`, `tests/test_ussd_arrival.py` |
-| Hospital CONFIRM / DIVERT SMS | `src/api/sms_webhook.py` |
+| Hospital CONFIRM / DIVERT SMS | `src/api/sms_webhook.py` (AT form + JSON; sender status replies) |
+| Hospital pre-arrival SMS (driver name + phone) | `src/services/hospital_notifier.py` after USSD accept |
+| Live AT sandbox SMS (form) + USSD callback | `MessagingGateway`, `ussd.py`, shortcode `*384*99193#` / sender `99193` |
 | Mock MoMo fuel stipend (30%) | `src/tools/momo_escrow.py` (`YOMA-` prefix) |
 | CORS allowlist for Flutter web | `main.py`, `src/config.py`, `tests/test_cors.py` |
 | CHO Flutter app (Android / iOS / web) | `mobile/lib/screens/*`, `mobile/ios/`, `mobile/android/`, `mobile/web/` |
@@ -35,7 +40,7 @@ Evidence baseline (VERIFY 2026-07-26): **pytest 61 passed**, **flutter test 19 p
 | Bar | Status |
 |-----|--------|
 | **Hackathon demo (mock SMS OK)** | Near-ready: seed DB → `main.py` → `demo_flow.py` + Flutter web/emulator. Live phone SMS still needs AT credentials. |
-| **Hackathon demo (LIVE AT SMS)** | **Blocked** on operator `.env` keys + webhook reachability (ngrok). Code path exists (`MessagingGateway`). |
+| **Hackathon demo (LIVE AT SMS)** | **Unblocked for sandbox:** keys + shortcode in `.env`; outbound SMS + USSD + inbound form verified on test handset. Still need stable public URL (ngrok) for AT callbacks in judge room + full E2E rehearsal. |
 | **True production / field pilot** | Large gap: real MoMo 30/70, provisioned USSD shortcode, voice cascade, CHO auth + encryption, hospital dashboard, Dagbani voice/l10n, validated respiratory model, GHS protocol RAG with real PDFs, observability/hosting, clinical governance. |
 
 Specs still over-claim Phase 1 SLM / SQLCipher / encrypted SMS in places (`PRODUCT_SPEC.md` §8.2, §XVI Phase 1, security sections) even after partial W0.2 reconciliation — treat those as **backlog**, not shipped.
@@ -44,16 +49,17 @@ Specs still over-claim Phase 1 SLM / SQLCipher / encrypted SMS in places (`PRODU
 
 ## 2. Critical blockers / demo day
 
-- [ ] Obtain Africa’s Talking sandbox (or production) `AT_API_KEY` + `AT_USERNAME`; set in local `.env` (never commit). Confirm `settings.at_configured is True`.
-- [ ] Send one live sandbox SMS to a registered test handset; verify dispatch log `provider` ≠ `mock` (`docs/plans/at-sandbox-runbook.md`).
-- [ ] Expose inbound webhook for hospital replies (`ngrok http 8000` → register `POST /api/v1/sms/inbound`); dry-run `CONFIRM {id}` from seeded hospital phone `+233240000200`.
-- [ ] Provision / document USSD shortcode callback URL for stage (canonical route is `POST /ussd/callback` in `src/api/ussd.py` — **not** `/api/v1/ussd/callback`).
+- [x] Obtain Africa’s Talking sandbox (or production) `AT_API_KEY` + `AT_USERNAME`; set in local `.env` (never commit). Confirm `settings.at_configured is True`.
+- [x] Send one live sandbox SMS to a registered test handset; verify dispatch log `provider` ≠ `mock` (`docs/plans/at-sandbox-runbook.md`). — sandbox form path + `AT_SENDER_ID=99193`.
+- [x] Inbound SMS webhook accepts AT **form-urlencoded**; bare `confirmed` + status auto-reply to sender; hospital notify includes driver phone. — code + tests; keep ngrok URL registered for judge day.
+- [x] Keep **stable public URL** for AT callbacks via `PUBLIC_BASE_URL` in `.env` (no hardcoded ngrok hosts). `GET /` exposes `webhooks.ussd_callback` + `webhooks.sms_inbound`. Re-register in AT when the tunnel URL changes.
+- [x] Provision / document USSD shortcode callback (`*384*99193#` → `POST /ussd/callback` in `src/api/ussd.py` — **not** `/api/v1/ussd/callback`). AT camelCase form fields handled.
 - [ ] Run fresh browser CORS smoke: Flutter web origin must appear in `CORS_ORIGINS` (unit tests pass; VERIFY noted **no live browser smoke** yet).
 - [ ] Build and install **physical Android** APK with mic permission; confirm YAMNet loads (stub only on failure — see `YamnetClassifierIo.create`).
 - [ ] Build and run **physical iPhone** (`mobile/ios/`); confirm `NSMicrophoneUsageDescription` and TFLite path (or documented stub fallback).
-- [ ] Rehearse full judge path once: seed → API → Flutter referral → USSD accept (demo_flow or real phone) → hospital CONFIRM → arrival → Flutter status `COMPLETED`.
+- [x] Rehearse full judge path once (API): `scripts/demo_flow.py` → accept → hospital SMS `SENT` → CONFIRM → arrival `COMPLETED` (+ decline/divert) — 2026-07-27. Still optional: Flutter UI + physical-phone USSD via ngrok.
 - [ ] Projector checklist: architecture narrative open; disclaimer language rehearsed (“advisory AudioSet / not obstetric diagnosis”).
-- [ ] Confirm Postgres is up on expected port (`README` cites `5433`; `src/config.py` default is `5432`) — align docs and `.env` before demo.
+- [x] Confirm Postgres is up on expected port — local `.env` uses `127.0.0.1:5433/yoma_triage`; still align README vs `config.py` default `5432` in docs.
 
 ---
 
@@ -63,7 +69,9 @@ Grounded in `src/`, `main.py`, `tests/`, `scripts/`.
 
 ### 3.1 Messaging / Africa’s Talking
 
-- [ ] Complete live AT dry-run per runbook; document any sender-ID / sandbox quirks for Ghana numbers.
+- [x] Complete live AT dry-run per runbook; document sender-ID / sandbox quirks for Ghana numbers. — sandbox uses form `POST /version1/messaging` (bulk 404); live bulk needs live keys; see `docs/plans/at-sandbox-runbook.md`.
+- [x] Inbound AT form + `GOOD`/`BAD`; sender-only status SMS when no open / already confirmed / en route; successful CONFIRM ack SMS.
+- [x] Hospital pre-arrival SMS after accept includes **driver phone** (`HospitalNotifier.notify_pre_arrival`); verified in tests.
 - [ ] Implement **Voice** path: `MessagingGateway.initiate_voice` currently returns `FAILED` / `"Voice not configured for MVP"` when AT is configured (`src/services/messaging_gateway.py`); orchestrator **never calls** `initiate_voice` (SMS-only cascade).
 - [ ] Wire voice into cascade tiers only after AT Voice credentials + IVR/TTS strategy exist (pilot).
 - [ ] Measure GSM-7/UCS-2 **segment count** for hospital operational SMS (`HospitalNotifier` multi-line body in `src/services/hospital_notifier.py`) — plan REVIEW required this; telemetry codec (`sms_codec.py`) already fits ≤140 octets, operational SMS may be multipart.
@@ -80,19 +88,19 @@ Grounded in `src/`, `main.py`, `tests/`, `scripts/`.
 
 ### 3.3 APIs & dispatch
 
-- [ ] Decide and optionally add `GET /api/v1/driver/{id}/status` (listed as not implemented in plan REVIEW).
-- [ ] Decide whether to alias `POST /api/v1/ussd/callback` (safe default: keep only `/ussd/callback`).
+- [x] Decide and optionally add `GET /api/v1/driver/{id}/status` (listed as not implemented in plan REVIEW).
+- [x] Decide whether to alias `POST /api/v1/ussd/callback` (safe default: keep only `/ussd/callback`).
 - [ ] Voice callback webhook (AT) — not implemented.
-- [ ] Tier timeout values for production (`CASCADE_TIER_SECONDS` default `5` is demo-short; field may need minutes).
-- [ ] Personal-vehicle / NAS escalation messaging content polish for tier 2–3 (logic exists; copy/ops incomplete).
+- [x] Tier timeout values for production (`CASCADE_TIER_SECONDS` default `5` is demo-short; field may need minutes). — documented in `.env.example` / config comment; still env-tuned.
+- [x] Personal-vehicle / NAS escalation messaging content polish for tier 2–3 (logic exists; copy/ops incomplete).
 - [ ] Caregiver refusal / cancel workflow API (plan §4.2 backlog).
 
 ### 3.4 Clinical path / RAG / LLM
 
-- [ ] Ingest real GHS MNCH / referral PDFs into RAG (`src/rag/engine.py` currently seeds **two hard-coded sample** `Document`s; `src/rag/ingest.py` unused in production flow).
-- [ ] Make Gemini summarization optional and **never** authoritative: risk must remain MOEWS-deterministic (today: `_template_summary` fallback if no `GEMINI_API_KEY` — good; still avoid open-ended clinical claims).
-- [ ] Ensure clinical assessment errors always return `UNKNOWN` risk without blocking referral (spec §10 / `.cursorrules`) — add explicit failure-injection tests if missing.
-- [ ] Remove or gate `/test-referral` in non-dev environments (`main.py`).
+- [x] Ingest real GHS MNCH / referral PDFs into RAG (`src/rag/engine.py` currently seeds **two hard-coded sample** `Document`s; `src/rag/ingest.py` unused in production flow). — demo corpus expanded + `data/ghs_protocols/` file seed; real official PDFs still backlog.
+- [x] Make Gemini summarization optional and **never** authoritative: risk must remain MOEWS-deterministic (today: `_template_summary` fallback if no `GEMINI_API_KEY` — good; still avoid open-ended clinical claims).
+- [x] Ensure clinical assessment errors always return `UNKNOWN` risk without blocking referral (spec §10 / `.cursorrules`) — add explicit failure-injection tests if missing.
+- [x] Remove or gate `/test-referral` in non-dev environments (`main.py`).
 
 ### 3.5 Privacy & auth (post-hackathon)
 
@@ -112,7 +120,7 @@ Grounded in `src/`, `main.py`, `tests/`, `scripts/`.
 
 ### 3.7 Code quality leftovers
 
-- [ ] Replace bare/broad `except Exception` patterns in clinical/RAG init (`clinical_agent.py`) with specific exceptions + logging.
+- [x] Replace bare/broad `except Exception` patterns in clinical/RAG init (`clinical_agent.py`) with specific exceptions + logging.
 - [ ] Ensure `from __future__ import annotations` consistency across all `src/` modules (`.cursorrules`).
 - [ ] Align `DATABASE_URL` defaults in README vs `config.py` vs docker/compose if added.
 
@@ -301,8 +309,8 @@ Active mobile/backend surfaces are largely Yoma-clean (`TASK_BOARD` W0.1). Remai
 
 ### Demo runbook holes
 
-- [ ] Single **Demo Day Runbook** combining: DB seed, API start, CORS origins, Flutter command, AT live toggle, ngrok, USSD simulator steps, failure scripts (decline → tier2, divert).
-- [ ] Explicit “what to say if AT is down” (mock fallback is OK).
+- [x] Single **Demo Day Runbook** — `docs/plans/demo-day-runbook.md` (seed, API, AT, ngrok, failure fallback).
+- [x] Explicit “what to say if AT is down” (mock fallback is OK) — in demo-day runbook.
 - [ ] Explicit “what YAMNet is / isn’t” slide or scripted line.
 - [ ] Port mismatch fix (5432 vs 5433) in all docs.
 - [ ] Post-demo teardown (revoke ngrok, rotate keys).
@@ -332,7 +340,7 @@ Active mobile/backend surfaces are largely Yoma-clean (`TASK_BOARD` W0.1). Remai
 
 ### Credentials & telecom
 
-- [ ] AT API key, username, sender ID, USSD shortcode.
+- [x] AT API key, username, sender ID (`99193`), USSD shortcode (`*384*99193#`) — sandbox working locally; keep out of git.
 - [ ] MoMo primary/secondary keys, target environment, callback URL.
 - [ ] Gemini key (optional).
 - [ ] TLS certs for public API.
@@ -359,11 +367,13 @@ Active mobile/backend surfaces are largely Yoma-clean (`TASK_BOARD` W0.1). Remai
 
 ### P0 — Demo day / this week
 
-1. [ ] **Live AT credentials + one real SMS** (or explicit judge agreement to mock-only).
-2. [ ] **CORS browser smoke** from actual Flutter web origin.
-3. [ ] **Physical device build** (Android minimum; iPhone if claimed on stage).
-4. [ ] **End-to-end rehearsal** seed → referral → accept → hospital → arrival → COMPLETED.
-5. [ ] **Pitch honesty**: YAMNet advisory + MOEWS spine; no clinical AI overclaim; MoMo mocked unless keys set.
+1. [x] **Live AT credentials + one real SMS** (sandbox form path verified).
+2. [x] **End-to-end rehearsal** seed → USSD accept → hospital SMS → CONFIRM → arrival → COMPLETED (+ decline/divert) via `scripts/demo_flow.py` (2026-07-27).
+3. [x] **Stable ngrok (or host) + AT callback URLs** — `PUBLIC_BASE_URL` in `.env`; verified tunnel reaches USSD + SMS inbound (2026-07-27).
+4. [ ] **CORS browser smoke** from actual Flutter web origin — **next best task**.
+5. [ ] **Physical device build** (Android minimum; iPhone if claimed on stage).
+6. [ ] **Pitch honesty**: YAMNet advisory + MOEWS spine; no clinical AI overclaim; MoMo mocked unless keys set.
+7. [x] **Single Demo Day Runbook** — `docs/plans/demo-day-runbook.md`.
 
 ### P1 — Next 2–4 sprints (pilot prep)
 
@@ -404,8 +414,8 @@ Active mobile/backend surfaces are largely Yoma-clean (`TASK_BOARD` W0.1). Remai
 | POST | `/api/v1/sms/inbound` | Implemented |
 | POST | `/api/v1/driver/{id}/availability` | Implemented |
 | GET | `/api/v1/compound/{id}/drivers` | Implemented |
-| GET | `/api/v1/driver/{id}/status` | **Not implemented** |
-| POST | `/api/v1/ussd/callback` | **Not implemented** (alias) |
+| GET | `/api/v1/driver/{id}/status` | Implemented |
+| POST | `/api/v1/ussd/callback` | **Not implemented** (alias) — decided: keep only `/ussd/callback` |
 | Voice callback | — | **Not implemented** |
 
 ---

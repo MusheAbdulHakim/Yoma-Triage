@@ -36,6 +36,6 @@ class HospitalNotifier:
                 target_phone=facility.phone,
                 target_role="hospital",
                 response=result["status"],
-                metadata_json=result,
+                metadata_json={**result, "message": message},
             )
         )

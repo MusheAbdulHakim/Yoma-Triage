@@ -54,11 +54,18 @@ app.include_router(driver_router)
 @app.get("/")
 def health_check():
     """Health check endpoint for local/server monitoring."""
-    return {
+    payload = {
         "status": "online",
         "system": "Yoma Triage Emergency Logistics Engine",
         "network_mode": "2G SMS / USSD Enabled",
+        "at_configured": settings.at_configured,
+        "public_base_url": settings.public_base_url or None,
+        "webhooks": {
+            "ussd_callback": settings.ussd_callback_url,
+            "sms_inbound": settings.sms_inbound_url,
+        },
     }
+    return payload
 
 
 @app.post("/test-referral")

@@ -11,6 +11,8 @@ This runbook covers sending **live SMS** through Africa's Talking (AT) from the 
 | `AT_SENDER_ID` | Sender ID shown on outbound SMS (default `YOMATRIAGE`) | Used only when live |
 | `AT_USSD_SERVICE_CODE` | Registered USSD shortcode (e.g. `*384*99193#`) | Empty = accept any inbound `serviceCode`; when set, SMS offers include the code and callbacks must match |
 | `AT_API_BASE_URL` | SMS API host override | Empty → `api.sandbox…` if username is `sandbox`, else `api.africastalking.com`. Bulk path: `/version1/messaging/bulk` |
+| `PUBLIC_BASE_URL` | Your current public HTTPS origin (ngrok/staging) | Empty → health omits webhook URLs; **never commit** tunnel hosts in source — set in `.env` only and update when ngrok restarts |
+| `DEMO_API_BASE_URL` | Base URL for `scripts/demo_flow.py` | Defaults to `http://127.0.0.1:8000` |
 
 When `AT_API_KEY` or `AT_USERNAME` is empty, the backend logs mock SMS and does not hit the network. This is the default for local development and CI.
 
@@ -31,7 +33,7 @@ When `AT_API_KEY` or `AT_USERNAME` is empty, the backend logs mock SMS and does 
 
 Follows [Africa’s Talking USSD session handling](https://developers.africastalking.com/docs/ussd/handle_sessions):
 
-1. Register a service code and set the callback to `https://YOUR-HOST/ussd/callback`.
+1. Register a service code and set the callback to `{PUBLIC_BASE_URL}/ussd/callback` (from `.env`; copy exact URL from `GET /` → `webhooks.ussd_callback`).
 2. AT sends `POST` with `Content-Type: application/x-www-form-urlencoded`.
 3. Your app must reply within **10 seconds** with a **plain string** starting with `CON` (keep session open) or `END` (close session). Use `Content-Type: text/plain` — never JSON.
 
@@ -59,15 +61,21 @@ Heavy work (MoMo mock, hospital SMS) runs in FastAPI `BackgroundTasks` so the US
 
 ### Smoke test
 
+Use `$PUBLIC_BASE_URL` from your shell (must match `.env` / `GET /`):
+
 ```bash
+export PUBLIC_BASE_URL="$(curl -sS http://127.0.0.1:8000/ | python3 -c 'import sys,json; print(json.load(sys.stdin)["public_base_url"])')"
+
 # First dial — menu
-curl -X POST "https://YOUR-NGROK.ngrok-free.app/ussd/callback" \
+curl -X POST "${PUBLIC_BASE_URL}/ussd/callback" \
   -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "ngrok-skip-browser-warning: 1" \
   -d "sessionId=ATUid_test&serviceCode=%2A384%2A99193%23&phoneNumber=%2B233240000001&text="
 
 # Accept
-curl -X POST "https://YOUR-NGROK.ngrok-free.app/ussd/callback" \
+curl -X POST "${PUBLIC_BASE_URL}/ussd/callback" \
   -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "ngrok-skip-browser-warning: 1" \
   -d "sessionId=ATUid_test&serviceCode=%2A384%2A99193%23&phoneNumber=%2B233240000001&text=1"
 ```
 
@@ -77,7 +85,7 @@ Hospital pre-arrival SMS (after driver accept) includes **driver name and phone*
 
 ## Inbound SMS (hospital / driver replies)
 
-Register the AT SMS callback URL as `https://YOUR-HOST/api/v1/sms/inbound`.
+Register the AT SMS callback URL as `{PUBLIC_BASE_URL}/api/v1/sms/inbound` (see `GET /` → `webhooks.sms_inbound`).
 
 AT posts **form-urlencoded** (not JSON), e.g.:
 
@@ -107,8 +115,11 @@ Eligible dispatch statuses: `ACCEPTED`, `HOSPITAL_NOTIFIED`.
 ### Smoke test (replay AT form)
 
 ```bash
-curl -X POST "https://YOUR-NGROK.ngrok-free.app/api/v1/sms/inbound" \
+export PUBLIC_BASE_URL="$(curl -sS http://127.0.0.1:8000/ | python3 -c 'import sys,json; print(json.load(sys.stdin)["public_base_url"])')"
+
+curl -X POST "${PUBLIC_BASE_URL}/api/v1/sms/inbound" \
   -H "Content-Type: application/x-www-form-urlencoded" \
+  -H "ngrok-skip-browser-warning: 1" \
   -d "linkId=test&text=confirmed&to=99193&id=msg-1&date=2026-07-27+17%3A41%3A41&from=%2B233542441933"
 ```
 
