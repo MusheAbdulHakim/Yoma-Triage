@@ -73,16 +73,16 @@ curl -X POST "https://YOUR-NGROK.ngrok-free.app/ussd/callback" \
 
 Set `AT_USSD_SERVICE_CODE` in `.env` to the same shortcode registered in AT (sandbox or production). Change production codes there — do not hardcode them in Python.
 
-## Outbound SMS (bulk JSON API)
+## Outbound SMS
 
-`MessagingGateway` uses Africa’s Talking **bulk** endpoint ([docs](https://developers.africastalking.com/docs/sms/sending/bulk)):
+Africa’s Talking exposes **two** SMS send APIs; sandbox and live do not behave the same:
 
-- Live: `POST {AT_API_BASE_URL}/version1/messaging/bulk`
-- Default host: sandbox when `AT_USERNAME=sandbox`, otherwise live `api.africastalking.com`
-- JSON body: `username`, `message`, `senderId`, `phoneNumbers: [msisdn]`, `enqueue: 1`
-- Recipient `statusCode` **100 / 101 / 102** → `SENT`; other codes or HTTP ≥400 → `FAILED` (cascade continues)
+| Environment | Endpoint | Body | Notes |
+|-------------|----------|------|-------|
+| Sandbox (`AT_USERNAME=sandbox`) | `POST /version1/messaging` | form-urlencoded (`to`, `message`, `from`) | `/messaging/bulk` returns **404** today |
+| Live production app | `POST /version1/messaging/bulk` | JSON (`phoneNumbers`, `senderId`, `enqueue: true`) | Needs **live** API key + app username (sandbox keys → 401 on live host) |
 
-Note: AT currently marks sandbox bulk as “coming soon”. If sandbox bulk returns 404/401, set `AT_API_BASE_URL` explicitly or use live credentials when AT enables Ghana sandbox bulk.
+`MessagingGateway` picks sandbox form vs live bulk from `AT_API_BASE_URL` / username. Set `AT_SENDER_ID` to your registered shortcode (e.g. `99193`) — used as `from` (sandbox) or `senderId` (live).
 
 ## Privacy rules (non-negotiable)
 

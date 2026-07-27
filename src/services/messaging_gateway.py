@@ -1,6 +1,8 @@
-"""Africa's Talking bulk SMS / Voice with auto-mock fallback.
+"""Africa's Talking SMS / Voice with auto-mock fallback.
 
-Bulk SMS docs: https://developers.africastalking.com/docs/sms/sending/bulk
+Sandbox apps: form POST `/version1/messaging` (bulk path is not available yet).
+Live apps: JSON POST `/version1/messaging/bulk`
+  docs: https://developers.africastalking.com/docs/sms/sending/bulk
 """
 from __future__ import annotations
 
@@ -18,6 +20,12 @@ SUCCESS_STATUS_CODES = frozenset({100, 101, 102})  # Processed / Sent / Queued
 
 
 class MessagingGateway:
+    @property
+    def _use_bulk(self) -> bool:
+        """Bulk JSON exists on live; sandbox currently 404s `/messaging/bulk`."""
+        base = settings.at_api_base_url.lower()
+        return "sandbox" not in base
+
     async def send_sms(self, to: str, message: str, dispatch_id: int, role: str) -> dict:
         if not settings.at_configured:
             logger.info(
@@ -36,23 +44,12 @@ class MessagingGateway:
                 "dispatch_id": dispatch_id,
             }
 
-        payload = {
-            "username": settings.AT_USERNAME,
-            "message": message,
-            "senderId": settings.AT_SENDER_ID,
-            "phoneNumbers": [to],
-            "enqueue": 1,
-        }
-        headers = {
-            "apiKey": settings.AT_API_KEY,
-            "Accept": "application/json",
-            "Content-Type": "application/json",
-        }
-        url = settings.at_sms_bulk_url
-
         try:
             async with httpx.AsyncClient(timeout=8.0) as client:
-                resp = await client.post(url, headers=headers, json=payload)
+                if self._use_bulk:
+                    parsed = await self._send_bulk_json(client, to, message)
+                else:
+                    parsed = await self._send_sandbox_form(client, to, message)
         except Exception as exc:
             logger.warning("AT SMS request failed (%s)", exc)
             return {
@@ -65,16 +62,59 @@ class MessagingGateway:
                 "role": role,
             }
 
+        parsed.update({"to": to, "dispatch_id": dispatch_id, "role": role})
+        return parsed
+
+    async def _send_bulk_json(
+        self, client: httpx.AsyncClient, to: str, message: str
+    ) -> dict[str, Any]:
+        payload: dict[str, Any] = {
+            "username": settings.AT_USERNAME,
+            "message": message,
+            "senderId": settings.AT_SENDER_ID.strip() or settings.AT_USERNAME,
+            "phoneNumbers": [to],
+            "enqueue": True,
+        }
+        resp = await client.post(
+            settings.at_sms_bulk_url,
+            headers={
+                "apiKey": settings.AT_API_KEY,
+                "Accept": "application/json",
+                "Content-Type": "application/json",
+            },
+            json=payload,
+        )
+        return self._parse_at_response(resp, api="bulk")
+
+    async def _send_sandbox_form(
+        self, client: httpx.AsyncClient, to: str, message: str
+    ) -> dict[str, Any]:
+        """Sandbox-compatible form POST — supports registered shortcode as `from`."""
+        data: dict[str, str] = {
+            "username": settings.AT_USERNAME,
+            "to": to,
+            "message": message,
+        }
+        sender = settings.AT_SENDER_ID.strip()
+        if sender:
+            data["from"] = sender
+        url = f"{settings.at_api_base_url}/version1/messaging"
+        resp = await client.post(
+            url,
+            headers={"apiKey": settings.AT_API_KEY, "Accept": "application/json"},
+            data=data,
+        )
+        return self._parse_at_response(resp, api="sandbox_form")
+
+    def _parse_at_response(self, resp: httpx.Response, *, api: str) -> dict[str, Any]:
         if resp.status_code >= 400:
-            logger.warning("AT SMS HTTP %s: %s", resp.status_code, resp.text[:300])
+            logger.warning("AT SMS HTTP %s (%s): %s", resp.status_code, api, resp.text[:300])
             return {
                 "status": "FAILED",
                 "provider": "africas_talking",
+                "api": api,
                 "http_status": resp.status_code,
                 "error": resp.text[:500],
-                "to": to,
-                "dispatch_id": dispatch_id,
-                "role": role,
             }
 
         try:
@@ -83,23 +123,35 @@ class MessagingGateway:
             return {
                 "status": "FAILED",
                 "provider": "africas_talking",
+                "api": api,
                 "http_status": resp.status_code,
                 "error": "Invalid JSON response",
-                "to": to,
-                "dispatch_id": dispatch_id,
-                "role": role,
             }
 
-        recipients = (
-            (body.get("SMSMessageData") or {}).get("Recipients") or []
-        )
+        data = body.get("SMSMessageData") or {}
+        summary = str(data.get("Message") or "")
+        recipients = data.get("Recipients") or []
         recipient = recipients[0] if recipients else {}
         status_code = recipient.get("statusCode")
         message_id = recipient.get("messageId")
+
+        if not recipients and summary and any(
+            token in summary.lower()
+            for token in ("invalid", "error", "reject", "insufficient")
+        ):
+            return {
+                "status": "FAILED",
+                "provider": "africas_talking",
+                "api": api,
+                "http_status": resp.status_code,
+                "error": summary,
+                "provider_response": body,
+            }
+
         ok = status_code in SUCCESS_STATUS_CODES or (
             str(recipient.get("status", "")).lower() == "success"
         )
-        if not ok:
+        if recipients and not ok:
             logger.warning(
                 "AT SMS recipient rejected statusCode=%s status=%s",
                 status_code,
@@ -108,24 +160,30 @@ class MessagingGateway:
             return {
                 "status": "FAILED",
                 "provider": "africas_talking",
+                "api": api,
                 "http_status": resp.status_code,
                 "status_code": status_code,
                 "provider_response": body,
-                "to": to,
-                "dispatch_id": dispatch_id,
-                "role": role,
+            }
+
+        if not recipients:
+            return {
+                "status": "FAILED",
+                "provider": "africas_talking",
+                "api": api,
+                "http_status": resp.status_code,
+                "error": summary or "No recipients in response",
+                "provider_response": body,
             }
 
         return {
             "status": "SENT",
             "provider": "africas_talking",
+            "api": api,
             "provider_response": body,
             "message_id": message_id,
             "status_code": status_code,
             "cost": recipient.get("cost"),
-            "to": to,
-            "dispatch_id": dispatch_id,
-            "role": role,
         }
 
     async def initiate_voice(self, to: str, message: str, dispatch_id: int, role: str) -> dict:
