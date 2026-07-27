@@ -73,6 +73,47 @@ curl -X POST "https://YOUR-NGROK.ngrok-free.app/ussd/callback" \
 
 Set `AT_USSD_SERVICE_CODE` in `.env` to the same shortcode registered in AT (sandbox or production). Change production codes there — do not hardcode them in Python.
 
+Hospital pre-arrival SMS (after driver accept) includes **driver name and phone** so the facility can call the driver.
+
+## Inbound SMS (hospital / driver replies)
+
+Register the AT SMS callback URL as `https://YOUR-HOST/api/v1/sms/inbound`.
+
+AT posts **form-urlencoded** (not JSON), e.g.:
+
+```
+linkId=…&text=confirmed&to=99193&id=…&date=…&from=%2B233…
+```
+
+The handler accepts both form (AT) and JSON (local demos):
+
+| Client | Body | Success response | Failure response |
+|--------|------|------------------|------------------|
+| Africa’s Talking | `application/x-www-form-urlencoded` | plain `GOOD` (including “no open” / already confirmed after status SMS) | plain `BAD …` only for unparseable text |
+| curl / demos | JSON `{"from":"+233…","text":"CONFIRM 12"}` | JSON status payload | HTTP 4xx JSON |
+
+Bare `confirmed` with no open dispatch (or already confirmed / en route) sends a **status SMS back to the sender only**, then returns `GOOD` to AT.
+
+### Accepted reply text
+
+| Text | Meaning |
+|------|---------|
+| `confirmed` / `CONFIRM` / `YES` / `OK` | Confirm the latest open dispatch for this sender’s facility or driver phone |
+| `CONFIRM <dispatch_id>` | Confirm a specific dispatch |
+| `DIVERT <dispatch_id> <facility_id>` | Divert to another facility |
+
+Eligible dispatch statuses: `ACCEPTED`, `HOSPITAL_NOTIFIED`.
+
+### Smoke test (replay AT form)
+
+```bash
+curl -X POST "https://YOUR-NGROK.ngrok-free.app/api/v1/sms/inbound" \
+  -H "Content-Type: application/x-www-form-urlencoded" \
+  -d "linkId=test&text=confirmed&to=99193&id=msg-1&date=2026-07-27+17%3A41%3A41&from=%2B233542441933"
+```
+
+Expect `GOOD` when that MSISDN matches a facility or driver on an eligible open dispatch; otherwise `BAD No open dispatch found for this sender`.
+
 ## Outbound SMS
 
 Africa’s Talking exposes **two** SMS send APIs; sandbox and live do not behave the same:
