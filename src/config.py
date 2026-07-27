@@ -35,7 +35,8 @@ class Settings:
     CORS_ORIGINS: str = os.getenv(
         "CORS_ORIGINS",
         "http://localhost:8080,http://127.0.0.1:8080,"
-        "http://localhost:5000,http://127.0.0.1:5000",
+        "http://localhost:5000,http://127.0.0.1:5000,"
+        "http://localhost:7357,http://127.0.0.1:7357",
     )
 
     @property

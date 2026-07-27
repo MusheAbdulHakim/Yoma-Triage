@@ -11,7 +11,7 @@ Breathing screen (YAMNet on Android/iOS with stub fallback; web simulator), emer
 ```bash
 cd mobile
 flutter pub get
-flutter run -d chrome --dart-define=API_BASE_URL=http://127.0.0.1:8000
+flutter run -d chrome --web-port=8080 --dart-define=API_BASE_URL=http://127.0.0.1:8000
 ```
 
 Use **Demo Normal** / **Demo Code Red** on the screening screen. Web does not run TFLite — advisory disclaimers always apply.

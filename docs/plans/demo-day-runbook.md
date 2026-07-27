@@ -27,7 +27,24 @@ Quick path for judge rehearsal. Details for AT: `docs/plans/at-sandbox-runbook.m
 
    When the ngrok URL changes, update `PUBLIC_BASE_URL` and re-register AT callbacks — no code change.
 
-## Automated E2E (API path)
+## Flutter web (CORS)
+
+Always pin the web port so it matches `CORS_ORIGINS`:
+
+```bash
+cd mobile
+flutter run -d chrome --web-port=8080 \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8000
+```
+
+If the browser Origin differs (random port), add it to `CORS_ORIGINS` in `.env` and reload the API. Verify:
+
+```bash
+./venv/bin/python scripts/cors_smoke.py
+```
+
+`PUBLIC_BASE_URL` (ngrok) is auto-appended to the CORS allowlist for device demos that call the API through the tunnel — it is **not** a Flutter web Origin unless you host the web build there.
+
 
 ```bash
 cd /var/www/html/unicef

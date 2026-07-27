@@ -54,7 +54,7 @@ Specs still over-claim Phase 1 SLM / SQLCipher / encrypted SMS in places (`PRODU
 - [x] Inbound SMS webhook accepts AT **form-urlencoded**; bare `confirmed` + status auto-reply to sender; hospital notify includes driver phone. — code + tests; keep ngrok URL registered for judge day.
 - [x] Keep **stable public URL** for AT callbacks via `PUBLIC_BASE_URL` in `.env` (no hardcoded ngrok hosts). `GET /` exposes `webhooks.ussd_callback` + `webhooks.sms_inbound`. Re-register in AT when the tunnel URL changes.
 - [x] Provision / document USSD shortcode callback (`*384*99193#` → `POST /ussd/callback` in `src/api/ussd.py` — **not** `/api/v1/ussd/callback`). AT camelCase form fields handled.
-- [ ] Run fresh browser CORS smoke: Flutter web origin must appear in `CORS_ORIGINS` (unit tests pass; VERIFY noted **no live browser smoke** yet).
+- [x] Run fresh browser CORS smoke: Flutter web origins in `CORS_ORIGINS`; `scripts/cors_smoke.py` PASS; Chromium fetch from `http://127.0.0.1:8765` → API succeeded (pin Flutter with `--web-port=8080`).
 - [ ] Build and install **physical Android** APK with mic permission; confirm YAMNet loads (stub only on failure — see `YamnetClassifierIo.create`).
 - [ ] Build and run **physical iPhone** (`mobile/ios/`); confirm `NSMicrophoneUsageDescription` and TFLite path (or documented stub fallback).
 - [x] Rehearse full judge path once (API): `scripts/demo_flow.py` → accept → hospital SMS `SENT` → CONFIRM → arrival `COMPLETED` (+ decline/divert) — 2026-07-27. Still optional: Flutter UI + physical-phone USSD via ngrok.
@@ -370,8 +370,8 @@ Active mobile/backend surfaces are largely Yoma-clean (`TASK_BOARD` W0.1). Remai
 1. [x] **Live AT credentials + one real SMS** (sandbox form path verified).
 2. [x] **End-to-end rehearsal** seed → USSD accept → hospital SMS → CONFIRM → arrival → COMPLETED (+ decline/divert) via `scripts/demo_flow.py` (2026-07-27).
 3. [x] **Stable ngrok (or host) + AT callback URLs** — `PUBLIC_BASE_URL` in `.env`; verified tunnel reaches USSD + SMS inbound (2026-07-27).
-4. [ ] **CORS browser smoke** from actual Flutter web origin — **next best task**.
-5. [ ] **Physical device build** (Android minimum; iPhone if claimed on stage).
+4. [x] **CORS browser smoke** — `scripts/cors_smoke.py` + Chromium cross-origin fetch (2026-07-27).
+5. [ ] **Physical device build** (Android minimum; iPhone if claimed on stage) — **next best task**.
 6. [ ] **Pitch honesty**: YAMNet advisory + MOEWS spine; no clinical AI overclaim; MoMo mocked unless keys set.
 7. [x] **Single Demo Day Runbook** — `docs/plans/demo-day-runbook.md`.
 
