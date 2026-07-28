@@ -41,9 +41,11 @@ abstract final class ScreeningConfig {
 }
 
 /// Seed-aligned facility labels (ids 1 / 1).
+/// Prefer on-device catalog + picker in production journeys.
 abstract final class FacilityConfig {
   static const chpsCompoundId = 1;
   static const chpsLabel = 'Tamale South CHPS';
   static const facilityId = 1;
   static const facilityLabel = 'Tamale Teaching Hospital';
+  static const homeChpsPrefsKey = 'home_chps_compound_id';
 }

@@ -2,12 +2,16 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config.dart';
+import '../models/facility_catalog.dart';
 import '../models/referral.dart';
 import '../services/api_client.dart';
+import '../services/catalog_store.dart';
+import '../services/geo.dart';
 import '../services/offline_queue.dart';
 import '../services/patient_token.dart';
 import '../theme/yoma_theme.dart';
 import 'dispatch_status_screen.dart';
+import 'facility_picker_screen.dart';
 import 'queued_referral_screen.dart';
 
 class ReferralScreen extends StatefulWidget {
@@ -45,6 +49,17 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   final _queue = OfflineQueue.shared;
   final _api = ApiClient();
+  final _catalogStore = CatalogStore();
+
+  ReferralGraph? _graph;
+  CatalogFacility? _selectedFacility;
+  int _chpsCompoundId = FacilityConfig.chpsCompoundId;
+  String _chpsLabel = FacilityConfig.chpsLabel;
+  String _originBanner = 'Using Home CHPS location';
+  double? _originLat;
+  double? _originLon;
+  String _originSource = 'home_chps';
+  bool _facilityConfirmed = false;
 
   @override
   void initState() {
@@ -69,6 +84,54 @@ class _ReferralScreenState extends State<ReferralScreen> {
       text: (vitals?['spo2'] ?? 85).toString(),
     );
     _avpu = (vitals?['consciousness_level'] ?? 'V').toString();
+    unawaitedLoadCatalog();
+  }
+
+  Future<void> unawaitedLoadCatalog() async {
+    try {
+      final graph = await _catalogStore.load();
+      final homeId = await _catalogStore.homeChpsCompoundId();
+      final home = graph.compoundById(homeId) ??
+          (graph.compounds.isEmpty ? null : graph.compounds.first);
+      int? preferredId;
+      for (final link in graph.preferredLinks) {
+        if (link.chpsCompoundId == (home?.id ?? homeId)) {
+          preferredId = link.facilityId;
+          break;
+        }
+      }
+      final suggested = preferredId != null
+          ? graph.facilityById(preferredId)
+          : (graph.facilities.isEmpty ? null : graph.facilities.first);
+
+      if (!mounted) return;
+      setState(() {
+        _graph = graph;
+        _chpsCompoundId = home?.id ?? FacilityConfig.chpsCompoundId;
+        _chpsLabel = home?.name ?? FacilityConfig.chpsLabel;
+        _originLat = home?.latitude;
+        _originLon = home?.longitude;
+        _originSource = 'home_chps';
+        _originBanner = 'Using Home CHPS location';
+        _selectedFacility = suggested;
+        _facilityConfirmed = false;
+      });
+    } catch (e) {
+      if (!mounted) return;
+      setState(() {
+        _error = 'Catalog load failed: $e';
+        _selectedFacility = CatalogFacility(
+          id: FacilityConfig.facilityId,
+          name: FacilityConfig.facilityLabel,
+          latitude: null,
+          longitude: null,
+          district: 'Tamale Metropolitan',
+          hasMaternity: true,
+          hasIcu: true,
+          type: 'teaching_hospital',
+        );
+      });
+    }
   }
 
   @override
@@ -86,8 +149,47 @@ class _ReferralScreenState extends State<ReferralScreen> {
   int? _parseInt(String raw) => int.tryParse(raw.trim());
   double? _parseDouble(String raw) => double.tryParse(raw.trim());
 
+  Future<void> _openPicker() async {
+    final graph = _graph;
+    if (graph == null) return;
+    final originLat = _originLat;
+    final originLon = _originLon;
+    if (originLat == null || originLon == null) {
+      setState(() => _error = 'Home CHPS has no coordinates in catalog');
+      return;
+    }
+    final ranked = rankNearest(
+      originLat: originLat,
+      originLon: originLon,
+      facilities: graph.facilities,
+    );
+    final picked = await Navigator.of(context).push<CatalogFacility>(
+      MaterialPageRoute(
+        builder: (_) => FacilityPickerScreen(
+          ranked: ranked,
+          selectedFacilityId: _selectedFacility?.id,
+          originBanner: _originBanner,
+        ),
+      ),
+    );
+    if (picked != null && mounted) {
+      setState(() {
+        _selectedFacility = picked;
+        _facilityConfirmed = true;
+        _error = null;
+      });
+    }
+  }
+
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    if (_selectedFacility == null || !_facilityConfirmed) {
+      setState(() {
+        _error =
+            'Choose receiving facility (manual confirmation required before submit)';
+      });
+      return;
+    }
     setState(() {
       _submitting = true;
       _error = null;
@@ -115,8 +217,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
       final req = ReferralRequest(
         clientRequestId: clientRequestId,
-        chpsCompoundId: FacilityConfig.chpsCompoundId,
-        facilityId: FacilityConfig.facilityId,
+        chpsCompoundId: _chpsCompoundId,
+        facilityId: _selectedFacility!.id,
         patientHash: token,
         patientName: _patientName.text.trim(),
         emergencyType: _emergencyType,
@@ -132,9 +234,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
         aiScreenResult: widget.aiScreenResult,
         aiConfidence: widget.aiConfidence,
         aiModelVersion: widget.aiModelVersion,
+        catalogVersion: _graph?.version,
+        originLat: _originLat,
+        originLon: _originLon,
+        originSource: _originSource,
       );
 
-      // Persist first so retries keep the same client_request_id + patient_hash.
       await _queue.enqueue(req);
 
       try {
@@ -179,6 +284,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final facilityLabel =
+        _selectedFacility?.name ?? FacilityConfig.facilityLabel;
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Emergency Referral — Vitals'),
@@ -190,11 +298,25 @@ class _ReferralScreenState extends State<ReferralScreen> {
           children: [
             Card(
               color: YomaColors.brand.withValues(alpha: 0.08),
-              child: const ListTile(
-                title: Text(FacilityConfig.chpsLabel),
-                subtitle: Text('→ ${FacilityConfig.facilityLabel}'),
+              child: ListTile(
+                title: Text(_chpsLabel),
+                subtitle: Text(
+                  _facilityConfirmed
+                      ? '→ $facilityLabel (confirmed)'
+                      : '→ $facilityLabel (tap to confirm facility)',
+                ),
+                trailing: const Icon(Icons.edit_location_alt),
+                onTap: _openPicker,
               ),
             ),
+            if (!_facilityConfirmed)
+              Padding(
+                padding: const EdgeInsets.only(bottom: 8),
+                child: Text(
+                  _originBanner,
+                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                ),
+              ),
             if (widget.aiScreenResult != null)
               Card(
                 color: Colors.blue.shade50,

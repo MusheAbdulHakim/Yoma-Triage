@@ -1,0 +1,64 @@
+{
+  "version": "2026-07-28.1",
+  "region": "northern",
+  "compounds": [
+    {
+      "id": 1,
+      "name": "Tamale South CHPS",
+      "latitude": 9.403,
+      "longitude": -0.842,
+      "district": "Tamale Metropolitan"
+    },
+    {
+      "id": 3,
+      "name": "Savelugu CHPS",
+      "latitude": 9.624,
+      "longitude": -0.825,
+      "district": "Savelugu Municipal"
+    },
+    {
+      "id": 4,
+      "name": "Yendi Central CHPS",
+      "latitude": 9.442,
+      "longitude": -0.009,
+      "district": "Yendi Municipal"
+    }
+  ],
+  "facilities": [
+    {
+      "id": 1,
+      "name": "Tamale Teaching Hospital",
+      "latitude": 9.4034,
+      "longitude": -0.8424,
+      "district": "Tamale Metropolitan",
+      "has_maternity": true,
+      "has_icu": true,
+      "type": "teaching_hospital"
+    },
+    {
+      "id": 3,
+      "name": "Savelugu Municipal Hospital",
+      "latitude": 9.6245,
+      "longitude": -0.8251,
+      "district": "Savelugu Municipal",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "municipal_hospital"
+    },
+    {
+      "id": 4,
+      "name": "Yendi Municipal Hospital",
+      "latitude": 9.4425,
+      "longitude": -0.0095,
+      "district": "Yendi Municipal",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "municipal_hospital"
+    }
+  ],
+  "preferred_links": [
+    {"chps_compound_id": 1, "facility_id": 1},
+    {"chps_compound_id": 3, "facility_id": 3},
+    {"chps_compound_id": 4, "facility_id": 4}
+  ]
+}

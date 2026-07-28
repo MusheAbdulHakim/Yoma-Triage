@@ -36,3 +36,4 @@ flutter:
   uses-material-design: true
   assets:
     - assets/models/
+    - assets/catalog/northern_bootstrap.json
