@@ -18,9 +18,9 @@ MIT-licensed respiratory foundation (EfficientNet-B0 ≈ 4M params). Best open f
 | Step | Status |
 |------|--------|
 | Clone OPERA + download CE ckpt | Done (local `/tmp` spike env) |
-| Export EfficientNet encoder → ONNX | **Done** — `mobile/assets/models/opera_ce_encoder.onnx` (~16 MB single-file) |
+| Export EfficientNet encoder → ONNX | **Done** — `mobile/assets/models/opera_ce_encoder.onnx` (~16 MB) |
 | Numerical check vs PyTorch | **Pass** (max abs diff ~1e-4 on random mel) |
-| ONNX → TFLite | **Blocked** in this environment (heavy `onnx2tf`/TF install); re-run `--tflite` when tensorflow/onnx2tf available |
+| ONNX → TFLite encoder | **Done** — `mobile/assets/models/opera_ce_encoder.tflite` (~8 MB float16 via onnx2tf) |
 | Classification head | **Not started** — encoder alone cannot emit GREEN/RED |
 | Flutter pack `opera_ce.tflite` | Missing → app returns INCONCLUSIVE (never silent GREEN) |
 
