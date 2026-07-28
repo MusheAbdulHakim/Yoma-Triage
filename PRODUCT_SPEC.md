@@ -776,10 +776,10 @@ This 30/70 split model ensures drivers are incentivized to respond immediately (
 
 ### 7.4.3 Simulated for Hackathon
 
-For the hackathon demo, the MoMo escrow is simulated:
-- System displays "Escrow activated: GHS 75 held for driver Ibrahim"
-- No real money moves
-- Demo explains: "In production, this connects to MTN MoMo via Africa's Talking Payments API"
+For the hackathon demo **and current code path**, the MoMo escrow is a **mock ledger only**:
+- USSD accept records `momo_escrow` with response `MOCK_RECORDED` — **no MTN MoMo API call**
+- Drivers are told the stipend is mock until MoMo is live
+- Demo pitch: "Ledger records the intended 30% fuel stipend; production connects MTN MoMo when merchant keys ship"
 
 **What's demo-only vs. production-required:**
 
@@ -1471,7 +1471,12 @@ To comply with Ghana's Data Protection Act (Act 843) and protect patient privacy
 
 The local Room/SQLite database is secured using SQLCipher, applying AES-256 symmetric encryption to protect all stored records. The decryption keys are managed via the Android Keystore system and are bound to biometric or clinical PIN credentials.
 
+> **Implementation status (2026-07-28):** The shipping Flutter outbox uses **plaintext SQLite / SharedPreferences**, not SQLCipher. Treat the paragraph above as a **pilot hardening target**, not as shipped behavior.
+
 Network security protocols: Active cellular data transfers use secure HTTPS channels with TLS 1.3 encryption and strict certificate pinning. SMS telemetry strings are encrypted locally using AES-256-GCM prior to Base64 encoding, ensuring data remains secure during transit over carrier networks.
+
+> **Implementation status (2026-07-28):** HTTPS depends on deployment TLS. **Certificate pinning and AES-256-GCM SMS are not implemented.** Hospital/driver SMS are plaintext. Protect APIs with `API_KEY` / `AT_WEBHOOK_SECRET` (CHO OTP still deferred).
+
 
 ---
 

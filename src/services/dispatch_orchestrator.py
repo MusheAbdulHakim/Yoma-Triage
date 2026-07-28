@@ -152,7 +152,10 @@ class DispatchOrchestrator:
             return {"ussd": "END No active dispatch.", "run_side_effects": False}
         if dispatch.status == "ACCEPTED" and dispatch.driver_id == driver_id:
             return {
-                "ussd": "END Accepted! Fuel stipend queued. Proceed to CHPS.",
+                "ussd": (
+                    "END Accepted! Proceed to CHPS. "
+                    "(Fuel stipend: mock ledger until MoMo is live.)"
+                ),
                 "run_side_effects": False,
             }
         if dispatch.status == "ACCEPTED" and dispatch.driver_id != driver_id:
@@ -186,7 +189,10 @@ class DispatchOrchestrator:
             )
         )
         return {
-            "ussd": "END Accepted! Fuel stipend queued. Proceed to CHPS.",
+            "ussd": (
+                "END Accepted! Proceed to CHPS. "
+                "(Fuel stipend: mock ledger until MoMo is live.)"
+            ),
             "run_side_effects": True,
         }
 
@@ -337,12 +343,13 @@ class DispatchOrchestrator:
                     dispatch_id=dispatch_id,
                     action="momo_escrow",
                     target_role="driver",
-                    response="INITIAL_DISBURSED",
+                    response="MOCK_RECORDED",
                     metadata_json={
                         "idempotency_key": idempotency_key,
                         "transaction_id": transaction_id,
                         "amount_ghs": FUEL_STIPEND_GHS,
-                        "stage": "INITIAL_30PCT",
+                        "stage": "INITIAL_30PCT_MOCK",
+                        "note": "No MoMo provider call — ledger only until live keys",
                     },
                 )
             )
@@ -380,7 +387,32 @@ class DispatchOrchestrator:
                 return
 
             referral = await session.get(Referral, dispatch.referral_id)
-            next_tier = 2 if dispatch.current_tier <= 1 else 3
+            tier = dispatch.current_tier
+            remaining = await self.pool.get_candidates(
+                session,
+                referral.chps_compound_id,
+                tier,
+                list(dispatch.declined_driver_ids or []),
+            )
+            if remaining:
+                # Same-tier drivers were already notified; wait for accept/timeout.
+                session.add(
+                    DispatchLog(
+                        dispatch_id=dispatch.id,
+                        action="decline_tier_remaining",
+                        target_role="system",
+                        response="WAIT",
+                        metadata_json={
+                            "declined_driver_id": driver_id,
+                            "tier": tier,
+                            "remaining_candidates": len(remaining),
+                        },
+                    )
+                )
+                await session.commit()
+                return
+
+            next_tier = tier + 1 if tier >= 1 else 2
             await self._notify_tier(session, dispatch, referral, tier=next_tier)
             await session.commit()
             if dispatch.status.startswith("TIER"):

@@ -16,6 +16,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.deps import require_webhook_secret
 from src.config import settings
 from src.db.database import get_db
 from src.db.models import Dispatch, Driver, Referral
@@ -62,10 +63,11 @@ def _configured_service_code() -> str:
 
 
 def _service_code_allowed(incoming: str | None) -> bool:
-    """If AT_USSD_SERVICE_CODE is set, require an exact match (ignoring whitespace)."""
+    """Require configured shortcode in staging/production; match when set."""
     expected = _configured_service_code()
     if not expected:
-        return True
+        # Fail closed outside local/demo — empty allow-all is unsafe.
+        return settings.ENVIRONMENT.strip().lower() not in {"production", "staging"}
     if not incoming:
         return False
     return _normalize_service_code(incoming) == expected
@@ -170,7 +172,7 @@ async def process_ussd(
     return _ussd_response(result["ussd"])
 
 
-@router.post("/callback")
+@router.post("/callback", dependencies=[Depends(require_webhook_secret)])
 async def handle_ussd(
     request: Request,
     background_tasks: BackgroundTasks,

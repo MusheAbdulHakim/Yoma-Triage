@@ -69,10 +69,17 @@ class YamnetClassifierIo implements YamnetClassifier {
     try {
       final samples = _pcm16ToFloat(_stripWavHeader(pcmBytes));
       if (samples.isEmpty) {
-        return mapYamnetToResult(abnormalScore: 0.4);
+        return ScreeningResult(
+          label: 'INCONCLUSIVE',
+          confidence: 0.0,
+          reason: 'Empty audio — use clinical judgment',
+          source: 'yamnet',
+          modelVersion: 'yamnet-audioset-v0',
+        );
       }
 
       var maxAbnormal = 0.0;
+      var sawRespiratory = false;
       var offset = 0;
       final input = List<double>.filled(_inputSize, 0.0);
       final output = List<double>.filled(_outputSize, 0.0);
@@ -82,8 +89,11 @@ class YamnetClassifierIo implements YamnetClassifier {
           input[i] = samples[offset + i];
         }
         _interpreter.run(input, output);
-        final abnormal = _abnormalScore(output);
-        if (abnormal > maxAbnormal) maxAbnormal = abnormal;
+        final abnormal = _respiratoryAbnormalScore(output);
+        if (abnormal != null) {
+          sawRespiratory = true;
+          if (abnormal > maxAbnormal) maxAbnormal = abnormal;
+        }
         offset += _inputSize ~/ 2;
       }
 
@@ -92,7 +102,22 @@ class YamnetClassifierIo implements YamnetClassifier {
           input[i] = i < samples.length ? samples[i] : 0.0;
         }
         _interpreter.run(input, output);
-        maxAbnormal = _abnormalScore(output);
+        final abnormal = _respiratoryAbnormalScore(output);
+        if (abnormal != null) {
+          sawRespiratory = true;
+          maxAbnormal = abnormal;
+        }
+      }
+
+      if (!sawRespiratory) {
+        return ScreeningResult(
+          label: 'INCONCLUSIVE',
+          confidence: 0.0,
+          reason:
+              'No respiratory-class evidence — use MOEWS and clinical judgment',
+          source: 'yamnet',
+          modelVersion: 'yamnet-audioset-v0',
+        );
       }
 
       return mapYamnetToResult(abnormalScore: maxAbnormal);
@@ -107,8 +132,8 @@ class YamnetClassifierIo implements YamnetClassifier {
     }
   }
 
-  double _abnormalScore(List<double> scores) {
-    if (scores.isEmpty) return 0.0;
+  double? _respiratoryAbnormalScore(List<double> scores) {
+    if (scores.isEmpty) return null;
 
     var maxRespiratory = 0.0;
     for (final idx in _respiratoryClassIndices) {
@@ -116,12 +141,10 @@ class YamnetClassifierIo implements YamnetClassifier {
         maxRespiratory = scores[idx];
       }
     }
+    // Do not fall back to top-5 AudioSet classes — unrelated labels must not
+    // drive clinical-looking GREEN/RED.
     if (maxRespiratory > 0) return maxRespiratory;
-
-    // Fallback when label layout differs: top-5 class average.
-    final sorted = List<double>.from(scores)..sort();
-    final top = sorted.reversed.take(5).toList();
-    return top.reduce((a, b) => a + b) / top.length;
+    return null;
   }
 
   /// Skip RIFF/WAV header if present so PCM samples start correctly.

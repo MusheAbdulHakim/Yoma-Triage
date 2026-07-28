@@ -41,28 +41,88 @@ async def test_decline_marks_unclaimed_dispatch_for_background_escalation():
 
 
 @pytest.mark.asyncio
-async def test_decline_does_not_escalate_an_accepted_dispatch():
-    from src.services.dispatch_orchestrator import DispatchOrchestrator
+async def test_decline_does_not_escalate_when_same_tier_candidates_remain(monkeypatch):
+    from src.services import dispatch_orchestrator as orch_mod
 
     dispatch = SimpleNamespace(
         id=10,
         referral_id=20,
-        status="ACCEPTED",
+        status="TIER1_NOTIFIED",
+        driver_id=None,
         current_tier=1,
-        declined_driver_ids=[],
+        declined_driver_ids=[3],
     )
+    referral = SimpleNamespace(id=20, chps_compound_id=1)
+    remaining = [SimpleNamespace(id=1), SimpleNamespace(id=2)]
+
     session = MagicMock()
     session.scalar = AsyncMock(return_value=dispatch)
-    session.get = AsyncMock()
-    orchestrator = DispatchOrchestrator()
+    session.get = AsyncMock(return_value=referral)
+    session.commit = AsyncMock()
+    session.add = MagicMock()
+
+    session_cm = MagicMock()
+    session_cm.__aenter__ = AsyncMock(return_value=session)
+    session_cm.__aexit__ = AsyncMock(return_value=None)
+    monkeypatch.setattr(orch_mod, "async_session", lambda: session_cm)
+
+    orchestrator = orch_mod.DispatchOrchestrator()
+    orchestrator.pool.get_candidates = AsyncMock(return_value=remaining)
     orchestrator._notify_tier = AsyncMock()
     orchestrator.schedule_tier_timeouts = MagicMock()
 
-    result = await orchestrator.handle_decline(session, dispatch.id, driver_id=3)
+    await orchestrator.run_decline_side_effects(dispatch.id, driver_id=3)
 
-    assert result["ussd"] == "END Decline noted."
-    assert dispatch.declined_driver_ids == [3]
     orchestrator._notify_tier.assert_not_awaited()
+    orchestrator.schedule_tier_timeouts.assert_not_called()
+    assert dispatch.current_tier == 1
+    actions = [
+        call.args[0].action
+        for call in session.add.call_args_list
+        if hasattr(call.args[0], "action")
+    ]
+    assert "decline_tier_remaining" in actions
+
+
+@pytest.mark.asyncio
+async def test_decline_escalates_only_when_tier_exhausted(monkeypatch):
+    from src.services import dispatch_orchestrator as orch_mod
+
+    dispatch = SimpleNamespace(
+        id=10,
+        referral_id=20,
+        status="TIER1_NOTIFIED",
+        driver_id=None,
+        current_tier=1,
+        declined_driver_ids=[1, 2, 3],
+    )
+    referral = SimpleNamespace(id=20, chps_compound_id=1)
+
+    session = MagicMock()
+    session.scalar = AsyncMock(return_value=dispatch)
+    session.get = AsyncMock(return_value=referral)
+    session.commit = AsyncMock()
+
+    session_cm = MagicMock()
+    session_cm.__aenter__ = AsyncMock(return_value=session)
+    session_cm.__aexit__ = AsyncMock(return_value=None)
+    monkeypatch.setattr(orch_mod, "async_session", lambda: session_cm)
+
+    orchestrator = orch_mod.DispatchOrchestrator()
+    orchestrator.pool.get_candidates = AsyncMock(return_value=[])
+    orchestrator.schedule_tier_timeouts = MagicMock()
+
+    async def _notify(session, dispatch, referral, tier):
+        dispatch.current_tier = tier
+        dispatch.status = f"TIER{tier}_NOTIFIED"
+
+    orchestrator._notify_tier = AsyncMock(side_effect=_notify)
+
+    await orchestrator.run_decline_side_effects(dispatch.id, driver_id=3)
+
+    orchestrator._notify_tier.assert_awaited_once()
+    assert orchestrator._notify_tier.await_args.kwargs["tier"] == 2
+    orchestrator.schedule_tier_timeouts.assert_called_once()
 
 
 @pytest.mark.asyncio

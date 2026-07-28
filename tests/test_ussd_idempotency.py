@@ -34,7 +34,10 @@ async def test_double_accept_returns_the_same_terminal_response(monkeypatch):
     first = await process_ussd(session, background_tasks, "+233240000001", "1")
     second = await process_ussd(session, background_tasks, "+233240000001", "1")
 
-    assert first.body == b"END Accepted! Fuel stipend queued. Proceed to CHPS."
+    assert first.body == (
+        b"END Accepted! Proceed to CHPS. "
+        b"(Fuel stipend: mock ledger until MoMo is live.)"
+    )
     assert second.body == first.body
     assert len(background_tasks.tasks) == 1
 

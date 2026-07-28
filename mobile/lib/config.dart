@@ -21,6 +21,13 @@ class ApiConfig {
     }
     return 'http://127.0.0.1:8000';
   }
+
+  /// Optional shared secret for CHO API routes (`X-API-Key`).
+  /// Pass `--dart-define=API_KEY=...` when the backend has `API_KEY` set.
+  static String get apiKey {
+    const raw = String.fromEnvironment('API_KEY', defaultValue: '');
+    return raw.trim();
+  }
 }
 
 /// Breath-sound screening capture length (seconds).
