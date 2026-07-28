@@ -18,6 +18,20 @@ HAPPY_PATH_HASH = "0123456789abcdef" * 4
 DECLINE_PATH_HASH = "fedcba9876543210" * 4
 
 
+def _api_headers() -> dict[str, str]:
+    from src.config import settings
+
+    key = settings.API_KEY.strip()
+    return {"X-API-Key": key} if key else {}
+
+
+def _webhook_params() -> dict[str, str]:
+    from src.config import settings
+
+    secret = settings.AT_WEBHOOK_SECRET.strip()
+    return {"secret": secret} if secret else {}
+
+
 class Demo:
     def __init__(self) -> None:
         self.started_at = time.monotonic()
@@ -125,6 +139,7 @@ async def ussd(client: httpx.AsyncClient, phone_number: str, choice: str) -> str
     service_code = settings.AT_USSD_SERVICE_CODE or "*123#"
     response = await client.post(
         "/ussd/callback",
+        params=_webhook_params(),
         data={
             "sessionId": f"demo-{time.monotonic_ns()}",
             "serviceCode": service_code,
@@ -141,7 +156,9 @@ async def main() -> None:
     ensure_seed()
     demo.log("Seed data ready: Tamale South CHPS, drivers, and hospitals")
 
-    async with httpx.AsyncClient(base_url=BASE_URL, timeout=60.0) as client:
+    async with httpx.AsyncClient(
+        base_url=BASE_URL, timeout=60.0, headers=_api_headers()
+    ) as client:
         try:
             health = await client.get("/")
             health.raise_for_status()
@@ -194,11 +211,10 @@ async def main() -> None:
             f"({hospital_log['response']})"
         )
         meta = hospital_log.get("metadata") or {}
-        msg = meta.get("message") or ""
-        if "Driver phone:" in msg:
-            demo.log("Hospital SMS includes driver phone ✓")
+        if meta.get("patient_token_prefix") or meta.get("message_preview"):
+            demo.log("Hospital notify logged without full SMS body ✓")
         else:
-            demo.log("WARN: hospital SMS metadata missing Driver phone line")
+            demo.log("WARN: hospital notify metadata missing privacy-safe fields")
 
         status = (await client.get(f"/api/v1/dispatch/{dispatch_id}")).json()["status"]
         assert status == "HOSPITAL_NOTIFIED"
@@ -206,6 +222,7 @@ async def main() -> None:
 
         confirmation = await client.post(
             "/api/v1/sms/inbound",
+            params=_webhook_params(),
             json={"from": hospital, "text": f"CONFIRM {dispatch_id}"},
         )
         confirmation.raise_for_status()
