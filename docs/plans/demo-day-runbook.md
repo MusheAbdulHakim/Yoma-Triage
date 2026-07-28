@@ -27,6 +27,22 @@ Quick path for judge rehearsal. Details for AT: `docs/plans/at-sandbox-runbook.m
 
    When the ngrok URL changes, update `PUBLIC_BASE_URL` and re-register AT callbacks — no code change.
 
+## Demo without a Mac / physical iPhone
+
+Native iOS builds need **macOS + Xcode**. On Linux (this pilot laptop) use:
+
+1. **Flutter web** on Chrome (`flutter run -d chrome --web-port=8080`) — screening uses the Normal / Code Red simulator (no mic TFLite).
+2. **API + USSD path** via `scripts/demo_flow.py` (+ optional live AT handset for accept).
+3. Physical **Android** later for on-device YAMNet; physical **iPhone** when a Mac is available.
+
+Reseed after pulling catalog alignment:
+
+```bash
+./venv/bin/python -m src.db.seed
+```
+
+This upserts all **16** Northern compounds/facilities so facility picker IDs match `POST /api/v1/referral`.
+
 ## Flutter web (CORS)
 
 Always pin the web port so it matches `CORS_ORIGINS`:

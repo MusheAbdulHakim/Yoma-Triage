@@ -1,7 +1,7 @@
 {
-  "version": "2026-07-28.2",
+  "version": "2026-07-28.3",
   "region": "northern",
-  "notes": "Approximate district-seat coords for Northern Region MMDAs; refine with GHS master list before pilot.",
+  "notes": "Northern Region 16 MMDA district-seat approximations (Wikidata/OSM-class). Replace with GHS facility master list before pilot go-live.",
   "compounds": [
     {
       "id": 1,
@@ -34,15 +34,15 @@
     {
       "id": 5,
       "name": "Gushegu CHPS",
-      "latitude": 9.933,
-      "longitude": -0.217,
+      "latitude": 9.921,
+      "longitude": -0.22,
       "district": "Gushegu Municipal"
     },
     {
       "id": 6,
       "name": "Karaga CHPS",
-      "latitude": 9.917,
-      "longitude": -0.433,
+      "latitude": 9.925,
+      "longitude": -0.431,
       "district": "Karaga District"
     },
     {
@@ -62,8 +62,8 @@
     {
       "id": 9,
       "name": "Mion CHPS",
-      "latitude": 9.35,
-      "longitude": -0.15,
+      "latitude": 9.417,
+      "longitude": -0.279,
       "district": "Mion District"
     },
     {
@@ -84,14 +84,14 @@
       "id": 12,
       "name": "Wulensi CHPS",
       "latitude": 8.65,
-      "longitude": 0.017,
+      "longitude": 0.015,
       "district": "Nanumba South District"
     },
     {
       "id": 13,
       "name": "Saboba CHPS",
       "latitude": 9.817,
-      "longitude": 0.317,
+      "longitude": 0.315,
       "district": "Saboba District"
     },
     {
@@ -160,8 +160,8 @@
     {
       "id": 5,
       "name": "Gushegu District Hospital",
-      "latitude": 9.935,
-      "longitude": -0.218,
+      "latitude": 9.923,
+      "longitude": -0.221,
       "district": "Gushegu Municipal",
       "has_maternity": true,
       "has_icu": false,
@@ -170,8 +170,8 @@
     {
       "id": 6,
       "name": "Karaga Health Centre",
-      "latitude": 9.919,
-      "longitude": -0.434,
+      "latitude": 9.927,
+      "longitude": -0.432,
       "district": "Karaga District",
       "has_maternity": true,
       "has_icu": false,
@@ -200,8 +200,8 @@
     {
       "id": 9,
       "name": "Sang Health Centre",
-      "latitude": 9.352,
-      "longitude": -0.151,
+      "latitude": 9.419,
+      "longitude": -0.28,
       "district": "Mion District",
       "has_maternity": true,
       "has_icu": false,
@@ -231,7 +231,7 @@
       "id": 12,
       "name": "Wulensi Health Centre",
       "latitude": 8.652,
-      "longitude": 0.016,
+      "longitude": 0.014,
       "district": "Nanumba South District",
       "has_maternity": true,
       "has_icu": false,
@@ -241,7 +241,7 @@
       "id": 13,
       "name": "Saboba Hospital",
       "latitude": 9.819,
-      "longitude": 0.316,
+      "longitude": 0.314,
       "district": "Saboba District",
       "has_maternity": true,
       "has_icu": false,

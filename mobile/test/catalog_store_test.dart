@@ -12,7 +12,7 @@ void main() {
 
   test('bootstrap catalog loads 16 Northern MMDAs with coords', () async {
     final graph = await CatalogStore().load();
-    expect(graph.version, '2026-07-28.2');
+    expect(graph.version, '2026-07-28.3');
     expect(graph.compounds.length, 16);
     expect(graph.facilities.length, 16);
     final withCoords = graph.facilities

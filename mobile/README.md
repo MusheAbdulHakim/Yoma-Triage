@@ -128,6 +128,8 @@ flutter analyze
 flutter test
 ```
 
+**Demo without Mac/iPhone native:** use Chrome web + backend (`docs/plans/demo-day-runbook.md`). iOS device builds require macOS/Xcode; on-device YAMNet needs Android or a Mac-built iOS app.
+
 Backend companion smoke (from repo root):
 
 ```bash
