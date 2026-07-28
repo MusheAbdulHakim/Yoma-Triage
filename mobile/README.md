@@ -22,8 +22,13 @@ set -a && source .env && set +a
 cd mobile
 flutter run -d emulator-5554 \
   --dart-define=API_BASE_URL="${PUBLIC_BASE_URL:-http://10.0.2.2:8000}" \
-  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}" \
+  --dart-define=APP_ENV="${APP_ENV:-development}" \
+  --dart-define=SCREENING_MODEL="${SCREENING_MODEL:-yamnet}" \
+  --dart-define=MOEWS_ONLY="${MOEWS_ONLY:-false}"
 ```
+
+Screening model flags: `SCREENING_MODEL=yamnet|hear_event|opera_ce|stub`, kill switch `MOEWS_ONLY=true`, optional `SCREENING_DUAL_RUN=true`. Details: [`docs/deploy-environments.md`](../docs/deploy-environments.md), [`docs/model-cards/yamnet-v0.md`](../docs/model-cards/yamnet-v0.md).
 
 ### Web (demo simulator)
 
@@ -90,8 +95,9 @@ If the model file is missing, **Android and iOS** fall back to the **stub** clas
 - **CTA gating:** Confirm Referral appears when MOEWS is RED/YELLOW or acoustic is RED (escalate-only). GREEN acoustic + GREEN MOEWS → Continue Monitoring.
 - **Vitals before result:** screening → short vitals → MOEWS + acoustic result.
 - **Offline queue:** if sync fails, `QueuedReferralScreen` shows success framing — drivers are **not** notified until the phone has coverage.
-- **Facility catalog:** bootstrap asset `assets/catalog/northern_bootstrap.json`; sync via `GET /api/v1/catalog/referral-graph`. Nearest facilities ranked by Haversine; **manual facility confirmation required** before submit.
+- **Facility catalog:** Northern Region **16 MMDA** bootstrap `assets/catalog/northern_bootstrap.json` (same pack as `data/northern_referral_graph.json`). Sync-on-connect via `GET /api/v1/catalog/referral-graph`; banner if never synced or older than **30 days**. Nearest facilities ranked by Haversine; **manual facility confirmation required** before submit.
 - **Telemetry:** scores-only (`ai_screen_result`, `ai_confidence`, `ai_model_version`) — no audio/embeddings in the outbox.
+- **OTP login:** deferred (not in this release).
 
 ### Driver policy (offline vs sync)
 
@@ -108,10 +114,8 @@ Full write-up: [`docs/driver-offline-policy.md`](../docs/driver-offline-policy.m
 ### Cardiac / CV roadmap (advisory)
 
 1. **Now:** MOEWS HR bands in vitals + result UI; abnormal HR escalates referral eligibility via MOEWS fusion.
-2. **Next:** optional BLE pulse-ox / contact PPG as advisory HR fill-in (same MOEWS fields).
-3. **Later:** heart-sound / single-lead ECG only after ethics + clinical pilot — never as “diagnosis.”
-
-See `docs/superpowers/specs/2026-07-28-offline-first-referral-gating-cardiac-roadmap-design.md (local worktree/spec)` §5.8 / Phase E.
+2. **Now (E2 UX):** optional “Fill HR from device (advisory)” on vitals — BLE pulse-ox / contact PPG **confirm dialog** before applying to MOEWS fields (no auto-pair yet).
+3. **Later:** native BLE pairing + heart-sound / single-lead ECG only after ethics + clinical pilot — never as “diagnosis.”
 
 ## Patient privacy
 

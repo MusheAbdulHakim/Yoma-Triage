@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/advisory_hr.dart';
 import '../services/moews_calculator.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
@@ -24,6 +25,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
   final _spo2 = TextEditingController(text: '98');
   String _avpu = 'A';
   int _hrScore = 0;
+  AdvisoryHrReading? _advisoryApplied;
 
   @override
   void initState() {
@@ -60,6 +62,128 @@ class _VitalsScreenState extends State<VitalsScreen> {
     _temp.dispose();
     _spo2.dispose();
     super.dispose();
+  }
+
+  Future<void> _openAdvisoryHrSheet() async {
+    final hrCtrl = TextEditingController(text: _hr.text);
+    final spo2Ctrl = TextEditingController();
+    var source = AdvisoryHrSource.blePulseOx;
+
+    final draft = await showModalBottomSheet<AdvisoryHrReading>(
+      context: context,
+      isScrollControlled: true,
+      builder: (ctx) {
+        return Padding(
+          padding: EdgeInsets.only(
+            left: 16,
+            right: 16,
+            top: 16,
+            bottom: MediaQuery.viewInsetsOf(ctx).bottom + 16,
+          ),
+          child: StatefulBuilder(
+            builder: (ctx, setSheet) {
+              return Column(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  Text(
+                    'Advisory device HR',
+                    style: Theme.of(ctx).textTheme.titleMedium,
+                  ),
+                  const SizedBox(height: 8),
+                  const Text(
+                    'Optional BLE pulse-ox or contact PPG fill-in. '
+                    'Does not replace manual vitals or clinical judgment.',
+                  ),
+                  const SizedBox(height: 12),
+                  DropdownButtonFormField<AdvisoryHrSource>(
+                    initialValue: source,
+                    decoration: const InputDecoration(labelText: 'Source'),
+                    items: [
+                      for (final s in AdvisoryHrSource.values)
+                        DropdownMenuItem(value: s, child: Text(s.label)),
+                    ],
+                    onChanged: (v) {
+                      if (v != null) setSheet(() => source = v);
+                    },
+                  ),
+                  TextField(
+                    key: const Key('advisory_hr_bpm'),
+                    controller: hrCtrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'Heart rate (bpm)',
+                    ),
+                  ),
+                  TextField(
+                    key: const Key('advisory_hr_spo2'),
+                    controller: spo2Ctrl,
+                    keyboardType: TextInputType.number,
+                    decoration: const InputDecoration(
+                      labelText: 'SpO₂ % (optional)',
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  FilledButton(
+                    key: const Key('advisory_hr_review'),
+                    onPressed: () {
+                      final bpm = int.tryParse(hrCtrl.text.trim());
+                      final spo2Raw = spo2Ctrl.text.trim();
+                      final spo2 =
+                          spo2Raw.isEmpty ? null : int.tryParse(spo2Raw);
+                      if (bpm == null) return;
+                      final reading = AdvisoryHrReading(
+                        heartRateBpm: bpm,
+                        source: source,
+                        spo2Percent: spo2,
+                      );
+                      if (!reading.isPlausibleHr || !reading.isPlausibleSpo2) {
+                        return;
+                      }
+                      Navigator.of(ctx).pop(reading);
+                    },
+                    child: const Text('Review reading'),
+                  ),
+                ],
+              );
+            },
+          ),
+        );
+      },
+    );
+
+    hrCtrl.dispose();
+    spo2Ctrl.dispose();
+    if (draft == null || !mounted) return;
+
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Confirm advisory reading'),
+        content: Text(draft.confirmMessage),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(false),
+            child: const Text('Cancel'),
+          ),
+          FilledButton(
+            key: const Key('advisory_hr_confirm'),
+            onPressed: () => Navigator.of(ctx).pop(true),
+            child: const Text('Apply'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+
+    setState(() {
+      _hr.text = draft.heartRateBpm.toString();
+      if (draft.spo2Percent != null) {
+        _spo2.text = draft.spo2Percent.toString();
+      }
+      _advisoryApplied = draft;
+    });
+    _recomputeHrBand();
   }
 
   void _continue() {
@@ -108,6 +232,21 @@ class _VitalsScreenState extends State<VitalsScreen> {
             const Text(
               'Enter current vitals before viewing the screening result.',
             ),
+            const SizedBox(height: 12),
+            OutlinedButton.icon(
+              key: const Key('advisory_hr_open'),
+              onPressed: _openAdvisoryHrSheet,
+              icon: const Icon(Icons.watch),
+              label: const Text('Fill HR from device (advisory)'),
+            ),
+            if (_advisoryApplied != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Applied ${_advisoryApplied!.source.label}: '
+                '${_advisoryApplied!.heartRateBpm} bpm — confirm clinically.',
+                style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+              ),
+            ],
             const SizedBox(height: 12),
             _numberField(_sbp, 'Systolic BP', const Key('vitals_sbp')),
             _numberField(_dbp, 'Diastolic BP', const Key('vitals_dbp')),

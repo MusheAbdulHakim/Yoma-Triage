@@ -38,6 +38,42 @@ abstract final class ScreeningConfig {
     if (parsed == null || parsed < 1) return defaultDurationSec;
     return parsed;
   }
+
+  /// `yamnet` | `hear_event` | `opera_ce` | `stub`
+  /// Pass `--dart-define=SCREENING_MODEL=...`
+  static String get model {
+    const raw = String.fromEnvironment('SCREENING_MODEL', defaultValue: 'yamnet');
+    final v = raw.trim().toLowerCase();
+    const allowed = {'yamnet', 'hear_event', 'opera_ce', 'stub'};
+    return allowed.contains(v) ? v : 'yamnet';
+  }
+
+  /// Kill switch: skip acoustic model entirely → INCONCLUSIVE / MOEWS-only journey.
+  /// `--dart-define=MOEWS_ONLY=true`
+  static bool get moewsOnly {
+    const raw = String.fromEnvironment('MOEWS_ONLY', defaultValue: 'false');
+    return raw.toLowerCase() == 'true' || raw == '1';
+  }
+
+  /// When true and primary model is hear_event/opera_ce, also run YAMNet for ops compare.
+  /// Scores-only telemetry; does not change CTA (primary model wins).
+  static bool get dualRunYamnet {
+    const raw = String.fromEnvironment('SCREENING_DUAL_RUN', defaultValue: 'false');
+    return raw.toLowerCase() == 'true' || raw == '1';
+  }
+}
+
+/// App deploy flavour (documentation + banners). Not a secret.
+abstract final class AppEnvironment {
+  /// `development` | `staging` | `production`
+  static String get name {
+    const raw = String.fromEnvironment('APP_ENV', defaultValue: 'development');
+    final v = raw.trim().toLowerCase();
+    if (v == 'staging' || v == 'production' || v == 'development') return v;
+    return 'development';
+  }
+
+  static bool get isProduction => name == 'production';
 }
 
 /// Seed-aligned facility labels (ids 1 / 1).
@@ -48,4 +84,11 @@ abstract final class FacilityConfig {
   static const facilityId = 1;
   static const facilityLabel = 'Tamale Teaching Hospital';
   static const homeChpsPrefsKey = 'home_chps_compound_id';
+}
+
+/// Catalog freshness (days). Banner when older.
+abstract final class CatalogConfig {
+  static const staleAfterDays = 30;
+  static const syncedAtPrefsKey = 'catalog_synced_at';
+  static const catalogVersionPrefsKey = 'catalog_version';
 }

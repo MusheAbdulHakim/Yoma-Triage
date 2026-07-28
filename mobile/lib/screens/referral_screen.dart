@@ -120,7 +120,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
       if (!mounted) return;
       setState(() {
         _error = 'Catalog load failed: $e';
-        _selectedFacility = CatalogFacility(
+        _selectedFacility = const CatalogFacility(
           id: FacilityConfig.facilityId,
           name: FacilityConfig.facilityLabel,
           latitude: null,
