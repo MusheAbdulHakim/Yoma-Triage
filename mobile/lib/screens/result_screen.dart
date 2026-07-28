@@ -32,6 +32,19 @@ class ResultScreen extends StatelessWidget {
   bool get _isDemoSource =>
       result.source == 'stub' || result.source == 'simulator';
 
+  Color _moewsColor(MoewsResult m) {
+    switch (m.riskLevel) {
+      case 'RED':
+        return YomaColors.danger;
+      case 'YELLOW':
+        return YomaColors.caution;
+      case 'GREEN':
+        return YomaColors.safe;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final indicate = referralIndicated(
@@ -108,6 +121,39 @@ class ResultScreen extends StatelessWidget {
                 ],
               ),
             ),
+            if (moews != null) ...[
+              const SizedBox(height: 16),
+              Card(
+                color: _moewsColor(moews!).withValues(alpha: 0.12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'MOEWS ${moews!.riskLevel}'
+                        '${moews!.score != null ? ' · score ${moews!.score}' : ''}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: _moewsColor(moews!),
+                        ),
+                      ),
+                      if (moews!.hrAbnormal) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Heart rate contributes MOEWS ${moews!.hrScore} '
+                          '(abnormal band — escalate attention).',
+                          style: const TextStyle(
+                            color: YomaColors.danger,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ],
             const Spacer(),
             if (indicate)
               FilledButton(

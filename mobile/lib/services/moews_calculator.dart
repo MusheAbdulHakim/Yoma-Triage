@@ -1,8 +1,29 @@
 class MoewsResult {
-  const MoewsResult({required this.score, required this.riskLevel});
+  const MoewsResult({
+    required this.score,
+    required this.riskLevel,
+    this.hrScore = 0,
+    this.sbpScore = 0,
+    this.dbpScore = 0,
+    this.rrScore = 0,
+    this.tempScore = 0,
+    this.spo2Score = 0,
+    this.consciousnessScore = 0,
+  });
 
   final int? score;
   final String riskLevel;
+
+  /// Per-vital MOEWS contribution (0 / 1 / 3). Used for CHO UI highlighting.
+  final int hrScore;
+  final int sbpScore;
+  final int dbpScore;
+  final int rrScore;
+  final int tempScore;
+  final int spo2Score;
+  final int consciousnessScore;
+
+  bool get hrAbnormal => hrScore > 0;
 }
 
 int _scoreSbp(int sbp) {
@@ -67,18 +88,34 @@ MoewsResult calculateMoews({
     return const MoewsResult(score: null, riskLevel: 'UNKNOWN');
   }
 
+  final sbpScore = _scoreSbp(sbp!);
+  final dbpScore = _scoreDbp(dbp!);
+  final hrScore = _scoreHr(hr!);
+  final rrScore = _scoreRr(rr!);
+  final tempScore = _scoreTemp(temp!);
+  final consciousnessScore = _scoreConsciousness(consciousness);
+  final spo2Score = spo2 == null ? 0 : _scoreSpo2(spo2);
+
   final scores = <int>[
-    _scoreSbp(sbp!),
-    _scoreDbp(dbp!),
-    _scoreHr(hr!),
-    _scoreRr(rr!),
-    _scoreTemp(temp!),
-    _scoreConsciousness(consciousness),
+    sbpScore,
+    dbpScore,
+    hrScore,
+    rrScore,
+    tempScore,
+    consciousnessScore,
+    if (spo2 != null) spo2Score,
   ];
-  if (spo2 != null) {
-    scores.add(_scoreSpo2(spo2));
-  }
 
   final total = scores.fold<int>(0, (sum, s) => sum + s);
-  return MoewsResult(score: total, riskLevel: _riskLevel(scores, total));
+  return MoewsResult(
+    score: total,
+    riskLevel: _riskLevel(scores, total),
+    hrScore: hrScore,
+    sbpScore: sbpScore,
+    dbpScore: dbpScore,
+    rrScore: rrScore,
+    tempScore: tempScore,
+    spo2Score: spo2Score,
+    consciousnessScore: consciousnessScore,
+  );
 }

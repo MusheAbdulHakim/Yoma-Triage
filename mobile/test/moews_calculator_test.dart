@@ -72,4 +72,34 @@ void main() {
     expect(r.score, 3);
     expect(r.riskLevel, 'RED');
   });
+
+  test('abnormal HR alone is score 3 and flagged', () {
+    final r = calculateMoews(
+      sbp: 120,
+      dbp: 80,
+      hr: 140,
+      rr: 18,
+      temp: 37.0,
+      spo2: 98,
+      consciousness: 'A',
+    );
+    expect(r.hrScore, 3);
+    expect(r.hrAbnormal, isTrue);
+    expect(r.riskLevel, 'RED');
+  });
+
+  test('borderline HR is score 1 and flagged', () {
+    final r = calculateMoews(
+      sbp: 120,
+      dbp: 80,
+      hr: 120,
+      rr: 18,
+      temp: 37.0,
+      spo2: 98,
+      consciousness: 'A',
+    );
+    expect(r.hrScore, 1);
+    expect(r.hrAbnormal, isTrue);
+    expect(r.riskLevel, 'YELLOW');
+  });
 }

@@ -13,8 +13,8 @@ void main() {
     final graph = await CatalogStore().load();
     expect(graph.version, isNotEmpty);
     expect(graph.facilities, isNotEmpty);
-    final withCoords =
-        graph.facilities.where((f) => f.latitude != null && f.longitude != null);
+    final withCoords = graph.facilities
+        .where((f) => f.latitude != null && f.longitude != null);
     expect(withCoords.length, greaterThanOrEqualTo(1));
   });
 

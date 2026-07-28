@@ -18,12 +18,13 @@ void main() {
             reason: 'ok',
             source: 'yamnet',
           ),
-          moews: const MoewsResult(score: 6, riskLevel: 'RED'),
+          moews: const MoewsResult(score: 6, riskLevel: 'RED', hrScore: 3),
         ),
       ),
     );
 
     expect(find.text('Confirm Referral'), findsOneWidget);
+    expect(find.textContaining('Heart rate contributes MOEWS'), findsOneWidget);
   });
 
   testWidgets('vitals are scored before showing the acoustic result',

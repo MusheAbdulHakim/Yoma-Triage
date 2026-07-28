@@ -103,13 +103,16 @@ class ReferralGraph {
       version: json['version'] as String? ?? '',
       region: json['region'] as String? ?? 'northern',
       compounds: compoundsRaw
-          .map((e) => CatalogCompound.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map((e) =>
+              CatalogCompound.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       facilities: facilitiesRaw
-          .map((e) => CatalogFacility.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map((e) =>
+              CatalogFacility.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
       preferredLinks: linksRaw
-          .map((e) => PreferredLink.fromJson(Map<String, dynamic>.from(e as Map)))
+          .map((e) =>
+              PreferredLink.fromJson(Map<String, dynamic>.from(e as Map)))
           .toList(),
     );
   }

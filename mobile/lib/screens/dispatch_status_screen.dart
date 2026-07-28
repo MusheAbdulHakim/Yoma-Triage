@@ -123,7 +123,8 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
         final parts = <String>[
           'Dispatch #$id',
           'tier ${data['current_tier'] ?? '-'}',
-          if (driverName != null && driverName.isNotEmpty) 'Driver: $driverName',
+          if (driverName != null && driverName.isNotEmpty)
+            'Driver: $driverName',
           if (eta != null) 'ETA: ${eta}m',
         ];
         _detail = parts.join(' · ');
@@ -204,8 +205,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
               const Center(child: CircularProgressIndicator()),
             const Spacer(),
             OutlinedButton(
-              onPressed: () =>
-                  Navigator.of(context).popUntil((r) => r.isFirst),
+              onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
               child: const Text('Back to Home'),
             ),
           ],

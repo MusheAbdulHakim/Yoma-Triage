@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 
-import '../models/facility_catalog.dart';
 import '../services/geo.dart';
 import '../theme/yoma_theme.dart';
 
@@ -20,7 +19,8 @@ class FacilityPickerScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final top = ranked.take(3).toList();
-    final rest = ranked.length > 3 ? ranked.skip(3).toList() : const <RankedFacility>[];
+    final rest =
+        ranked.length > 3 ? ranked.skip(3).toList() : const <RankedFacility>[];
 
     return Scaffold(
       appBar: AppBar(title: const Text('Choose receiving facility')),
@@ -56,7 +56,8 @@ class FacilityPickerScreen extends StatelessWidget {
     );
   }
 
-  Widget _tile(BuildContext context, RankedFacility r, {required bool highlight}) {
+  Widget _tile(BuildContext context, RankedFacility r,
+      {required bool highlight}) {
     final selected = r.id == selectedFacilityId;
     return Card(
       color: selected

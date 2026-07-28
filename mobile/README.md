@@ -93,6 +93,24 @@ If the model file is missing, **Android and iOS** fall back to the **stub** clas
 - **Facility catalog:** bootstrap asset `assets/catalog/northern_bootstrap.json`; sync via `GET /api/v1/catalog/referral-graph`. Nearest facilities ranked by Haversine; **manual facility confirmation required** before submit.
 - **Telemetry:** scores-only (`ai_screen_result`, `ai_confidence`, `ai_model_version`) — no audio/embeddings in the outbox.
 
+### Driver policy (offline vs sync)
+
+| State | Behavior |
+|-------|----------|
+| **Offline (no data path)** | Never invent a driver assignment. Queued UI must not show driver name/ETA. |
+| **On sync** | Backend runs existing SMS/USSD cascade scoped to `chps_compound_id` (Motor-King → personal → CHO escalate). |
+| **Later (optional)** | Distance-rank cascade notify using driver base/compound coords — still not live GPS chase. |
+
+Live driver GPS tracking is out of scope for this release (battery, privacy, radio).
+
+### Cardiac / CV roadmap (advisory)
+
+1. **Now:** MOEWS HR bands in vitals + result UI; abnormal HR escalates referral eligibility via MOEWS fusion.
+2. **Next:** optional BLE pulse-ox / contact PPG as advisory HR fill-in (same MOEWS fields).
+3. **Later:** heart-sound / single-lead ECG only after ethics + clinical pilot — never as “diagnosis.”
+
+See `docs/superpowers/specs/2026-07-28-offline-first-referral-gating-cardiac-roadmap-design.md` §5.8 / Phase E.
+
 ## Patient privacy
 
 Referral JSON uses a cryptographically random **SHA-256 patient token** (`patient_hash`). Patient names stay in-memory on device only and are never written to the offline outbox or API payload.

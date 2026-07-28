@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../services/moews_calculator.dart';
 import '../services/screening_result.dart';
+import '../theme/yoma_theme.dart';
 import 'result_screen.dart';
 
 class VitalsScreen extends StatefulWidget {
@@ -22,9 +23,36 @@ class _VitalsScreenState extends State<VitalsScreen> {
   final _temp = TextEditingController(text: '37.0');
   final _spo2 = TextEditingController(text: '98');
   String _avpu = 'A';
+  int _hrScore = 0;
+
+  @override
+  void initState() {
+    super.initState();
+    _hr.addListener(_recomputeHrBand);
+    _recomputeHrBand();
+  }
+
+  void _recomputeHrBand() {
+    final hr = int.tryParse(_hr.text.trim());
+    final next = hr == null
+        ? 0
+        : calculateMoews(
+            sbp: 120,
+            dbp: 80,
+            hr: hr,
+            rr: 18,
+            temp: 37.0,
+            spo2: 98,
+            consciousness: 'A',
+          ).hrScore;
+    if (next != _hrScore) {
+      setState(() => _hrScore = next);
+    }
+  }
 
   @override
   void dispose() {
+    _hr.removeListener(_recomputeHrBand);
     _sbp.dispose();
     _dbp.dispose();
     _hr.dispose();
@@ -69,6 +97,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final hrAbnormal = _hrScore > 0;
     return Scaffold(
       appBar: AppBar(title: const Text('Record Vitals')),
       body: Form(
@@ -82,7 +111,15 @@ class _VitalsScreenState extends State<VitalsScreen> {
             const SizedBox(height: 12),
             _numberField(_sbp, 'Systolic BP', const Key('vitals_sbp')),
             _numberField(_dbp, 'Diastolic BP', const Key('vitals_dbp')),
-            _numberField(_hr, 'Heart rate', const Key('vitals_hr')),
+            _numberField(
+              _hr,
+              'Heart rate',
+              const Key('vitals_hr'),
+              highlight: hrAbnormal,
+              helperText: hrAbnormal
+                  ? 'MOEWS HR band elevated (score $_hrScore) — may escalate referral'
+                  : 'Normal adult band roughly 60–110 bpm (GHS MOEWS)',
+            ),
             _numberField(_rr, 'Respiratory rate', const Key('vitals_rr')),
             _numberField(
               _temp,
@@ -128,12 +165,25 @@ class _VitalsScreenState extends State<VitalsScreen> {
     String label,
     Key key, {
     bool decimal = false,
+    bool highlight = false,
+    String? helperText,
   }) {
     return TextFormField(
       key: key,
       controller: controller,
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      decoration: InputDecoration(labelText: label),
+      decoration: InputDecoration(
+        labelText: label,
+        helperText: helperText,
+        helperMaxLines: 2,
+        filled: highlight,
+        fillColor: highlight ? YomaColors.danger.withValues(alpha: 0.08) : null,
+        enabledBorder: highlight
+            ? const OutlineInputBorder(
+                borderSide: BorderSide(color: YomaColors.danger, width: 1.5),
+              )
+            : null,
+      ),
       validator: (value) {
         final raw = value?.trim() ?? '';
         if (raw.isEmpty) return 'Required';
