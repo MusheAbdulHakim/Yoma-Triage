@@ -26,7 +26,9 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 OUT_DIR = ROOT / "mobile" / "assets" / "models"
 ONNX_PATH = OUT_DIR / "opera_ce_encoder.onnx"
-TFLITE_PATH = OUT_DIR / "opera_ce.tflite"
+ENCODER_TFLITE_PATH = OUT_DIR / "opera_ce_encoder.tflite"
+# Classifier pack (mel + head) — not produced by this encoder-only spike.
+CLASSIFIER_TFLITE_PATH = OUT_DIR / "opera_ce.tflite"
 SPIKE_DOC = ROOT / "docs" / "spikes" / "opera-ce-tflite.md"
 
 # Mel shape matching OPERA util.pre_process_audio_mel_t for ~8 s @ 16 kHz
@@ -45,25 +47,32 @@ def _sha256(path: Path) -> str:
 
 
 def check_pack() -> int:
-    print(f"Expected TFLite (classifier pack): {TFLITE_PATH}")
-    print(f"Expected ONNX encoder:             {ONNX_PATH}")
+    print(f"Expected ONNX encoder:               {ONNX_PATH}")
+    print(f"Expected TFLite encoder:             {ENCODER_TFLITE_PATH}")
+    print(f"Expected TFLite classifier (app):    {CLASSIFIER_TFLITE_PATH}")
     if ONNX_PATH.is_file():
         print(f"ONNX: present ({ONNX_PATH.stat().st_size} bytes) sha256={_sha256(ONNX_PATH)}")
     else:
         print("ONNX: missing")
         return 1
-    if TFLITE_PATH.is_file():
+    if ENCODER_TFLITE_PATH.is_file():
         print(
-            f"TFLite: present ({TFLITE_PATH.stat().st_size} bytes) "
-            f"sha256={_sha256(TFLITE_PATH)}"
+            f"Encoder TFLite: present ({ENCODER_TFLITE_PATH.stat().st_size} bytes) "
+            f"sha256={_sha256(ENCODER_TFLITE_PATH)}"
+        )
+    else:
+        print("Encoder TFLite: missing — run --tflite after onnx2tf is installed")
+    if CLASSIFIER_TFLITE_PATH.is_file():
+        print(
+            f"Classifier TFLite: present ({CLASSIFIER_TFLITE_PATH.stat().st_size} bytes) "
+            f"sha256={_sha256(CLASSIFIER_TFLITE_PATH)}"
         )
     else:
         print(
-            "TFLite classifier pack: missing — Flutter SCREENING_MODEL=opera_ce "
-            "stays INCONCLUSIVE (encoder ONNX alone is not enough)."
+            "Classifier pack opera_ce.tflite: missing — Flutter SCREENING_MODEL=opera_ce "
+            "stays INCONCLUSIVE (encoder alone is not enough)."
         )
         print(f"See: {SPIKE_DOC}")
-    # Encoder milestone OK even without TFLite classifier pack.
     return 0
 
 
@@ -179,79 +188,45 @@ def export_onnx(opera_root: Path) -> Path:
 
 
 def convert_tflite(onnx_path: Path) -> Path | None:
-    """Best-effort ONNX → TFLite. Returns path or None if converter unavailable."""
+    """Best-effort ONNX → encoder TFLite via onnx2tf (float16 preferred)."""
+    import shutil
+    import subprocess
+
+    tmp_dir = Path("/tmp/opera_ce_tf")
+    if tmp_dir.exists():
+        shutil.rmtree(tmp_dir)
+    tmp_dir.mkdir(parents=True, exist_ok=True)
+
+    cmd = ["onnx2tf", "-i", str(onnx_path), "-o", str(tmp_dir)]
+    print("Running:", " ".join(cmd))
     try:
-        import tensorflow as tf  # type: ignore
-    except ImportError:
-        print(
-            "tensorflow not installed — skip TFLite. "
-            "Install tensorflow or onnx2tf in the spike venv, then re-run --tflite."
-        )
+        subprocess.check_call(cmd)
+    except FileNotFoundError:
+        print("onnx2tf not on PATH — pip install onnx2tf in the spike venv.")
+        return None
+    except subprocess.CalledProcessError as exc:
+        print(f"onnx2tf failed: {exc}")
         return None
 
-    try:
-        import onnx  # type: ignore
-        from onnx_tf.backend import prepare  # type: ignore
-    except ImportError:
-        # Prefer onnx2tf if available
-        try:
-            import subprocess
-
-            tmp_dir = Path("/tmp/opera_ce_tf")
-            tmp_dir.mkdir(parents=True, exist_ok=True)
-            cmd = [
-                sys.executable,
-                "-m",
-                "onnx2tf",
-                "-i",
-                str(onnx_path),
-                "-o",
-                str(tmp_dir),
-            ]
-            print("Running:", " ".join(cmd))
-            subprocess.check_call(cmd)
-            saved = next(tmp_dir.rglob("*.tflite"), None)
-            if saved is None:
-                # Convert saved_model
-                sm = next(tmp_dir.glob("saved_model*"), tmp_dir)
-                converter = tf.lite.TFLiteConverter.from_saved_model(str(sm))
-                converter.target_spec.supported_ops = [
-                    tf.lite.OpsSet.TFLITE_BUILTINS,
-                    tf.lite.OpsSet.SELECT_TF_OPS,
-                ]
-                data = converter.convert()
-                TFLITE_PATH.write_bytes(data)
-                print(f"Wrote {TFLITE_PATH} ({TFLITE_PATH.stat().st_size} bytes)")
-                return TFLITE_PATH
-            TFLITE_PATH.write_bytes(saved.read_bytes())
-            print(f"Wrote {TFLITE_PATH} from {saved}")
-            return TFLITE_PATH
-        except Exception as exc:  # noqa: BLE001
-            print(f"onnx2tf path failed: {exc}")
-            print(
-                "Manual next step: onnx2tf -i "
-                f"{onnx_path} -o /tmp/opera_ce_tf && copy *.tflite to {TFLITE_PATH}"
-            )
-            return None
-
-    model = onnx.load(str(onnx_path))
-    tf_rep = prepare(model)
-    sm_dir = Path("/tmp/opera_ce_saved_model")
-    if sm_dir.exists():
-        import shutil
-
-        shutil.rmtree(sm_dir)
-    tf_rep.export_graph(str(sm_dir))
-    converter = tf.lite.TFLiteConverter.from_saved_model(str(sm_dir))
-    converter.target_spec.supported_ops = [
-        tf.lite.OpsSet.TFLITE_BUILTINS,
-        tf.lite.OpsSet.SELECT_TF_OPS,
-    ]
-    data = converter.convert()
-    TFLITE_PATH.write_bytes(data)
-    print(f"Wrote {TFLITE_PATH} ({TFLITE_PATH.stat().st_size} bytes)")
-    print(f"sha256: {_sha256(TFLITE_PATH)}")
-    return TFLITE_PATH
+    # Prefer smaller float16 encoder pack for phones.
+    candidates = sorted(tmp_dir.rglob("*float16*.tflite")) + sorted(
+        tmp_dir.rglob("*.tflite")
+    )
+    if not candidates:
+        print("onnx2tf produced no .tflite files")
+        return None
+    src = candidates[0]
+    ENCODER_TFLITE_PATH.write_bytes(src.read_bytes())
+    print(
+        f"Wrote {ENCODER_TFLITE_PATH} from {src.name} "
+        f"({ENCODER_TFLITE_PATH.stat().st_size} bytes)"
+    )
+    print(f"sha256: {_sha256(ENCODER_TFLITE_PATH)}")
+    print(
+        "Note: this is the encoder pack only. App classifier remains "
+        f"{CLASSIFIER_TFLITE_PATH.name} (not written)."
+    )
+    return ENCODER_TFLITE_PATH
 
 
 def main() -> None:
