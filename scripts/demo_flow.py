@@ -237,7 +237,7 @@ async def main() -> None:
         demo.log("Ibrahim: ARRIVAL confirmed via USSD ✓")
         demo.log("Status: COMPLETED ✓")
 
-        # Decline path: Ibrahim declines; escalation reaches Musah then Abdul.
+        # Decline path: exhaust tier-1 Motor-Kings, then escalate to personal (Abdul).
         _, decline_dispatch = await create_referral(
             client, critical_referral(DECLINE_PATH_HASH)
         )
@@ -248,15 +248,19 @@ async def main() -> None:
         decline_response = await ussd(client, ibrahim, "2")
         assert "declined" in decline_response.lower(), decline_response
         demo.log("Ibrahim: DECLINED via USSD")
-        await wait_for_actions(client, decline_id, "ussd_decline")
-        escalation_logs = await wait_for_sms_recipients(
-            client, decline_id, musah, abdul
-        )
+        await wait_for_actions(client, decline_id, "ussd_decline", "decline_tier_remaining")
+        demo.log("Cascade: same-tier Motor-King still available (Musah) — no premature escalate")
+
+        decline_musah = await ussd(client, musah, "2")
+        assert "declined" in decline_musah.lower(), decline_musah
+        demo.log("Musah: DECLINED via USSD (tier-1 exhausted)")
+        await wait_for_actions(client, decline_id, "sms_send")
+        escalation_logs = await wait_for_sms_recipients(client, decline_id, abdul)
         notified_phones = {
             log["target_phone"] for log in escalation_logs if log["action"] == "sms_send"
         }
-        assert musah in notified_phones and abdul in notified_phones
-        demo.log(f"Cascade: Musah ({musah}) alerted; escalated SMS → Abdul ({abdul})")
+        assert abdul in notified_phones
+        demo.log(f"Cascade: escalated SMS → Abdul ({abdul})")
 
         accept_response = await ussd(client, abdul, "1")
         assert "Accepted" in accept_response, accept_response
@@ -265,11 +269,12 @@ async def main() -> None:
 
         diversion = await client.post(
             "/api/v1/sms/inbound",
+            params=_webhook_params(),
             json={"from": hospital, "text": f"DIVERT {decline_id} 2"},
         )
         diversion.raise_for_status()
         assert diversion.json()["status"] == "DIVERTED"
-        demo.log("Hospital: DIVERT to Navrongo War Memorial Hospital ✓")
+        demo.log("Hospital: DIVERT to facility #2 ✓")
 
     demo.log("Demo complete ✓")
 
