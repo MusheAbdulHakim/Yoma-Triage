@@ -3,12 +3,14 @@ class ReferralRequest {
   final int chpsCompoundId;
   final int facilityId;
   final String patientHash;
+
   /// In-memory display label only — never serialized to outbox/API JSON.
   final String? patientName;
   final String emergencyType;
   final Map<String, dynamic> vitals;
   final String? aiScreenResult;
   final double? aiConfidence;
+  final String? aiModelVersion;
 
   ReferralRequest({
     required this.clientRequestId,
@@ -20,6 +22,7 @@ class ReferralRequest {
     required this.vitals,
     this.aiScreenResult,
     this.aiConfidence,
+    this.aiModelVersion,
   });
 
   Map<String, dynamic> toJson() => {
@@ -31,5 +34,6 @@ class ReferralRequest {
         'vitals': vitals,
         if (aiScreenResult != null) 'ai_screen_result': aiScreenResult,
         if (aiConfidence != null) 'ai_confidence': aiConfidence,
+        if (aiModelVersion != null) 'ai_model_version': aiModelVersion,
       };
 }

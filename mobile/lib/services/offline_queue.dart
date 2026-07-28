@@ -44,7 +44,10 @@ class QueuedReferral {
       final payload = json['payload'];
       final status = json['status'];
       final created = json['created_at'];
-      if (id is! String || payload is! Map || status is! String || created is! String) {
+      if (id is! String ||
+          payload is! Map ||
+          status is! String ||
+          created is! String) {
         return null;
       }
       return QueuedReferral(
@@ -287,6 +290,7 @@ class OfflineQueue {
               aiScreenResult: queued.payload['ai_screen_result'] as String?,
               aiConfidence:
                   confidence == null ? null : (confidence as num).toDouble(),
+              aiModelVersion: queued.payload['ai_model_version'] as String?,
             ),
           );
           final dispatchId = parseDispatchIdFromResponse(response);

@@ -120,6 +120,7 @@ class ResultScreen extends StatelessWidget {
                       builder: (_) => ReferralScreen(
                         aiScreenResult: result.label,
                         aiConfidence: result.confidence,
+                        aiModelVersion: result.modelVersion,
                         initialVitals: vitals,
                       ),
                     ),
@@ -145,6 +146,7 @@ class ResultScreen extends StatelessWidget {
                       builder: (_) => ReferralScreen(
                         aiScreenResult: result.label,
                         aiConfidence: result.confidence,
+                        aiModelVersion: result.modelVersion,
                         initialVitals: vitals,
                       ),
                     ),

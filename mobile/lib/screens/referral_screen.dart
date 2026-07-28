@@ -13,12 +13,14 @@ import 'queued_referral_screen.dart';
 class ReferralScreen extends StatefulWidget {
   final String? aiScreenResult;
   final double? aiConfidence;
+  final String? aiModelVersion;
   final Map<String, Object>? initialVitals;
 
   const ReferralScreen({
     super.key,
     this.aiScreenResult,
     this.aiConfidence,
+    this.aiModelVersion,
     this.initialVitals,
   });
 
@@ -129,6 +131,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
         },
         aiScreenResult: widget.aiScreenResult,
         aiConfidence: widget.aiConfidence,
+        aiModelVersion: widget.aiModelVersion,
       );
 
       // Persist first so retries keep the same client_request_id + patient_hash.

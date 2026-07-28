@@ -8,6 +8,11 @@ void main() {
     expect(r.source, 'yamnet');
   });
 
+  test('YAMNet result identifies the classifier version', () {
+    final r = mapYamnetToResult(abnormalScore: 0.82);
+    expect(r.modelVersion, 'yamnet-audioset-v0');
+  });
+
   test('confidence below 0.5 is INCONCLUSIVE', () {
     final r = mapYamnetToResult(abnormalScore: 0.4);
     expect(r.label, 'INCONCLUSIVE');

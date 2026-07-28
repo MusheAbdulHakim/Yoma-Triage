@@ -16,6 +16,7 @@ class CHPSCompound(Base):
     cho_phone: Mapped[str] = mapped_column(String(32))
     drivers: Mapped[list["Driver"]] = relationship(back_populates="compound")
 
+
 class Driver(Base):
     __tablename__ = "drivers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -26,8 +27,11 @@ class Driver(Base):
     chps_compound_id: Mapped[int] = mapped_column(ForeignKey("chps_compounds.id"))
     is_motor_king: Mapped[bool] = mapped_column(Boolean, default=True)
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
-    availability: Mapped[str] = mapped_column(String(32), default="AVAILABLE")  # AVAILABLE|ON_TRIP|OFF_DUTY
+    availability: Mapped[str] = mapped_column(
+        String(32), default="AVAILABLE"
+    )  # AVAILABLE|ON_TRIP|OFF_DUTY
     compound: Mapped["CHPSCompound"] = relationship(back_populates="drivers")
+
 
 class Facility(Base):
     __tablename__ = "facilities"
@@ -38,6 +42,7 @@ class Facility(Base):
     district: Mapped[str] = mapped_column(String(120))
     has_maternity: Mapped[bool] = mapped_column(Boolean, default=True)
     has_icu: Mapped[bool] = mapped_column(Boolean, default=False)
+
 
 class Referral(Base):
     __tablename__ = "referrals"
@@ -59,7 +64,11 @@ class Referral(Base):
     client_request_id: Mapped[str | None] = mapped_column(String(36), unique=True, nullable=True)
     ai_screen_result: Mapped[str | None] = mapped_column(String(32), nullable=True)
     ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
-    initiated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+    ai_model_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
+    initiated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+
 
 class Dispatch(Base):
     __tablename__ = "dispatches"
@@ -71,9 +80,14 @@ class Dispatch(Base):
     # PENDING|TIER1_NOTIFIED|TIER2_NOTIFIED|ACCEPTED|HOSPITAL_NOTIFIED|COMPLETED|DIVERTED|FAILED
     current_tier: Mapped[int] = mapped_column(Integer, default=0)
     declined_driver_ids: Mapped[list] = mapped_column(JSON, default=list)
-    initiated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
-    driver_assigned_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    initiated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now()
+    )
+    driver_assigned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     completed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
 
 class DispatchLog(Base):
     __tablename__ = "dispatch_logs"
@@ -86,6 +100,7 @@ class DispatchLog(Base):
     metadata_json: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
+
 class Wallet(Base):
     __tablename__ = "wallets"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
@@ -97,6 +112,7 @@ class Wallet(Base):
     status: Mapped[str] = mapped_column(String(32), default="INITIAL_DISBURSED")
     transaction_id: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
 
 class AuditLog(Base):
     __tablename__ = "audit_logs"

@@ -94,6 +94,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         confidence: 0.0,
         reason: 'Screening unavailable — use clinical judgment',
         source: 'stub',
+        modelVersion: 'stub-v0',
       );
     }
 

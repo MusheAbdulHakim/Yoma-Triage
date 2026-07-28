@@ -39,6 +39,7 @@ class ScreeningService {
           confidence: 0.0,
           reason: 'Mic permission denied — use Emergency Referral bypass',
           source: 'stub',
+          modelVersion: 'stub-v0',
         );
       }
       return ScreeningResult(
@@ -46,6 +47,7 @@ class ScreeningService {
         confidence: 0.0,
         reason: 'Screening unavailable — use clinical judgment',
         source: 'stub',
+        modelVersion: 'stub-v0',
       );
     }
   }
