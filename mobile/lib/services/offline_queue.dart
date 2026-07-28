@@ -44,7 +44,10 @@ class QueuedReferral {
       final payload = json['payload'];
       final status = json['status'];
       final created = json['created_at'];
-      if (id is! String || payload is! Map || status is! String || created is! String) {
+      if (id is! String ||
+          payload is! Map ||
+          status is! String ||
+          created is! String) {
         return null;
       }
       return QueuedReferral(
@@ -276,6 +279,8 @@ class OfflineQueue {
             throw const FormatException('Invalid queued referral payload');
           }
           final confidence = queued.payload['ai_confidence'];
+          final originLat = queued.payload['origin_lat'];
+          final originLon = queued.payload['origin_lon'];
           final response = await api.createReferral(
             ReferralRequest(
               clientRequestId: queued.clientRequestId,
@@ -287,6 +292,13 @@ class OfflineQueue {
               aiScreenResult: queued.payload['ai_screen_result'] as String?,
               aiConfidence:
                   confidence == null ? null : (confidence as num).toDouble(),
+              aiModelVersion: queued.payload['ai_model_version'] as String?,
+              catalogVersion: queued.payload['catalog_version'] as String?,
+              originLat:
+                  originLat == null ? null : (originLat as num).toDouble(),
+              originLon:
+                  originLon == null ? null : (originLon as num).toDouble(),
+              originSource: queued.payload['origin_source'] as String?,
             ),
           );
           final dispatchId = parseDispatchIdFromResponse(response);

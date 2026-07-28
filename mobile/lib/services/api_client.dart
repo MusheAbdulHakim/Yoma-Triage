@@ -42,4 +42,21 @@ class ApiClient {
     }
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
+
+  Future<Map<String, dynamic>> getReferralGraph({
+    String region = 'northern',
+    String? district,
+  }) async {
+    final params = <String, String>{'region': region};
+    if (district != null && district.isNotEmpty) {
+      params['district'] = district;
+    }
+    final uri = Uri.parse('$baseUrl/api/v1/catalog/referral-graph')
+        .replace(queryParameters: params);
+    final res = await _client.get(uri);
+    if (res.statusCode >= 400) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
 }

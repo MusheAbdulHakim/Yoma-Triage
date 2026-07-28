@@ -8,7 +8,8 @@ import 'yamnet_classifier_base.dart';
 
 /// Native (Android/iOS): real YAMNet when asset loads and tensors match; otherwise stub.
 class YamnetClassifierIo implements YamnetClassifier {
-  YamnetClassifierIo._live(this._interpreter, this._inputSize, this._outputSize);
+  YamnetClassifierIo._live(
+      this._interpreter, this._inputSize, this._outputSize);
 
   final Interpreter _interpreter;
   final int _inputSize;
@@ -101,6 +102,7 @@ class YamnetClassifierIo implements YamnetClassifier {
         confidence: 0.0,
         reason: 'Screening unavailable — use clinical judgment',
         source: 'stub',
+        modelVersion: 'stub-v0',
       );
     }
   }

@@ -1,13 +1,22 @@
 import 'package:flutter/material.dart';
 
+import '../services/moews_calculator.dart';
+import '../services/referral_gating.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
 import 'referral_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final ScreeningResult result;
+  final MoewsResult? moews;
+  final Map<String, Object>? vitals;
 
-  const ResultScreen({super.key, required this.result});
+  const ResultScreen({
+    super.key,
+    required this.result,
+    this.moews,
+    this.vitals,
+  });
 
   Color get _color {
     switch (result.label) {
@@ -23,8 +32,26 @@ class ResultScreen extends StatelessWidget {
   bool get _isDemoSource =>
       result.source == 'stub' || result.source == 'simulator';
 
+  Color _moewsColor(MoewsResult m) {
+    switch (m.riskLevel) {
+      case 'RED':
+        return YomaColors.danger;
+      case 'YELLOW':
+        return YomaColors.caution;
+      case 'GREEN':
+        return YomaColors.safe;
+      default:
+        return Colors.grey;
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
+    final indicate = referralIndicated(
+      acousticLabel: result.label,
+      moewsRiskLevel: moews?.riskLevel,
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Screening Result'),
@@ -94,28 +121,93 @@ class ResultScreen extends StatelessWidget {
                 ],
               ),
             ),
-            const Spacer(),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-              ),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ReferralScreen(
-                      aiScreenResult: result.label,
-                      aiConfidence: result.confidence,
-                    ),
+            if (moews != null) ...[
+              const SizedBox(height: 16),
+              Card(
+                color: _moewsColor(moews!).withValues(alpha: 0.12),
+                child: Padding(
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'MOEWS ${moews!.riskLevel}'
+                        '${moews!.score != null ? ' · score ${moews!.score}' : ''}',
+                        style: TextStyle(
+                          fontWeight: FontWeight.w700,
+                          color: _moewsColor(moews!),
+                        ),
+                      ),
+                      if (moews!.hrAbnormal) ...[
+                        const SizedBox(height: 8),
+                        Text(
+                          'Heart rate contributes MOEWS ${moews!.hrScore} '
+                          '(abnormal band — escalate attention).',
+                          style: const TextStyle(
+                            color: YomaColors.danger,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
-                );
-              },
-              child: const Text('Confirm Referral'),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-              child: const Text('Continue Monitoring'),
-            ),
+                ),
+              ),
+            ],
+            const Spacer(),
+            if (indicate)
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ReferralScreen(
+                        aiScreenResult: result.label,
+                        aiConfidence: result.confidence,
+                        aiModelVersion: result.modelVersion,
+                        initialVitals: vitals,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Confirm Referral'),
+              )
+            else
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                ),
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
+                child: const Text('Continue Monitoring'),
+              ),
+            if (result.label == 'INCONCLUSIVE') ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ReferralScreen(
+                        aiScreenResult: result.label,
+                        aiConfidence: result.confidence,
+                        aiModelVersion: result.modelVersion,
+                        initialVitals: vitals,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Refer with clinical judgment'),
+              ),
+            ] else if (indicate) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
+                child: const Text('Continue Monitoring'),
+              ),
+            ],
           ],
         ),
       ),

@@ -22,8 +22,13 @@ set -a && source .env && set +a
 cd mobile
 flutter run -d emulator-5554 \
   --dart-define=API_BASE_URL="${PUBLIC_BASE_URL:-http://10.0.2.2:8000}" \
-  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}" \
+  --dart-define=APP_ENV="${APP_ENV:-development}" \
+  --dart-define=SCREENING_MODEL="${SCREENING_MODEL:-yamnet}" \
+  --dart-define=MOEWS_ONLY="${MOEWS_ONLY:-false}"
 ```
+
+Screening model flags: `SCREENING_MODEL=yamnet|hear_event|opera_ce|stub`, kill switch `MOEWS_ONLY=true`, optional `SCREENING_DUAL_RUN=true`. Details: [`docs/deploy-environments.md`](../docs/deploy-environments.md), [`docs/model-cards/yamnet-v0.md`](../docs/model-cards/yamnet-v0.md).
 
 ### Web (demo simulator)
 
@@ -85,6 +90,33 @@ If the model file is missing, **Android and iOS** fall back to the **stub** clas
 - YAMNet detects general audio events; it is **not** an obstetric diagnostic tool.
 - CHO clinical judgment and MOEWS vitals always take precedence.
 
+### Production UX (Phase A–C)
+
+- **CTA gating:** Confirm Referral appears when MOEWS is RED/YELLOW or acoustic is RED (escalate-only). GREEN acoustic + GREEN MOEWS → Continue Monitoring.
+- **Vitals before result:** screening → short vitals → MOEWS + acoustic result.
+- **Offline queue:** if sync fails, `QueuedReferralScreen` shows success framing — drivers are **not** notified until the phone has coverage.
+- **Facility catalog:** Northern Region **16 MMDA** bootstrap `assets/catalog/northern_bootstrap.json` (same pack as `data/northern_referral_graph.json`). Sync-on-connect via `GET /api/v1/catalog/referral-graph`; banner if never synced or older than **30 days**. Nearest facilities ranked by Haversine; **manual facility confirmation required** before submit.
+- **Telemetry:** scores-only (`ai_screen_result`, `ai_confidence`, `ai_model_version`) — no audio/embeddings in the outbox.
+- **OTP login:** deferred (not in this release).
+
+### Driver policy (offline vs sync)
+
+| State | Behavior |
+|-------|----------|
+| **Offline (no data path)** | Never invent a driver assignment. Queued UI must not show driver name/ETA. |
+| **On sync** | Backend runs existing SMS/USSD cascade scoped to `chps_compound_id` (Motor-King → personal → CHO escalate). |
+| **Later (optional)** | Distance-rank cascade notify using driver base/compound coords — still not live GPS chase. |
+
+Live driver GPS tracking is out of scope for this release (battery, privacy, radio).
+
+Full write-up: [`docs/driver-offline-policy.md`](../docs/driver-offline-policy.md).
+
+### Cardiac / CV roadmap (advisory)
+
+1. **Now:** MOEWS HR bands in vitals + result UI; abnormal HR escalates referral eligibility via MOEWS fusion.
+2. **Now (E2 UX):** optional “Fill HR from device (advisory)” on vitals — BLE pulse-ox / contact PPG **confirm dialog** before applying to MOEWS fields (no auto-pair yet).
+3. **Later:** native BLE pairing + heart-sound / single-lead ECG only after ethics + clinical pilot — never as “diagnosis.”
+
 ## Patient privacy
 
 Referral JSON uses a cryptographically random **SHA-256 patient token** (`patient_hash`). Patient names stay in-memory on device only and are never written to the offline outbox or API payload.
@@ -94,6 +126,12 @@ Referral JSON uses a cryptographically random **SHA-256 patient token** (`patien
 ```bash
 flutter analyze
 flutter test
+```
+
+Backend companion smoke (from repo root):
+
+```bash
+python -m pytest tests/test_catalog_referral_graph.py tests/test_facility_geo_fields.py tests/test_moews.py -q
 ```
 
 ## Theme

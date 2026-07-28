@@ -22,6 +22,7 @@ class YamnetClassifierStub implements YamnetClassifier {
         reason:
             '${result.reason} (model asset present; TFLite unavailable on this platform)',
         source: 'stub',
+        modelVersion: result.modelVersion,
       );
     }
     return result;

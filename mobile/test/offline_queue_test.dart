@@ -11,11 +11,13 @@ class _FakeApi extends ApiClient {
   final bool shouldFail;
   int calls = 0;
   String? lastClientRequestId;
+  String? lastAiModelVersion;
 
   @override
   Future<Map<String, dynamic>> createReferral(ReferralRequest req) async {
     calls++;
     lastClientRequestId = req.clientRequestId;
+    lastAiModelVersion = req.aiModelVersion;
     if (shouldFail) throw ApiException(503, 'down');
     return {
       'referral': {'id': 1, 'client_request_id': req.clientRequestId},
@@ -41,6 +43,7 @@ ReferralRequest _sample({required String id}) => ReferralRequest(
       },
       aiScreenResult: 'RED',
       aiConfidence: 0.82,
+      aiModelVersion: 'yamnet-audioset-v0',
     );
 
 void main() {
@@ -73,6 +76,7 @@ void main() {
     expect(sent, 1);
     expect(api.calls, 1);
     expect(api.lastClientRequestId, id);
+    expect(api.lastAiModelVersion, 'yamnet-audioset-v0');
     expect(await queue.pending(), isEmpty);
   });
 

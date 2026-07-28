@@ -1,4 +1,5 @@
 """Referral creation and read APIs."""
+
 from __future__ import annotations
 
 import logging
@@ -43,14 +44,13 @@ class ReferralCreate(BaseModel):
     client_request_id: str | None = Field(default=None, max_length=36)
     ai_screen_result: str | None = None
     ai_confidence: float | None = None
+    ai_model_version: str | None = Field(default=None, max_length=64)
 
     @field_validator("patient_hash")
     @classmethod
     def validate_patient_hash(cls, value: str) -> str:
         if not PATIENT_HASH_PATTERN.match(value):
-            raise ValueError(
-                "patient_hash must be exactly 64 lowercase hex characters"
-            )
+            raise ValueError("patient_hash must be exactly 64 lowercase hex characters")
         return value
 
 
@@ -71,12 +71,11 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "client_request_id": referral.client_request_id,
         "ai_screen_result": referral.ai_screen_result,
         "ai_confidence": referral.ai_confidence,
+        "ai_model_version": referral.ai_model_version,
     }
 
 
-async def _dispatch_response(
-    session: AsyncSession, dispatch: Dispatch
-) -> dict[str, Any]:
+async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[str, Any]:
     driver_name = None
     eta_minutes = None
     if dispatch.driver_id is not None:
@@ -118,14 +117,10 @@ async def create_referral(
         select(Referral).where(Referral.client_request_id == client_request_id)
     )
     if existing:
-        dispatch = await session.scalar(
-            select(Dispatch).where(Dispatch.referral_id == existing.id)
-        )
+        dispatch = await session.scalar(select(Dispatch).where(Dispatch.referral_id == existing.id))
         return {
             "referral": _referral_response(existing),
-            "dispatch": await _dispatch_response(session, dispatch)
-            if dispatch
-            else None,
+            "dispatch": await _dispatch_response(session, dispatch) if dispatch else None,
             "idempotent": True,
         }
 
@@ -165,6 +160,7 @@ async def create_referral(
         client_request_id=client_request_id,
         ai_screen_result=payload.ai_screen_result,
         ai_confidence=payload.ai_confidence,
+        ai_model_version=payload.ai_model_version,
     )
     session.add(referral)
     await session.flush()
@@ -177,9 +173,7 @@ async def create_referral(
 
 
 @router.get("/referral/{referral_id}")
-async def get_referral(
-    referral_id: int, session: AsyncSession = Depends(get_db)
-) -> dict[str, Any]:
+async def get_referral(referral_id: int, session: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     referral = await session.get(Referral, referral_id)
     if not referral:
         raise HTTPException(status_code=404, detail="Referral not found")
@@ -187,9 +181,7 @@ async def get_referral(
 
 
 @router.get("/dispatch/{dispatch_id}")
-async def get_dispatch(
-    dispatch_id: int, session: AsyncSession = Depends(get_db)
-) -> dict[str, Any]:
+async def get_dispatch(dispatch_id: int, session: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     dispatch = await session.get(Dispatch, dispatch_id)
     if not dispatch:
         raise HTTPException(status_code=404, detail="Dispatch not found")
@@ -202,9 +194,7 @@ async def get_dispatch_logs(
 ) -> dict[str, Any]:
     """Return the dispatch audit trail used by the local demo timeline."""
     logs = await session.scalars(
-        select(DispatchLog)
-        .where(DispatchLog.dispatch_id == dispatch_id)
-        .order_by(DispatchLog.id)
+        select(DispatchLog).where(DispatchLog.dispatch_id == dispatch_id).order_by(DispatchLog.id)
     )
     return {
         "dispatch_id": dispatch_id,

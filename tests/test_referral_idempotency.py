@@ -1,4 +1,5 @@
 """Idempotent referral create via client_request_id + AI screen fields."""
+
 from __future__ import annotations
 
 from unittest.mock import AsyncMock, MagicMock
@@ -44,6 +45,7 @@ async def test_create_referral_persists_ai_screen_fields(
         **sample_referral_payload,
         "ai_screen_result": "RED",
         "ai_confidence": 0.82,
+        "ai_model_version": "yamnet-audioset-v0",
     }
     res = await client.post("/api/v1/referral", json=payload)
     assert res.status_code == 201
@@ -52,6 +54,7 @@ async def test_create_referral_persists_ai_screen_fields(
     assert referral["client_request_id"] == sample_referral_payload["client_request_id"]
     assert referral["ai_screen_result"] == "RED"
     assert referral["ai_confidence"] == pytest.approx(0.82)
+    assert referral["ai_model_version"] == "yamnet-audioset-v0"
     assert initiate.await_count == 1
 
 

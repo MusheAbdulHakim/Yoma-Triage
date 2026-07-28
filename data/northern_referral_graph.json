@@ -1,0 +1,347 @@
+{
+  "version": "2026-07-28.2",
+  "region": "northern",
+  "notes": "Approximate district-seat coords for Northern Region MMDAs; refine with GHS master list before pilot.",
+  "compounds": [
+    {
+      "id": 1,
+      "name": "Tamale South CHPS",
+      "latitude": 9.403,
+      "longitude": -0.842,
+      "district": "Tamale Metropolitan"
+    },
+    {
+      "id": 2,
+      "name": "Sagnarigu CHPS",
+      "latitude": 9.432,
+      "longitude": -0.862,
+      "district": "Sagnarigu Municipal"
+    },
+    {
+      "id": 3,
+      "name": "Savelugu CHPS",
+      "latitude": 9.624,
+      "longitude": -0.825,
+      "district": "Savelugu Municipal"
+    },
+    {
+      "id": 4,
+      "name": "Yendi Central CHPS",
+      "latitude": 9.442,
+      "longitude": -0.009,
+      "district": "Yendi Municipal"
+    },
+    {
+      "id": 5,
+      "name": "Gushegu CHPS",
+      "latitude": 9.933,
+      "longitude": -0.217,
+      "district": "Gushegu Municipal"
+    },
+    {
+      "id": 6,
+      "name": "Karaga CHPS",
+      "latitude": 9.917,
+      "longitude": -0.433,
+      "district": "Karaga District"
+    },
+    {
+      "id": 7,
+      "name": "Kpandai CHPS",
+      "latitude": 8.467,
+      "longitude": -0.017,
+      "district": "Kpandai District"
+    },
+    {
+      "id": 8,
+      "name": "Kumbungu CHPS",
+      "latitude": 9.567,
+      "longitude": -0.983,
+      "district": "Kumbungu District"
+    },
+    {
+      "id": 9,
+      "name": "Mion CHPS",
+      "latitude": 9.35,
+      "longitude": -0.15,
+      "district": "Mion District"
+    },
+    {
+      "id": 10,
+      "name": "Nanton CHPS",
+      "latitude": 9.55,
+      "longitude": -0.75,
+      "district": "Nanton District"
+    },
+    {
+      "id": 11,
+      "name": "Bimbilla CHPS",
+      "latitude": 8.85,
+      "longitude": -0.067,
+      "district": "Nanumba North Municipal"
+    },
+    {
+      "id": 12,
+      "name": "Wulensi CHPS",
+      "latitude": 8.65,
+      "longitude": 0.017,
+      "district": "Nanumba South District"
+    },
+    {
+      "id": 13,
+      "name": "Saboba CHPS",
+      "latitude": 9.817,
+      "longitude": 0.317,
+      "district": "Saboba District"
+    },
+    {
+      "id": 14,
+      "name": "Tatale CHPS",
+      "latitude": 9.35,
+      "longitude": 0.45,
+      "district": "Tatale Sanguli District"
+    },
+    {
+      "id": 15,
+      "name": "Tolon CHPS",
+      "latitude": 9.433,
+      "longitude": -1.0,
+      "district": "Tolon District"
+    },
+    {
+      "id": 16,
+      "name": "Zabzugu CHPS",
+      "latitude": 9.3,
+      "longitude": 0.367,
+      "district": "Zabzugu District"
+    }
+  ],
+  "facilities": [
+    {
+      "id": 1,
+      "name": "Tamale Teaching Hospital",
+      "latitude": 9.405,
+      "longitude": -0.843,
+      "district": "Tamale Metropolitan",
+      "has_maternity": true,
+      "has_icu": true,
+      "type": "teaching_hospital"
+    },
+    {
+      "id": 2,
+      "name": "Sagnarigu Polyclinic",
+      "latitude": 9.434,
+      "longitude": -0.863,
+      "district": "Sagnarigu Municipal",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "polyclinic"
+    },
+    {
+      "id": 3,
+      "name": "Savelugu Municipal Hospital",
+      "latitude": 9.626,
+      "longitude": -0.826,
+      "district": "Savelugu Municipal",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "municipal_hospital"
+    },
+    {
+      "id": 4,
+      "name": "Yendi Municipal Hospital",
+      "latitude": 9.444,
+      "longitude": -0.01,
+      "district": "Yendi Municipal",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "municipal_hospital"
+    },
+    {
+      "id": 5,
+      "name": "Gushegu District Hospital",
+      "latitude": 9.935,
+      "longitude": -0.218,
+      "district": "Gushegu Municipal",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "district_hospital"
+    },
+    {
+      "id": 6,
+      "name": "Karaga Health Centre",
+      "latitude": 9.919,
+      "longitude": -0.434,
+      "district": "Karaga District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "health_centre"
+    },
+    {
+      "id": 7,
+      "name": "Kpandai District Hospital",
+      "latitude": 8.469,
+      "longitude": -0.018,
+      "district": "Kpandai District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "district_hospital"
+    },
+    {
+      "id": 8,
+      "name": "Kumbungu Health Centre",
+      "latitude": 9.569,
+      "longitude": -0.984,
+      "district": "Kumbungu District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "health_centre"
+    },
+    {
+      "id": 9,
+      "name": "Sang Health Centre",
+      "latitude": 9.352,
+      "longitude": -0.151,
+      "district": "Mion District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "health_centre"
+    },
+    {
+      "id": 10,
+      "name": "Nanton Health Centre",
+      "latitude": 9.552,
+      "longitude": -0.751,
+      "district": "Nanton District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "health_centre"
+    },
+    {
+      "id": 11,
+      "name": "Bimbilla Hospital",
+      "latitude": 8.852,
+      "longitude": -0.068,
+      "district": "Nanumba North Municipal",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "district_hospital"
+    },
+    {
+      "id": 12,
+      "name": "Wulensi Health Centre",
+      "latitude": 8.652,
+      "longitude": 0.016,
+      "district": "Nanumba South District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "health_centre"
+    },
+    {
+      "id": 13,
+      "name": "Saboba Hospital",
+      "latitude": 9.819,
+      "longitude": 0.316,
+      "district": "Saboba District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "district_hospital"
+    },
+    {
+      "id": 14,
+      "name": "Tatale Health Centre",
+      "latitude": 9.352,
+      "longitude": 0.449,
+      "district": "Tatale Sanguli District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "health_centre"
+    },
+    {
+      "id": 15,
+      "name": "Tolon Health Centre",
+      "latitude": 9.435,
+      "longitude": -1.001,
+      "district": "Tolon District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "health_centre"
+    },
+    {
+      "id": 16,
+      "name": "Zabzugu Health Centre",
+      "latitude": 9.302,
+      "longitude": 0.366,
+      "district": "Zabzugu District",
+      "has_maternity": true,
+      "has_icu": false,
+      "type": "health_centre"
+    }
+  ],
+  "preferred_links": [
+    {
+      "chps_compound_id": 1,
+      "facility_id": 1
+    },
+    {
+      "chps_compound_id": 2,
+      "facility_id": 2
+    },
+    {
+      "chps_compound_id": 3,
+      "facility_id": 3
+    },
+    {
+      "chps_compound_id": 4,
+      "facility_id": 4
+    },
+    {
+      "chps_compound_id": 5,
+      "facility_id": 5
+    },
+    {
+      "chps_compound_id": 6,
+      "facility_id": 6
+    },
+    {
+      "chps_compound_id": 7,
+      "facility_id": 7
+    },
+    {
+      "chps_compound_id": 8,
+      "facility_id": 8
+    },
+    {
+      "chps_compound_id": 9,
+      "facility_id": 9
+    },
+    {
+      "chps_compound_id": 10,
+      "facility_id": 10
+    },
+    {
+      "chps_compound_id": 11,
+      "facility_id": 11
+    },
+    {
+      "chps_compound_id": 12,
+      "facility_id": 12
+    },
+    {
+      "chps_compound_id": 13,
+      "facility_id": 13
+    },
+    {
+      "chps_compound_id": 14,
+      "facility_id": 14
+    },
+    {
+      "chps_compound_id": 15,
+      "facility_id": 15
+    },
+    {
+      "chps_compound_id": 16,
+      "facility_id": 16
+    }
+  ]
+}
