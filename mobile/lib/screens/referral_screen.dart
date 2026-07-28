@@ -8,6 +8,7 @@ import '../services/offline_queue.dart';
 import '../services/patient_token.dart';
 import '../theme/yoma_theme.dart';
 import 'dispatch_status_screen.dart';
+import 'queued_referral_screen.dart';
 
 class ReferralScreen extends StatefulWidget {
   final String? aiScreenResult;
@@ -140,22 +141,30 @@ class _ReferralScreenState extends State<ReferralScreen> {
           await _queue.saveDispatchId(clientRequestId, dispatchId);
         }
         await _queue.flush(_api);
-      } catch (e) {
-        // Offline / API down — stay queued for later flush.
-        if (mounted) {
-          setState(() => _error = 'Queued offline: $e');
-        }
+        dispatchId ??= await _queue.lookupDispatchId(clientRequestId);
+      } catch (_) {
+        // Offline / API down — the referral remains durably queued.
       }
 
       if (!mounted) return;
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => DispatchStatusScreen(
-            dispatchId: dispatchId,
-            clientRequestId: clientRequestId,
+      if (dispatchId == null) {
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => QueuedReferralScreen(
+              clientRequestId: clientRequestId,
+            ),
           ),
-        ),
-      );
+        );
+      } else {
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => DispatchStatusScreen(
+              dispatchId: dispatchId,
+              clientRequestId: clientRequestId,
+            ),
+          ),
+        );
+      }
     } catch (e) {
       if (mounted) {
         setState(() => _error = 'Could not queue referral: $e');
