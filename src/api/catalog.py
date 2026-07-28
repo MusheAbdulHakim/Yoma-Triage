@@ -10,7 +10,7 @@ from fastapi import APIRouter, HTTPException, Query
 router = APIRouter(prefix="/api/v1/catalog", tags=["Catalog"])
 
 # Keep in sync with mobile/assets/catalog/northern_bootstrap.json
-CATALOG_VERSION = "2026-07-28.2"
+CATALOG_VERSION = "2026-07-28.3"
 _NORTHERN_PATH = (
     Path(__file__).resolve().parents[2] / "data" / "northern_referral_graph.json"
 )

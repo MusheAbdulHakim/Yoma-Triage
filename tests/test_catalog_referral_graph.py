@@ -15,7 +15,7 @@ async def test_referral_graph_returns_versioned_catalog_with_coordinates(
 
     assert response.status_code == 200
     body = response.json()
-    assert body["version"] == "2026-07-28.2"
+    assert body["version"] == "2026-07-28.3"
     assert body["region"] == "northern"
     assert len(body["compounds"]) == 16
     assert len(body["facilities"]) == 16

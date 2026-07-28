@@ -15,17 +15,27 @@ Produce a TFLite/LiteRT asset loadable by Flutter (`tflite_flutter`) for advisor
 ## Spike steps (engineering)
 
 1. Clone OPERA; load OPERA-CE checkpoint in PyTorch.
-2. Export ONNX (`torch.onnx.export`) with fixed 16 kHz mono window window matching app capture.
+2. Export ONNX (`torch.onnx.export`) with fixed 16 kHz mono audio window matching app capture.
 3. Convert ONNX → TFLite (`onnx2tf` or TF converter); verify ops supported by TFLite built-ins / Flex.
 4. Bundle under `mobile/assets/models/opera_ce.tflite` (git-lfs if large).
 5. Wire `createOperaCeClassifier()`; dual-run vs YAMNet when `SCREENING_DUAL_RUN=true`.
 6. Model card + checksum; feature flag default remains `yamnet` until lab set ≥100 clips.
 
+### Helper in this repo
+
+```bash
+python scripts/spikes/export_opera_ce.py --check
+OPERA_ROOT=/path/to/OPERA python scripts/spikes/export_opera_ce.py --export
+```
+
+`--check` verifies whether `mobile/assets/models/opera_ce.tflite` is present and prints sha256. `--export` is a scaffold that confirms torch + OPERA_ROOT; finish the real `torch.onnx.export` against OPERA’s CE forward pass in that tree.
+
 ## Current app behavior
 
-Until the TFLite pack is present, `SCREENING_MODEL=opera_ce` returns **INCONCLUSIVE** with reason `OPERA-CE model pack not installed` (never silent GREEN). Same for `hear_event` pending ToS + asset.
+Until the TFLite pack is present, `SCREENING_MODEL=opera_ce` returns **INCONCLUSIVE** with reason `opera_ce model pack not installed` (never silent GREEN). Same for `hear_event` pending ToS + asset.
 
 ## Non-goals
 
-- Shipping OPERA-CT/GT on mid-range CHO phones in v1  
-- Disease-class labels as CHO diagnosis  
+- Shipping OPERA-CT/GT on mid-range CHO phones in v1
+- Disease-class labels as CHO diagnosis
+- Waiting on CHO OTP (deferred) before this spike

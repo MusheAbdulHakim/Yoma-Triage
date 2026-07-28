@@ -73,8 +73,16 @@ class CatalogStore {
 
   Future<void> sync(ApiClient client) async {
     final body = await client.getReferralGraph(region: 'northern');
-    final prefs = await SharedPreferences.getInstance();
     final version = body['version']?.toString() ?? '';
+
+    // Persist graph before marking fresh — avoids stale banner false-negative
+    // if the disk write fails after prefs update.
+    if (!kIsWeb) {
+      final file = await _syncedFile();
+      await file.writeAsString(jsonEncode(body));
+    }
+
+    final prefs = await SharedPreferences.getInstance();
     await prefs.setString(
       CatalogConfig.syncedAtPrefsKey,
       DateTime.now().toUtc().toIso8601String(),
@@ -82,12 +90,6 @@ class CatalogStore {
     if (version.isNotEmpty) {
       await prefs.setString(CatalogConfig.catalogVersionPrefsKey, version);
     }
-    if (kIsWeb) {
-      // Web: prefs timestamp only; keep bootstrap asset as graph source.
-      return;
-    }
-    final file = await _syncedFile();
-    await file.writeAsString(jsonEncode(body));
   }
 
   /// Best-effort sync used at app start; never throws to UI callers.

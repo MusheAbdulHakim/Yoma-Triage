@@ -1,19 +1,352 @@
 {
   "compounds": [
-    {"id": 1, "name": "Tamale South CHPS", "zone": "Tamale Metro", "latitude": 9.403, "longitude": -0.842, "cho_phone": "+233240000100"},
-    {"id": 2, "name": "Navrongo Central CHPS", "zone": "Kassena-Nankana East", "latitude": 10.895, "longitude": -1.092, "cho_phone": "+233240000101"},
-    {"id": 3, "name": "Savelugu CHPS", "zone": "Savelugu Municipal", "latitude": 9.624, "longitude": -0.825, "cho_phone": "+233240000102"}
+    {
+      "id": 1,
+      "name": "Tamale South CHPS",
+      "zone": "Tamale Metropolitan",
+      "latitude": 9.403,
+      "longitude": -0.842,
+      "cho_phone": "+233240000100"
+    },
+    {
+      "id": 2,
+      "name": "Sagnarigu CHPS",
+      "zone": "Sagnarigu Municipal",
+      "latitude": 9.432,
+      "longitude": -0.862,
+      "cho_phone": "+233240000101"
+    },
+    {
+      "id": 3,
+      "name": "Savelugu CHPS",
+      "zone": "Savelugu Municipal",
+      "latitude": 9.624,
+      "longitude": -0.825,
+      "cho_phone": "+233240000102"
+    },
+    {
+      "id": 4,
+      "name": "Yendi Central CHPS",
+      "zone": "Yendi Municipal",
+      "latitude": 9.442,
+      "longitude": -0.009,
+      "cho_phone": "+233240000103"
+    },
+    {
+      "id": 5,
+      "name": "Gushegu CHPS",
+      "zone": "Gushegu Municipal",
+      "latitude": 9.921,
+      "longitude": -0.22,
+      "cho_phone": "+233240000104"
+    },
+    {
+      "id": 6,
+      "name": "Karaga CHPS",
+      "zone": "Karaga District",
+      "latitude": 9.925,
+      "longitude": -0.431,
+      "cho_phone": "+233240000105"
+    },
+    {
+      "id": 7,
+      "name": "Kpandai CHPS",
+      "zone": "Kpandai District",
+      "latitude": 8.467,
+      "longitude": -0.017,
+      "cho_phone": "+233240000106"
+    },
+    {
+      "id": 8,
+      "name": "Kumbungu CHPS",
+      "zone": "Kumbungu District",
+      "latitude": 9.567,
+      "longitude": -0.983,
+      "cho_phone": "+233240000107"
+    },
+    {
+      "id": 9,
+      "name": "Mion CHPS",
+      "zone": "Mion District",
+      "latitude": 9.417,
+      "longitude": -0.279,
+      "cho_phone": "+233240000108"
+    },
+    {
+      "id": 10,
+      "name": "Nanton CHPS",
+      "zone": "Nanton District",
+      "latitude": 9.55,
+      "longitude": -0.75,
+      "cho_phone": "+233240000109"
+    },
+    {
+      "id": 11,
+      "name": "Bimbilla CHPS",
+      "zone": "Nanumba North Municipal",
+      "latitude": 8.85,
+      "longitude": -0.067,
+      "cho_phone": "+233240000110"
+    },
+    {
+      "id": 12,
+      "name": "Wulensi CHPS",
+      "zone": "Nanumba South District",
+      "latitude": 8.65,
+      "longitude": 0.015,
+      "cho_phone": "+233240000111"
+    },
+    {
+      "id": 13,
+      "name": "Saboba CHPS",
+      "zone": "Saboba District",
+      "latitude": 9.817,
+      "longitude": 0.315,
+      "cho_phone": "+233240000112"
+    },
+    {
+      "id": 14,
+      "name": "Tatale CHPS",
+      "zone": "Tatale Sanguli District",
+      "latitude": 9.35,
+      "longitude": 0.45,
+      "cho_phone": "+233240000113"
+    },
+    {
+      "id": 15,
+      "name": "Tolon CHPS",
+      "zone": "Tolon District",
+      "latitude": 9.433,
+      "longitude": -1.0,
+      "cho_phone": "+233240000114"
+    },
+    {
+      "id": 16,
+      "name": "Zabzugu CHPS",
+      "zone": "Zabzugu District",
+      "latitude": 9.3,
+      "longitude": 0.367,
+      "cho_phone": "+233240000115"
+    }
   ],
   "facilities": [
-    {"id": 1, "name": "Tamale Teaching Hospital", "type": "teaching_hospital", "phone": "+233240000200", "district": "Tamale Metropolitan", "latitude": 9.4034, "longitude": -0.8424, "has_maternity": true, "has_icu": true},
-    {"id": 2, "name": "Navrongo War Memorial Hospital", "type": "district_hospital", "phone": "+233240000201", "district": "Kassena-Nankana East", "latitude": 10.895, "longitude": -1.092, "has_maternity": true, "has_icu": false},
-    {"id": 3, "name": "Savelugu Municipal Hospital", "type": "municipal_hospital", "phone": "+233240000202", "district": "Savelugu Municipal", "latitude": 9.6245, "longitude": -0.8251, "has_maternity": true, "has_icu": false}
+    {
+      "id": 1,
+      "name": "Tamale Teaching Hospital",
+      "type": "teaching_hospital",
+      "phone": "+233240000200",
+      "district": "Tamale Metropolitan",
+      "latitude": 9.405,
+      "longitude": -0.843,
+      "has_maternity": true,
+      "has_icu": true
+    },
+    {
+      "id": 2,
+      "name": "Sagnarigu Polyclinic",
+      "type": "polyclinic",
+      "phone": "+233240000201",
+      "district": "Sagnarigu Municipal",
+      "latitude": 9.434,
+      "longitude": -0.863,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 3,
+      "name": "Savelugu Municipal Hospital",
+      "type": "municipal_hospital",
+      "phone": "+233240000202",
+      "district": "Savelugu Municipal",
+      "latitude": 9.626,
+      "longitude": -0.826,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 4,
+      "name": "Yendi Municipal Hospital",
+      "type": "municipal_hospital",
+      "phone": "+233240000203",
+      "district": "Yendi Municipal",
+      "latitude": 9.444,
+      "longitude": -0.01,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 5,
+      "name": "Gushegu District Hospital",
+      "type": "district_hospital",
+      "phone": "+233240000204",
+      "district": "Gushegu Municipal",
+      "latitude": 9.923,
+      "longitude": -0.221,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 6,
+      "name": "Karaga Health Centre",
+      "type": "health_centre",
+      "phone": "+233240000205",
+      "district": "Karaga District",
+      "latitude": 9.927,
+      "longitude": -0.432,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 7,
+      "name": "Kpandai District Hospital",
+      "type": "district_hospital",
+      "phone": "+233240000206",
+      "district": "Kpandai District",
+      "latitude": 8.469,
+      "longitude": -0.018,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 8,
+      "name": "Kumbungu Health Centre",
+      "type": "health_centre",
+      "phone": "+233240000207",
+      "district": "Kumbungu District",
+      "latitude": 9.569,
+      "longitude": -0.984,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 9,
+      "name": "Sang Health Centre",
+      "type": "health_centre",
+      "phone": "+233240000208",
+      "district": "Mion District",
+      "latitude": 9.419,
+      "longitude": -0.28,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 10,
+      "name": "Nanton Health Centre",
+      "type": "health_centre",
+      "phone": "+233240000209",
+      "district": "Nanton District",
+      "latitude": 9.552,
+      "longitude": -0.751,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 11,
+      "name": "Bimbilla Hospital",
+      "type": "district_hospital",
+      "phone": "+233240000210",
+      "district": "Nanumba North Municipal",
+      "latitude": 8.852,
+      "longitude": -0.068,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 12,
+      "name": "Wulensi Health Centre",
+      "type": "health_centre",
+      "phone": "+233240000211",
+      "district": "Nanumba South District",
+      "latitude": 8.652,
+      "longitude": 0.014,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 13,
+      "name": "Saboba Hospital",
+      "type": "district_hospital",
+      "phone": "+233240000212",
+      "district": "Saboba District",
+      "latitude": 9.819,
+      "longitude": 0.314,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 14,
+      "name": "Tatale Health Centre",
+      "type": "health_centre",
+      "phone": "+233240000213",
+      "district": "Tatale Sanguli District",
+      "latitude": 9.352,
+      "longitude": 0.449,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 15,
+      "name": "Tolon Health Centre",
+      "type": "health_centre",
+      "phone": "+233240000214",
+      "district": "Tolon District",
+      "latitude": 9.435,
+      "longitude": -1.001,
+      "has_maternity": true,
+      "has_icu": false
+    },
+    {
+      "id": 16,
+      "name": "Zabzugu Health Centre",
+      "type": "health_centre",
+      "phone": "+233240000215",
+      "district": "Zabzugu District",
+      "latitude": 9.302,
+      "longitude": 0.366,
+      "has_maternity": true,
+      "has_icu": false
+    }
   ],
   "drivers": [
-    {"name": "Ibrahim", "phone": "+233240000001", "vehicle_type": "Motor-King", "vehicle_desc": "Red tricycle", "chps_compound_id": 1, "is_motor_king": true},
-    {"name": "Musah", "phone": "+233240000002", "vehicle_type": "Motor-King", "vehicle_desc": "Blue tricycle", "chps_compound_id": 1, "is_motor_king": true},
-    {"name": "Abdul", "phone": "+233240000003", "vehicle_type": "motorcycle", "vehicle_desc": "Black Honda", "chps_compound_id": 1, "is_motor_king": false},
-    {"name": "Kwame", "phone": "+233240000004", "vehicle_type": "Motor-King", "vehicle_desc": "Yellow tricycle", "chps_compound_id": 2, "is_motor_king": true},
-    {"name": "Yakubu", "phone": "+233240000005", "vehicle_type": "pickup", "vehicle_desc": "White Toyota", "chps_compound_id": 2, "is_motor_king": false}
+    {
+      "name": "Ibrahim",
+      "phone": "+233240000001",
+      "vehicle_type": "Motor-King",
+      "vehicle_desc": "Red tricycle",
+      "chps_compound_id": 1,
+      "is_motor_king": true
+    },
+    {
+      "name": "Musah",
+      "phone": "+233240000002",
+      "vehicle_type": "Motor-King",
+      "vehicle_desc": "Blue tricycle",
+      "chps_compound_id": 1,
+      "is_motor_king": true
+    },
+    {
+      "name": "Abdul",
+      "phone": "+233240000003",
+      "vehicle_type": "motorcycle",
+      "vehicle_desc": "Black Honda",
+      "chps_compound_id": 1,
+      "is_motor_king": false
+    },
+    {
+      "name": "Kwame",
+      "phone": "+233240000004",
+      "vehicle_type": "Motor-King",
+      "vehicle_desc": "Yellow tricycle",
+      "chps_compound_id": 2,
+      "is_motor_king": true
+    },
+    {
+      "name": "Yakubu",
+      "phone": "+233240000005",
+      "vehicle_type": "pickup",
+      "vehicle_desc": "White Toyota",
+      "chps_compound_id": 2,
+      "is_motor_king": false
+    }
   ]
 }
