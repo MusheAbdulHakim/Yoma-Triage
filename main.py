@@ -12,6 +12,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.agents.coordinator import yoma_graph
+from src.api.catalog import router as catalog_router
 from src.api.driver import router as driver_router
 from src.api.referral import router as referral_router
 from src.api.sms_webhook import router as sms_router
@@ -49,6 +50,7 @@ app.include_router(ussd_router)
 app.include_router(referral_router)
 app.include_router(sms_router)
 app.include_router(driver_router)
+app.include_router(catalog_router)
 
 
 @app.get("/")
