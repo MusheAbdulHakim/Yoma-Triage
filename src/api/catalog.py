@@ -16,7 +16,7 @@ router = APIRouter(
 )
 
 # Keep in sync with mobile/assets/catalog/northern_bootstrap.json
-CATALOG_VERSION = "2026-07-28.3"
+CATALOG_VERSION = "2026-07-28.4"
 _NORTHERN_PATH = (
     Path(__file__).resolve().parents[2] / "data" / "northern_referral_graph.json"
 )

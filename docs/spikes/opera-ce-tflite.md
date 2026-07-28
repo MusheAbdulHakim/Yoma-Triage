@@ -21,8 +21,8 @@ MIT-licensed respiratory foundation (EfficientNet-B0 ≈ 4M params). Best open f
 | Export EfficientNet encoder → ONNX | **Done** — `mobile/assets/models/opera_ce_encoder.onnx` (~16 MB) |
 | Numerical check vs PyTorch | **Pass** (max abs diff ~1e-4 on random mel) |
 | ONNX → TFLite encoder | **Done** — `mobile/assets/models/opera_ce_encoder.tflite` (~8 MB float16 via onnx2tf) |
-| Classification head | **Not started** — encoder alone cannot emit GREEN/RED |
-| Flutter pack `opera_ce.tflite` | Missing → app returns INCONCLUSIVE (never silent GREEN) |
+| Classification head | **Scaffolded** — `scripts/train_opera_ce_head.py` + lab-set SOP; no clinical head shipped |
+| Flutter `SCREENING_MODEL=opera_ce` | Loads `opera_ce_encoder.tflite` + Dart mel; **INCONCLUSIVE** until `opera_ce_head.tflite` present |
 
 Model card: [`docs/model-cards/opera-ce-encoder-v0.md`](../model-cards/opera-ce-encoder-v0.md)
 
@@ -36,7 +36,7 @@ OPERA_ROOT=/tmp/OPERA-spike python scripts/spikes/export_opera_ce.py --export --
 
 ## Current app behavior
 
-`SCREENING_MODEL=opera_ce` → INCONCLUSIVE until `mobile/assets/models/opera_ce.tflite` exists (classifier pack). The ONNX encoder is an intermediate artifact for head training / TFLite conversion — not loaded by Flutter yet.
+`SCREENING_MODEL=opera_ce` → Dart mel → `opera_ce_encoder.tflite` → **INCONCLUSIVE** (encoder-only). Optional `opera_ce_head.tflite` (2-class logits) enables advisory GREEN/RED with mid-band fail-closed. Train via lab-set + `scripts/train_opera_ce_head.py` (do not ship synthetic-smoke heads).
 
 ## Non-goals
 

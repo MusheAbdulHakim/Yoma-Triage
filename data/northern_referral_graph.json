@@ -1,118 +1,118 @@
 {
-  "version": "2026-07-28.3",
+  "version": "2026-07-28.4",
   "region": "northern",
-  "notes": "Northern Region 16 MMDA district-seat approximations (Wikidata/OSM-class). Replace with GHS facility master list before pilot go-live.",
+  "notes": "Northern Region 16 MMDA seats from OSM Nominatim (2026-07-28). Tamale/Yendi use hospital POIs where available. Replace with GHS facility master list before pilot go-live.",
   "compounds": [
     {
       "id": 1,
       "name": "Tamale South CHPS",
-      "latitude": 9.403,
-      "longitude": -0.842,
+      "latitude": 9.3934,
+      "longitude": -0.82358,
       "district": "Tamale Metropolitan"
     },
     {
       "id": 2,
       "name": "Sagnarigu CHPS",
-      "latitude": 9.432,
-      "longitude": -0.862,
+      "latitude": 9.41039,
+      "longitude": -0.86145,
       "district": "Sagnarigu Municipal"
     },
     {
       "id": 3,
       "name": "Savelugu CHPS",
-      "latitude": 9.624,
-      "longitude": -0.825,
+      "latitude": 9.62806,
+      "longitude": -0.82489,
       "district": "Savelugu Municipal"
     },
     {
       "id": 4,
       "name": "Yendi Central CHPS",
-      "latitude": 9.442,
-      "longitude": -0.009,
+      "latitude": 9.44762,
+      "longitude": -0.0028,
       "district": "Yendi Municipal"
     },
     {
       "id": 5,
       "name": "Gushegu CHPS",
-      "latitude": 9.921,
-      "longitude": -0.22,
+      "latitude": 9.9205,
+      "longitude": -0.21547,
       "district": "Gushegu Municipal"
     },
     {
       "id": 6,
       "name": "Karaga CHPS",
-      "latitude": 9.925,
-      "longitude": -0.431,
+      "latitude": 9.92878,
+      "longitude": -0.43066,
       "district": "Karaga District"
     },
     {
       "id": 7,
       "name": "Kpandai CHPS",
-      "latitude": 8.467,
-      "longitude": -0.017,
+      "latitude": 8.46558,
+      "longitude": -0.01099,
       "district": "Kpandai District"
     },
     {
       "id": 8,
       "name": "Kumbungu CHPS",
-      "latitude": 9.567,
-      "longitude": -0.983,
+      "latitude": 9.56113,
+      "longitude": -0.94571,
       "district": "Kumbungu District"
     },
     {
       "id": 9,
       "name": "Mion CHPS",
-      "latitude": 9.417,
-      "longitude": -0.279,
+      "latitude": 9.42085,
+      "longitude": -0.2778,
       "district": "Mion District"
     },
     {
       "id": 10,
       "name": "Nanton CHPS",
-      "latitude": 9.55,
-      "longitude": -0.75,
+      "latitude": 9.55335,
+      "longitude": -0.72904,
       "district": "Nanton District"
     },
     {
       "id": 11,
       "name": "Bimbilla CHPS",
-      "latitude": 8.85,
-      "longitude": -0.067,
+      "latitude": 8.86135,
+      "longitude": 0.0567,
       "district": "Nanumba North Municipal"
     },
     {
       "id": 12,
       "name": "Wulensi CHPS",
-      "latitude": 8.65,
-      "longitude": 0.015,
+      "latitude": 8.65674,
+      "longitude": 0.00229,
       "district": "Nanumba South District"
     },
     {
       "id": 13,
       "name": "Saboba CHPS",
-      "latitude": 9.817,
-      "longitude": 0.315,
+      "latitude": 9.70687,
+      "longitude": 0.31765,
       "district": "Saboba District"
     },
     {
       "id": 14,
       "name": "Tatale CHPS",
-      "latitude": 9.35,
-      "longitude": 0.45,
+      "latitude": 9.35866,
+      "longitude": 0.5276,
       "district": "Tatale Sanguli District"
     },
     {
       "id": 15,
       "name": "Tolon CHPS",
-      "latitude": 9.433,
-      "longitude": -1.0,
+      "latitude": 9.43447,
+      "longitude": -1.0656,
       "district": "Tolon District"
     },
     {
       "id": 16,
       "name": "Zabzugu CHPS",
-      "latitude": 9.3,
-      "longitude": 0.367,
+      "latitude": 9.29606,
+      "longitude": 0.36806,
       "district": "Zabzugu District"
     }
   ],
@@ -120,8 +120,8 @@
     {
       "id": 1,
       "name": "Tamale Teaching Hospital",
-      "latitude": 9.405,
-      "longitude": -0.843,
+      "latitude": 9.3914,
+      "longitude": -0.82458,
       "district": "Tamale Metropolitan",
       "has_maternity": true,
       "has_icu": true,
@@ -130,8 +130,8 @@
     {
       "id": 2,
       "name": "Sagnarigu Polyclinic",
-      "latitude": 9.434,
-      "longitude": -0.863,
+      "latitude": 9.40839,
+      "longitude": -0.86245,
       "district": "Sagnarigu Municipal",
       "has_maternity": true,
       "has_icu": false,
@@ -140,8 +140,8 @@
     {
       "id": 3,
       "name": "Savelugu Municipal Hospital",
-      "latitude": 9.626,
-      "longitude": -0.826,
+      "latitude": 9.62606,
+      "longitude": -0.82589,
       "district": "Savelugu Municipal",
       "has_maternity": true,
       "has_icu": false,
@@ -150,8 +150,8 @@
     {
       "id": 4,
       "name": "Yendi Municipal Hospital",
-      "latitude": 9.444,
-      "longitude": -0.01,
+      "latitude": 9.44562,
+      "longitude": -0.0038,
       "district": "Yendi Municipal",
       "has_maternity": true,
       "has_icu": false,
@@ -160,8 +160,8 @@
     {
       "id": 5,
       "name": "Gushegu District Hospital",
-      "latitude": 9.923,
-      "longitude": -0.221,
+      "latitude": 9.9185,
+      "longitude": -0.21647,
       "district": "Gushegu Municipal",
       "has_maternity": true,
       "has_icu": false,
@@ -170,8 +170,8 @@
     {
       "id": 6,
       "name": "Karaga Health Centre",
-      "latitude": 9.927,
-      "longitude": -0.432,
+      "latitude": 9.92678,
+      "longitude": -0.43166,
       "district": "Karaga District",
       "has_maternity": true,
       "has_icu": false,
@@ -180,8 +180,8 @@
     {
       "id": 7,
       "name": "Kpandai District Hospital",
-      "latitude": 8.469,
-      "longitude": -0.018,
+      "latitude": 8.46358,
+      "longitude": -0.01199,
       "district": "Kpandai District",
       "has_maternity": true,
       "has_icu": false,
@@ -190,8 +190,8 @@
     {
       "id": 8,
       "name": "Kumbungu Health Centre",
-      "latitude": 9.569,
-      "longitude": -0.984,
+      "latitude": 9.55913,
+      "longitude": -0.94671,
       "district": "Kumbungu District",
       "has_maternity": true,
       "has_icu": false,
@@ -200,8 +200,8 @@
     {
       "id": 9,
       "name": "Sang Health Centre",
-      "latitude": 9.419,
-      "longitude": -0.28,
+      "latitude": 9.41885,
+      "longitude": -0.2788,
       "district": "Mion District",
       "has_maternity": true,
       "has_icu": false,
@@ -210,8 +210,8 @@
     {
       "id": 10,
       "name": "Nanton Health Centre",
-      "latitude": 9.552,
-      "longitude": -0.751,
+      "latitude": 9.55135,
+      "longitude": -0.73004,
       "district": "Nanton District",
       "has_maternity": true,
       "has_icu": false,
@@ -220,8 +220,8 @@
     {
       "id": 11,
       "name": "Bimbilla Hospital",
-      "latitude": 8.852,
-      "longitude": -0.068,
+      "latitude": 8.85935,
+      "longitude": 0.0557,
       "district": "Nanumba North Municipal",
       "has_maternity": true,
       "has_icu": false,
@@ -230,8 +230,8 @@
     {
       "id": 12,
       "name": "Wulensi Health Centre",
-      "latitude": 8.652,
-      "longitude": 0.014,
+      "latitude": 8.65474,
+      "longitude": 0.00129,
       "district": "Nanumba South District",
       "has_maternity": true,
       "has_icu": false,
@@ -240,8 +240,8 @@
     {
       "id": 13,
       "name": "Saboba Hospital",
-      "latitude": 9.819,
-      "longitude": 0.314,
+      "latitude": 9.70487,
+      "longitude": 0.31665,
       "district": "Saboba District",
       "has_maternity": true,
       "has_icu": false,
@@ -250,8 +250,8 @@
     {
       "id": 14,
       "name": "Tatale Health Centre",
-      "latitude": 9.352,
-      "longitude": 0.449,
+      "latitude": 9.35666,
+      "longitude": 0.5266,
       "district": "Tatale Sanguli District",
       "has_maternity": true,
       "has_icu": false,
@@ -260,8 +260,8 @@
     {
       "id": 15,
       "name": "Tolon Health Centre",
-      "latitude": 9.435,
-      "longitude": -1.001,
+      "latitude": 9.43247,
+      "longitude": -1.0666,
       "district": "Tolon District",
       "has_maternity": true,
       "has_icu": false,
@@ -270,8 +270,8 @@
     {
       "id": 16,
       "name": "Zabzugu Health Centre",
-      "latitude": 9.302,
-      "longitude": 0.366,
+      "latitude": 9.29406,
+      "longitude": 0.36706,
       "district": "Zabzugu District",
       "has_maternity": true,
       "has_icu": false,
