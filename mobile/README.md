@@ -103,13 +103,15 @@ If the model file is missing, **Android and iOS** fall back to the **stub** clas
 
 Live driver GPS tracking is out of scope for this release (battery, privacy, radio).
 
+Full write-up: [`docs/driver-offline-policy.md`](../docs/driver-offline-policy.md).
+
 ### Cardiac / CV roadmap (advisory)
 
 1. **Now:** MOEWS HR bands in vitals + result UI; abnormal HR escalates referral eligibility via MOEWS fusion.
 2. **Next:** optional BLE pulse-ox / contact PPG as advisory HR fill-in (same MOEWS fields).
 3. **Later:** heart-sound / single-lead ECG only after ethics + clinical pilot — never as “diagnosis.”
 
-See `docs/superpowers/specs/2026-07-28-offline-first-referral-gating-cardiac-roadmap-design.md` §5.8 / Phase E.
+See `docs/superpowers/specs/2026-07-28-offline-first-referral-gating-cardiac-roadmap-design.md (local worktree/spec)` §5.8 / Phase E.
 
 ## Patient privacy
 
