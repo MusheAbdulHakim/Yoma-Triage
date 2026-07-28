@@ -85,6 +85,14 @@ If the model file is missing, **Android and iOS** fall back to the **stub** clas
 - YAMNet detects general audio events; it is **not** an obstetric diagnostic tool.
 - CHO clinical judgment and MOEWS vitals always take precedence.
 
+### Production UX (Phase A–C)
+
+- **CTA gating:** Confirm Referral appears when MOEWS is RED/YELLOW or acoustic is RED (escalate-only). GREEN acoustic + GREEN MOEWS → Continue Monitoring.
+- **Vitals before result:** screening → short vitals → MOEWS + acoustic result.
+- **Offline queue:** if sync fails, `QueuedReferralScreen` shows success framing — drivers are **not** notified until the phone has coverage.
+- **Facility catalog:** bootstrap asset `assets/catalog/northern_bootstrap.json`; sync via `GET /api/v1/catalog/referral-graph`. Nearest facilities ranked by Haversine; **manual facility confirmation required** before submit.
+- **Telemetry:** scores-only (`ai_screen_result`, `ai_confidence`, `ai_model_version`) — no audio/embeddings in the outbox.
+
 ## Patient privacy
 
 Referral JSON uses a cryptographically random **SHA-256 patient token** (`patient_hash`). Patient names stay in-memory on device only and are never written to the offline outbox or API payload.
@@ -94,6 +102,12 @@ Referral JSON uses a cryptographically random **SHA-256 patient token** (`patien
 ```bash
 flutter analyze
 flutter test
+```
+
+Backend companion smoke (from repo root):
+
+```bash
+python -m pytest tests/test_catalog_referral_graph.py tests/test_facility_geo_fields.py tests/test_moews.py -q
 ```
 
 ## Theme
