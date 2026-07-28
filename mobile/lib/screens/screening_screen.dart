@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 
+import '../config.dart';
 import '../services/screening_result.dart';
 import '../services/screening_service.dart';
 import '../theme/yoma_theme.dart';
@@ -20,8 +21,7 @@ class ScreeningScreen extends StatefulWidget {
 }
 
 class _ScreeningScreenState extends State<ScreeningScreen> {
-  static const _durationSec = 15;
-  int _remaining = _durationSec;
+  late int _remaining = ScreeningConfig.durationSec;
   Timer? _timer;
   bool _analyzing = false;
   bool _recording = false;
@@ -35,11 +35,11 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
   void initState() {
     super.initState();
     if (!_isWebSimulator) {
-      unawaited(_beginAndroidCapture());
+      unawaited(_beginNativeCapture());
     }
   }
 
-  Future<void> _beginAndroidCapture() async {
+  Future<void> _beginNativeCapture() async {
     try {
       await _screening.startRecording();
       if (!mounted || _finishing) return;
@@ -133,12 +133,12 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
       ),
       body: Padding(
         padding: const EdgeInsets.all(24),
-        child: _isWebSimulator ? _buildWebSimulator() : _buildAndroidCapture(),
+        child: _isWebSimulator ? _buildWebSimulator() : _buildNativeCapture(),
       ),
     );
   }
 
-  String get _androidStatusText {
+  String get _nativeStatusText {
     if (_analyzing) return 'Checking breath…';
     if (_recording) return 'Listening… $_remaining s left';
     return _error ?? 'Starting microphone…';
@@ -154,7 +154,8 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          'YAMNet runs on Android. Use these buttons to simulate screening.',
+          'On Android and iOS, YAMNet uses the microphone. '
+          'On web, use these buttons to simulate screening.',
           style: TextStyle(color: Colors.grey.shade700),
         ),
         const Spacer(),
@@ -196,7 +197,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     );
   }
 
-  Widget _buildAndroidCapture() {
+  Widget _buildNativeCapture() {
     final pulsing = _recording || _analyzing;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -207,7 +208,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         ),
         const SizedBox(height: 8),
         Text(
-          _androidStatusText,
+          _nativeStatusText,
           style: TextStyle(color: Colors.grey.shade700),
         ),
         if (_error != null) ...[

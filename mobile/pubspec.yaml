@@ -16,7 +16,7 @@ dependencies:
   connectivity_plus: ^6.0.0
   uuid: ^4.5.0
   path_provider: ^2.1.0
-  # Android-oriented; Dart usage gated via conditional imports (web/stub).
+  # Mic / TFLite on Android & iOS; Dart usage gated via conditional imports (web/stub).
   record: ^5.1.0
   tflite_flutter: ^0.11.0
   crypto: ^3.0.7
@@ -26,6 +26,11 @@ dev_dependencies:
     sdk: flutter
   flutter_lints: ^5.0.0
   sqflite_common_ffi: ^2.3.0
+
+# record_linux 0.7.x breaks against record_platform_interface ≥1.5;
+# pin so Android/iOS release builds compile (linux plugin unused on device).
+dependency_overrides:
+  record_platform_interface: 1.2.0
 
 flutter:
   uses-material-design: true

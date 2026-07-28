@@ -45,6 +45,37 @@ If the browser Origin differs (random port), add it to `CORS_ORIGINS` in `.env` 
 
 `PUBLIC_BASE_URL` (ngrok) is auto-appended to the CORS allowlist for device demos that call the API through the tunnel — it is **not** a Flutter web Origin unless you host the web build there.
 
+## Flutter on device (Android and iOS)
+
+Yoma Triage is **cross-platform**. Demo either phone OS with the same app:
+
+```bash
+cd mobile
+# After: set -a && source ../.env && set +a
+# Android emulator
+flutter run -d android \
+  --dart-define=API_BASE_URL=http://10.0.2.2:8000 \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+# iOS simulator (macOS)
+flutter run -d ios \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8000 \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+# Physical phone (Android or iPhone) via tunnel — no hardcoded hosts in Dart
+flutter run -d android \
+  --dart-define=API_BASE_URL="$PUBLIC_BASE_URL" \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+flutter run -d ios \
+  --dart-define=API_BASE_URL="$PUBLIC_BASE_URL" \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+```
+
+| Check | Android | iOS |
+|-------|---------|-----|
+| Mic permission | `RECORD_AUDIO` in manifest | `NSMicrophoneUsageDescription` in Info.plist |
+| YAMNet | `assets/models/yamnet.tflite` or stub | same |
+| Offline queue | SQLite | SQLite |
+
+## Automated E2E (API path)
 
 ```bash
 cd /var/www/html/unicef
@@ -71,3 +102,4 @@ Unset `AT_API_KEY` / leave empty → mock SMS; demo_flow still works; say “tel
 
 - MOEWS is the risk spine; YAMNet is advisory AudioSet only — not obstetric diagnosis.
 - MoMo fuel stipend is mocked unless live MoMo keys are set.
+- CHO app is **Flutter cross-platform** (Android, iOS, and web) — not Android-only.

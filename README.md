@@ -135,22 +135,41 @@ In a second terminal, run the end-to-end judge timeline:
 
 The demo drives `http://127.0.0.1:8000`, creates critical referrals, simulates Ibrahim accepting and declining via USSD, verifies mock MoMo and hospital notification audit logs, then demonstrates hospital `CONFIRM` and `DIVERT` commands.
 
-## Flutter CHO app
+## Flutter CHO app (Android · iOS · web)
 
-The CHO client lives in **`mobile/`**.
+The CHO client lives in **`mobile/`** — one Flutter codebase for Android phones, iPhones, and responsive web.
 
 ```bash
+cd /var/www/html/unicef
+set -a && source .env && set +a
 cd mobile
 flutter pub get
-# Web simulator:
-flutter run -d chrome --dart-define=API_BASE_URL=http://127.0.0.1:8000
+# Web simulator (pin port for CORS):
+flutter run -d chrome --web-port=8080 \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8000 \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
 # Android emulator:
-flutter run -d emulator-5554 --dart-define=API_BASE_URL=http://10.0.2.2:8000
+flutter run -d android \
+  --dart-define=API_BASE_URL=http://10.0.2.2:8000 \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+# iOS simulator (macOS + Xcode):
+flutter run -d ios \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8000 \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+# Physical Android or iPhone — use LAN IP or PUBLIC_BASE_URL / ngrok:
+flutter run -d android \
+  --dart-define=API_BASE_URL=https://YOUR-TUNNEL.ngrok-free.app \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+flutter run -d ios \
+  --dart-define=API_BASE_URL=https://YOUR-TUNNEL.ngrok-free.app \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
 ```
 
-YAMNet: place `yamnet.tflite` in `mobile/assets/models/`. If missing, the Android path uses the **stub classifier** automatically. Web uses Demo Normal / Demo Code Red only.
+Screening countdown is `SCREENING_DURATION_SEC` in `.env` (default 15). YAMNet: place `yamnet.tflite` in `mobile/assets/models/`. If missing, **Android and iOS** use the **stub classifier** automatically. Web uses Demo Normal / Demo Code Red only.
 
-Offline outbox: SQLite on mobile, SharedPreferences on web; `connectivity_plus` flushes on reconnect with the same `client_request_id`.
+Offline outbox: SQLite on Android/iOS, SharedPreferences on web; `connectivity_plus` flushes on reconnect with the same `client_request_id`.
+
+See `mobile/README.md` and `docs/plans/demo-day-runbook.md` for platform-specific mic permissions and demo SOP.
 
 ## Tests
 

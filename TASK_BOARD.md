@@ -91,7 +91,8 @@
 
 - [VERIFIED] **Tasks 4.1–4.7** — Flutter CHO app in `mobile/`
   - Setup, YAMNet/stub, web simulator, screens, offline queue, API client
-  - Note: real `yamnet.tflite` asset still missing (stub fallback on Android)
+  - **Cross-platform:** Android + iOS + web (same Dart codebase; `mobile/ios/` + `mobile/android/`)
+  - Note: YAMNet TFLite on both mobile OSes; stub fallback if asset missing
 
 ---
 

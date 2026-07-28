@@ -7,7 +7,7 @@ import 'package:record/record.dart';
 
 import 'audio_recorder_base.dart';
 
-/// Android/IO recorder: 16 kHz mono PCM via `record`.
+/// Native (Android/iOS) recorder: 16 kHz mono PCM via `record`.
 class AudioRecorderIo implements AudioRecorderService {
   final AudioRecorder _recorder = AudioRecorder();
   String? _path;

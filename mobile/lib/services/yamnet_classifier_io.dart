@@ -6,7 +6,7 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'screening_result.dart';
 import 'yamnet_classifier_base.dart';
 
-/// Android/IO: real YAMNet when asset loads and tensors match; otherwise stub.
+/// Native (Android/iOS): real YAMNet when asset loads and tensors match; otherwise stub.
 class YamnetClassifierIo implements YamnetClassifier {
   YamnetClassifierIo._live(this._interpreter, this._inputSize, this._outputSize);
 

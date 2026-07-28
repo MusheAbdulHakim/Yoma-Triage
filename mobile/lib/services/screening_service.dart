@@ -4,7 +4,7 @@ import 'audio_recorder.dart';
 import 'screening_result.dart';
 import 'yamnet_classifier.dart';
 
-/// Facade: web simulator vs Android record + YAMNet (stub fallback).
+/// Facade: web simulator vs native (Android/iOS) record + YAMNet (stub fallback).
 class ScreeningService {
   ScreeningService({
     YamnetClassifier? classifier,

@@ -1,36 +1,73 @@
 # Yoma Triage CHO App
 
-Flutter app for Community Health Officers in **`mobile/`**.
+Flutter **cross-platform** CHO client in **`mobile/`** — same codebase for:
 
-Breathing screen (YAMNet on Android/iOS with stub fallback; web simulator), emergency referral with SQLite offline outbox, and dispatch status polling.
+| Platform | Screening | Offline outbox |
+|----------|-----------|----------------|
+| **Android** | Mic + YAMNet TFLite (stub fallback) | SQLite |
+| **iOS** | Mic + YAMNet TFLite (stub fallback) | SQLite |
+| **Web** | Demo Normal / Demo Code Red simulator | SharedPreferences |
+
+Emergency referral + dispatch status polling work on all three.
 
 ## Run
+
+Always pass `API_BASE_URL` for physical phones (LAN IP or `PUBLIC_BASE_URL` / ngrok). Emulator/simulator defaults are in `lib/config.dart`.
+
+Screening length comes from repo-root `.env` → `SCREENING_DURATION_SEC` (app default **15** if omitted). Source `.env` then pass both defines:
+
+```bash
+cd /var/www/html/unicef
+set -a && source .env && set +a
+cd mobile
+flutter run -d emulator-5554 \
+  --dart-define=API_BASE_URL="${PUBLIC_BASE_URL:-http://10.0.2.2:8000}" \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+```
 
 ### Web (demo simulator)
 
 ```bash
 cd mobile
 flutter pub get
-flutter run -d chrome --web-port=8080 --dart-define=API_BASE_URL=http://127.0.0.1:8000
+flutter run -d chrome --web-port=8080 \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8000 \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
 ```
-
-Use **Demo Normal** / **Demo Code Red** on the screening screen. Web does not run TFLite — advisory disclaimers always apply.
 
 ### Android
 
 ```bash
-flutter run -d emulator-5554 --dart-define=API_BASE_URL=http://10.0.2.2:8000
+# Emulator (host API via 10.0.2.2 by default)
+flutter run -d android \
+  --dart-define=API_BASE_URL=http://10.0.2.2:8000 \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+
+# Physical device (use your machine LAN IP or tunnel)
+flutter run -d android \
+  --dart-define=API_BASE_URL=https://YOUR-TUNNEL.ngrok-free.app \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
 ```
 
-`RECORD_AUDIO` is declared in `AndroidManifest.xml`. With `assets/models/yamnet.tflite` present, native YAMNet inference runs; otherwise the stub classifier is used.
+`RECORD_AUDIO` is in `AndroidManifest.xml`.
 
 ### iOS
 
 ```bash
-flutter run -d ios --dart-define=API_BASE_URL=http://127.0.0.1:8000
+# Simulator (loopback reaches the Mac API)
+flutter run -d ios \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8000 \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
+
+# Physical iPhone (LAN IP or tunnel; mic permission prompt on first screen)
+flutter run -d ios \
+  --dart-define=API_BASE_URL=https://YOUR-TUNNEL.ngrok-free.app \
+  --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}"
 ```
 
-Microphone access requires the usage string in `ios/Runner/Info.plist` (`NSMicrophoneUsageDescription`).
+Microphone: `NSMicrophoneUsageDescription` in `ios/Runner/Info.plist`.
+
+Requires Xcode + CocoaPods on macOS for device/simulator builds.
 
 ## YAMNet model
 
@@ -40,7 +77,7 @@ Microphone access requires the usage string in `ios/Runner/Info.plist` (`NSMicro
 | Source | MediaPipe public YAMNet TFLite ([download](https://storage.googleapis.com/mediapipe-models/audio_classifier/yamnet/float32/1/yamnet.tflite)) |
 | Fetch script | `../scripts/fetch_yamnet.sh` from repo root (override with `YAMNET_URL=...`) |
 
-If the model file is missing, Android/iOS fall back to the **stub** classifier. Respiratory scoring uses AudioSet class indices 36–42 (breathing, wheeze, gasp, pant, snort, cough).
+If the model file is missing, **Android and iOS** fall back to the **stub** classifier. Respiratory scoring uses AudioSet class indices 36–42 (breathing, wheeze, gasp, pant, snort, cough).
 
 ### Clinical honesty
 

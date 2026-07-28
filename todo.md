@@ -56,7 +56,7 @@ Specs still over-claim Phase 1 SLM / SQLCipher / encrypted SMS in places (`PRODU
 - [x] Provision / document USSD shortcode callback (`*384*99193#` → `POST /ussd/callback` in `src/api/ussd.py` — **not** `/api/v1/ussd/callback`). AT camelCase form fields handled.
 - [x] Run fresh browser CORS smoke: Flutter web origins in `CORS_ORIGINS`; `scripts/cors_smoke.py` PASS; Chromium fetch from `http://127.0.0.1:8765` → API succeeded (pin Flutter with `--web-port=8080`).
 - [ ] Build and install **physical Android** APK with mic permission; confirm YAMNet loads (stub only on failure — see `YamnetClassifierIo.create`).
-- [ ] Build and run **physical iPhone** (`mobile/ios/`); confirm `NSMicrophoneUsageDescription` and TFLite path (or documented stub fallback).
+- [ ] Build and run **physical iPhone** (`mobile/ios/`); confirm `NSMicrophoneUsageDescription` and TFLite path (or documented stub fallback). Equal priority with Android — app is cross-platform.
 - [x] Rehearse full judge path once (API): `scripts/demo_flow.py` → accept → hospital SMS `SENT` → CONFIRM → arrival `COMPLETED` (+ decline/divert) — 2026-07-27. Still optional: Flutter UI + physical-phone USSD via ngrok.
 - [ ] Projector checklist: architecture narrative open; disclaimer language rehearsed (“advisory AudioSet / not obstetric diagnosis”).
 - [x] Confirm Postgres is up on expected port — local `.env` uses `127.0.0.1:5433/yoma_triage`; still align README vs `config.py` default `5432` in docs.
@@ -371,8 +371,8 @@ Active mobile/backend surfaces are largely Yoma-clean (`TASK_BOARD` W0.1). Remai
 2. [x] **End-to-end rehearsal** seed → USSD accept → hospital SMS → CONFIRM → arrival → COMPLETED (+ decline/divert) via `scripts/demo_flow.py` (2026-07-27).
 3. [x] **Stable ngrok (or host) + AT callback URLs** — `PUBLIC_BASE_URL` in `.env`; verified tunnel reaches USSD + SMS inbound (2026-07-27).
 4. [x] **CORS browser smoke** — `scripts/cors_smoke.py` + Chromium cross-origin fetch (2026-07-27).
-5. [ ] **Physical device build** (Android minimum; iPhone if claimed on stage) — **next best task**.
-6. [ ] **Pitch honesty**: YAMNet advisory + MOEWS spine; no clinical AI overclaim; MoMo mocked unless keys set.
+5. [ ] **Physical device builds (Android and iOS equally)** — APK + iOS simulator/device; mic + YAMNet/stub — **next best task**.
+6. [ ] **Pitch honesty**: YAMNet advisory + MOEWS spine; no clinical AI overclaim; MoMo mocked unless keys set. Say “Flutter CHO app — Android, iOS, and web.”
 7. [x] **Single Demo Day Runbook** — `docs/plans/demo-day-runbook.md`.
 
 ### P1 — Next 2–4 sprints (pilot prep)
