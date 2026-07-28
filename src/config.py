@@ -32,6 +32,11 @@ class Settings:
     DEMO_API_BASE_URL: str = os.getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000")
     # Demo default is 5s; field/pilot should use minutes (e.g. 60–180) via env.
     CASCADE_TIER_SECONDS: int = int(os.getenv("CASCADE_TIER_SECONDS", "5"))
+    # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
+    # Staging/production refuse requests until set (fail closed).
+    API_KEY: str = os.getenv("API_KEY", "")
+    # Africa's Talking webhook shared secret (query ?secret= or X-Webhook-Secret).
+    AT_WEBHOOK_SECRET: str = os.getenv("AT_WEBHOOK_SECRET", "")
     CORS_ORIGINS: str = os.getenv(
         "CORS_ORIGINS",
         "http://localhost:8080,http://127.0.0.1:8080,"

@@ -13,13 +13,18 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.agents.coordinator import yoma_graph
+from src.api.deps import require_api_key
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/api/v1", tags=["Referrals"])
+router = APIRouter(
+    prefix="/api/v1",
+    tags=["Referrals"],
+    dependencies=[Depends(require_api_key)],
+)
 
 PATIENT_HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 

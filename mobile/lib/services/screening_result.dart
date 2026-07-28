@@ -2,7 +2,7 @@ class ScreeningResult {
   final String label; // GREEN | RED | INCONCLUSIVE
   final double confidence;
   final String reason;
-  final String source; // yamnet | stub | simulator
+  final String source; // yamnet | stub | simulator | …
   final String modelVersion;
 
   ScreeningResult({
@@ -15,6 +15,7 @@ class ScreeningResult {
 }
 
 ScreeningResult mapYamnetToResult({required double abnormalScore}) {
+  // Higher score = more evidence of respiratory AudioSet events.
   if (abnormalScore > 0.7) {
     return ScreeningResult(
       label: 'RED',
@@ -24,19 +25,22 @@ ScreeningResult mapYamnetToResult({required double abnormalScore}) {
       source: 'yamnet',
       modelVersion: 'yamnet-audioset-v0',
     );
-  } else if (abnormalScore < 0.5) {
+  }
+  if (abnormalScore < 0.5) {
     return ScreeningResult(
-      label: 'INCONCLUSIVE',
+      label: 'GREEN',
       confidence: abnormalScore,
-      reason: 'Low confidence — use clinical judgment',
+      reason:
+          'Low respiratory-event score — advisory only, not a clinical clear',
       source: 'yamnet',
       modelVersion: 'yamnet-audioset-v0',
     );
   }
+  // Mid-band is uncertain — never label as "normal breathing".
   return ScreeningResult(
-    label: 'GREEN',
+    label: 'INCONCLUSIVE',
     confidence: abnormalScore,
-    reason: 'Normal breathing pattern',
+    reason: 'Uncertain mid-band score — use MOEWS and clinical judgment',
     source: 'yamnet',
     modelVersion: 'yamnet-audioset-v0',
   );

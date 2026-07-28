@@ -24,6 +24,8 @@ void main() {
     );
 
     expect(find.text('Confirm Referral'), findsOneWidget);
+    expect(find.text('MOEWS RED'), findsOneWidget);
+    expect(find.textContaining('Acoustic (advisory)'), findsOneWidget);
     expect(find.textContaining('Heart rate contributes MOEWS'), findsOneWidget);
   });
 

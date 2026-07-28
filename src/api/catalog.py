@@ -5,9 +5,15 @@ import json
 from pathlib import Path
 from typing import Any
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 
-router = APIRouter(prefix="/api/v1/catalog", tags=["Catalog"])
+from src.api.deps import require_api_key
+
+router = APIRouter(
+    prefix="/api/v1/catalog",
+    tags=["Catalog"],
+    dependencies=[Depends(require_api_key)],
+)
 
 # Keep in sync with mobile/assets/catalog/northern_bootstrap.json
 CATALOG_VERSION = "2026-07-28.3"

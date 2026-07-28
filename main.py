@@ -56,17 +56,23 @@ app.include_router(catalog_router)
 @app.get("/")
 def health_check():
     """Health check endpoint for local/server monitoring."""
-    payload = {
+    env = settings.ENVIRONMENT.strip().lower()
+    payload: dict[str, Any] = {
         "status": "online",
         "system": "Yoma Triage Emergency Logistics Engine",
         "network_mode": "2G SMS / USSD Enabled",
+        "environment": env,
         "at_configured": settings.at_configured,
-        "public_base_url": settings.public_base_url or None,
-        "webhooks": {
+        "api_auth_required": bool(settings.API_KEY.strip())
+        or env in {"production", "staging"},
+    }
+    # Avoid advertising webhook URLs on hardened environments.
+    if env not in {"production", "staging"}:
+        payload["public_base_url"] = settings.public_base_url or None
+        payload["webhooks"] = {
             "ussd_callback": settings.ussd_callback_url,
             "sms_inbound": settings.sms_inbound_url,
-        },
-    }
+        }
     return payload
 
 

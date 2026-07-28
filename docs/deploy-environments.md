@@ -19,9 +19,14 @@
 
 Mirror keys also live in repo-root `.env.example` for documentation.
 
-## Kill switch
+## Auth (OTP deferred)
 
-`MOEWS_ONLY=true` skips mic/TFLite and returns INCONCLUSIVE acoustic with MOEWS-only journey. Use for field rollback without shipping a new APK binary set (rebuild still required for dart-defines unless using a remote config later).
+| Secret | Header / query | When required |
+|--------|----------------|---------------|
+| `API_KEY` | `X-API-Key` | Always when set; **required** in `staging`/`production` |
+| `AT_WEBHOOK_SECRET` | `?secret=` or `X-Webhook-Secret` | Same for `/ussd/callback` and `/api/v1/sms/inbound` |
+
+Flutter: `--dart-define=API_KEY=$API_KEY`. CHO phone OTP login remains deferred.
 
 ## Model card
 

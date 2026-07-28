@@ -7,11 +7,16 @@ from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.deps import require_api_key
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, Driver
 from src.services.driver_pool import DriverPoolManager
 
-router = APIRouter(prefix="/api/v1", tags=["Drivers"])
+router = APIRouter(
+    prefix="/api/v1",
+    tags=["Drivers"],
+    dependencies=[Depends(require_api_key)],
+)
 
 AvailabilityStatus = Literal["AVAILABLE", "ON_TRIP", "OFF_DUTY"]
 

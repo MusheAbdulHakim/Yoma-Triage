@@ -8,6 +8,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api.deps import require_webhook_secret
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
 from src.services.messaging_gateway import MessagingGateway
@@ -324,7 +325,7 @@ async def process_inbound_sms(
     }
 
 
-@router.post("/inbound")
+@router.post("/inbound", dependencies=[Depends(require_webhook_secret)])
 async def inbound_sms(
     request: Request, session: AsyncSession = Depends(get_db)
 ) -> Any:

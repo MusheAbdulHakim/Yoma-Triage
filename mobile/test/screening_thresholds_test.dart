@@ -13,14 +13,16 @@ void main() {
     expect(r.modelVersion, 'yamnet-audioset-v0');
   });
 
-  test('confidence below 0.5 is INCONCLUSIVE', () {
+  test('low abnormal score maps to GREEN (advisory)', () {
     final r = mapYamnetToResult(abnormalScore: 0.4);
-    expect(r.label, 'INCONCLUSIVE');
+    expect(r.label, 'GREEN');
+    expect(r.reason, isNot(contains('Normal breathing pattern')));
   });
 
-  test('mid confidence maps to GREEN', () {
+  test('mid-band is INCONCLUSIVE — never labeled normal', () {
     final r = mapYamnetToResult(abnormalScore: 0.6);
-    expect(r.label, 'GREEN');
+    expect(r.label, 'INCONCLUSIVE');
+    expect(r.reason.toLowerCase(), isNot(contains('normal breathing')));
   });
 
   test('simulator forceRed returns RED', () {
