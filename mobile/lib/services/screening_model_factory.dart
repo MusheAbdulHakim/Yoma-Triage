@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import '../config.dart';
+import 'opera_ce_classifier.dart';
 import 'screening_result.dart';
 import 'yamnet_classifier.dart';
 
@@ -70,7 +71,7 @@ Future<YamnetClassifier> createConfiguredClassifier({
     case 'hear_event':
       return PackPendingClassifier('hear_event');
     case 'opera_ce':
-      return PackPendingClassifier('opera_ce');
+      return createOperaCeClassifier();
     case 'yamnet':
     default:
       return createYamnetClassifier(forceRed: forceRed);
