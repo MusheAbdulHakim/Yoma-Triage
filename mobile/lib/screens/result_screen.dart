@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/referral_gating.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
 import 'referral_screen.dart';
@@ -25,6 +26,11 @@ class ResultScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final indicate = referralIndicated(
+      acousticLabel: result.label,
+      moewsRiskLevel: null, // wired in Task 4
+    );
+
     return Scaffold(
       appBar: AppBar(
         title: const Text('Screening Result'),
@@ -95,27 +101,55 @@ class ResultScreen extends StatelessWidget {
               ),
             ),
             const Spacer(),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-              ),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ReferralScreen(
-                      aiScreenResult: result.label,
-                      aiConfidence: result.confidence,
+            if (indicate)
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                ),
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ReferralScreen(
+                        aiScreenResult: result.label,
+                        aiConfidence: result.confidence,
+                      ),
                     ),
-                  ),
-                );
-              },
-              child: const Text('Confirm Referral'),
-            ),
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-              child: const Text('Continue Monitoring'),
-            ),
+                  );
+                },
+                child: const Text('Confirm Referral'),
+              )
+            else
+              FilledButton(
+                style: FilledButton.styleFrom(
+                  minimumSize: const Size.fromHeight(56),
+                ),
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
+                child: const Text('Continue Monitoring'),
+              ),
+            if (result.label == 'INCONCLUSIVE') ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () {
+                  Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => ReferralScreen(
+                        aiScreenResult: result.label,
+                        aiConfidence: result.confidence,
+                      ),
+                    ),
+                  );
+                },
+                child: const Text('Refer with clinical judgment'),
+              ),
+            ] else if (indicate) ...[
+              const SizedBox(height: 12),
+              TextButton(
+                onPressed: () =>
+                    Navigator.of(context).popUntil((route) => route.isFirst),
+                child: const Text('Continue Monitoring'),
+              ),
+            ],
           ],
         ),
       ),
