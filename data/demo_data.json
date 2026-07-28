@@ -5,9 +5,9 @@
     {"id": 3, "name": "Savelugu CHPS", "zone": "Savelugu Municipal", "latitude": 9.624, "longitude": -0.825, "cho_phone": "+233240000102"}
   ],
   "facilities": [
-    {"id": 1, "name": "Tamale Teaching Hospital", "type": "teaching_hospital", "phone": "+233240000200", "district": "Tamale", "has_maternity": true, "has_icu": true},
-    {"id": 2, "name": "Navrongo War Memorial Hospital", "type": "district_hospital", "phone": "+233240000201", "district": "Kassena-Nankana East", "has_maternity": true, "has_icu": false},
-    {"id": 3, "name": "Savelugu Municipal Hospital", "type": "municipal_hospital", "phone": "+233240000202", "district": "Savelugu", "has_maternity": true, "has_icu": false}
+    {"id": 1, "name": "Tamale Teaching Hospital", "type": "teaching_hospital", "phone": "+233240000200", "district": "Tamale Metropolitan", "latitude": 9.4034, "longitude": -0.8424, "has_maternity": true, "has_icu": true},
+    {"id": 2, "name": "Navrongo War Memorial Hospital", "type": "district_hospital", "phone": "+233240000201", "district": "Kassena-Nankana East", "latitude": 10.895, "longitude": -1.092, "has_maternity": true, "has_icu": false},
+    {"id": 3, "name": "Savelugu Municipal Hospital", "type": "municipal_hospital", "phone": "+233240000202", "district": "Savelugu Municipal", "latitude": 9.6245, "longitude": -0.8251, "has_maternity": true, "has_icu": false}
   ],
   "drivers": [
     {"name": "Ibrahim", "phone": "+233240000001", "vehicle_type": "Motor-King", "vehicle_desc": "Red tricycle", "chps_compound_id": 1, "is_motor_king": true},

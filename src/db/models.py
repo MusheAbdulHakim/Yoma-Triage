@@ -40,6 +40,8 @@ class Facility(Base):
     type: Mapped[str] = mapped_column(String(64), default="district_hospital")
     phone: Mapped[str] = mapped_column(String(32))
     district: Mapped[str] = mapped_column(String(120))
+    latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     has_maternity: Mapped[bool] = mapped_column(Boolean, default=True)
     has_icu: Mapped[bool] = mapped_column(Boolean, default=False)
 
