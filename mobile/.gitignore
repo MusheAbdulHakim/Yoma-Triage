@@ -47,3 +47,4 @@ app.*.map.json
 # Local Maven stand-ins for flaky Google lint jars (regenerate via scripts/seed_android_local_maven.sh)
 /android/local-maven/
 /dist/
+/android/build/
