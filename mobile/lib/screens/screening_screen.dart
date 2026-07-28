@@ -8,7 +8,7 @@ import '../services/screening_result.dart';
 import '../services/screening_service.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/breathing_pulse.dart';
-import 'result_screen.dart';
+import 'vitals_screen.dart';
 
 class ScreeningScreen extends StatefulWidget {
   /// When non-null, overrides [kIsWeb] so widget tests can exercise the simulator.
@@ -107,7 +107,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
       _recording = false;
     });
     await Navigator.of(context).pushReplacement(
-      MaterialPageRoute(builder: (_) => ResultScreen(result: result)),
+      MaterialPageRoute(builder: (_) => VitalsScreen(result: result)),
     );
   }
 

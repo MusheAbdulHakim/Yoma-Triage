@@ -35,7 +35,10 @@ void main() {
     await tester.tap(find.text('Demo Code Red'));
     await tester.pump();
     expect(find.byKey(const Key('breathing_pulse_rings')), findsOneWidget);
-    await pumpUntilFound(tester, find.text('Confirm Referral'));
+    await pumpUntilFound(tester, find.text('Continue to Result'));
+    expect(find.text('Record Vitals'), findsOneWidget);
+    await tester.tap(find.text('Continue to Result'));
+    await tester.pumpAndSettle();
     expect(find.text('RED'), findsOneWidget);
     expect(find.text('Confirm Referral'), findsOneWidget);
     expect(find.text('Continue Monitoring'), findsOneWidget);

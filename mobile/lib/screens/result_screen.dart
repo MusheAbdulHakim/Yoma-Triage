@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/moews_calculator.dart';
 import '../services/referral_gating.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
@@ -7,8 +8,15 @@ import 'referral_screen.dart';
 
 class ResultScreen extends StatelessWidget {
   final ScreeningResult result;
+  final MoewsResult? moews;
+  final Map<String, Object>? vitals;
 
-  const ResultScreen({super.key, required this.result});
+  const ResultScreen({
+    super.key,
+    required this.result,
+    this.moews,
+    this.vitals,
+  });
 
   Color get _color {
     switch (result.label) {
@@ -28,7 +36,7 @@ class ResultScreen extends StatelessWidget {
   Widget build(BuildContext context) {
     final indicate = referralIndicated(
       acousticLabel: result.label,
-      moewsRiskLevel: null, // wired in Task 4
+      moewsRiskLevel: moews?.riskLevel,
     );
 
     return Scaffold(
@@ -112,6 +120,7 @@ class ResultScreen extends StatelessWidget {
                       builder: (_) => ReferralScreen(
                         aiScreenResult: result.label,
                         aiConfidence: result.confidence,
+                        initialVitals: vitals,
                       ),
                     ),
                   );
@@ -136,6 +145,7 @@ class ResultScreen extends StatelessWidget {
                       builder: (_) => ReferralScreen(
                         aiScreenResult: result.label,
                         aiConfidence: result.confidence,
+                        initialVitals: vitals,
                       ),
                     ),
                   );

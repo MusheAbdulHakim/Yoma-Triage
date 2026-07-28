@@ -37,6 +37,10 @@ void main() {
     await tester.tap(find.text('Stop & Analyze Early'));
     await tester.pump();
     expect(find.byKey(const Key('breathing_pulse')), findsOneWidget);
+    await pumpUntilFound(tester, find.text('Continue to Result'));
+    expect(find.text('Record Vitals'), findsOneWidget);
+    await tester.tap(find.text('Continue to Result'));
+    await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.text('Continue Monitoring'));
     expect(find.text('Continue Monitoring'), findsWidgets);
     // GREEN path: Confirm Referral must not be the only/primary path.

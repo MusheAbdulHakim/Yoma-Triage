@@ -12,11 +12,13 @@ import 'dispatch_status_screen.dart';
 class ReferralScreen extends StatefulWidget {
   final String? aiScreenResult;
   final double? aiConfidence;
+  final Map<String, Object>? initialVitals;
 
   const ReferralScreen({
     super.key,
     this.aiScreenResult,
     this.aiConfidence,
+    this.initialVitals,
   });
 
   @override
@@ -26,20 +28,45 @@ class ReferralScreen extends StatefulWidget {
 class _ReferralScreenState extends State<ReferralScreen> {
   final _formKey = GlobalKey<FormState>();
   final _patientName = TextEditingController(text: 'Ama Mensah');
-  final _sbp = TextEditingController(text: '70');
-  final _dbp = TextEditingController(text: '50');
-  final _hr = TextEditingController(text: '140');
-  final _rr = TextEditingController(text: '35');
-  final _temp = TextEditingController(text: '39.5');
-  final _spo2 = TextEditingController(text: '85');
+  late final TextEditingController _sbp;
+  late final TextEditingController _dbp;
+  late final TextEditingController _hr;
+  late final TextEditingController _rr;
+  late final TextEditingController _temp;
+  late final TextEditingController _spo2;
 
-  String _avpu = 'V';
+  late String _avpu;
   String _emergencyType = 'respiratory_distress';
   bool _submitting = false;
   String? _error;
 
   final _queue = OfflineQueue.shared;
   final _api = ApiClient();
+
+  @override
+  void initState() {
+    super.initState();
+    final vitals = widget.initialVitals;
+    _sbp = TextEditingController(
+      text: (vitals?['systolic_bp'] ?? 70).toString(),
+    );
+    _dbp = TextEditingController(
+      text: (vitals?['diastolic_bp'] ?? 50).toString(),
+    );
+    _hr = TextEditingController(
+      text: (vitals?['heart_rate'] ?? 140).toString(),
+    );
+    _rr = TextEditingController(
+      text: (vitals?['respiratory_rate'] ?? 35).toString(),
+    );
+    _temp = TextEditingController(
+      text: (vitals?['temperature'] ?? 39.5).toString(),
+    );
+    _spo2 = TextEditingController(
+      text: (vitals?['spo2'] ?? 85).toString(),
+    );
+    _avpu = (vitals?['consciousness_level'] ?? 'V').toString();
+  }
 
   @override
   void dispose() {
@@ -207,12 +234,17 @@ class _ReferralScreenState extends State<ReferralScreen> {
               'Vitals',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
-            _numField(_sbp, 'Systolic BP'),
-            _numField(_dbp, 'Diastolic BP'),
-            _numField(_hr, 'Heart rate'),
-            _numField(_rr, 'Respiratory rate'),
-            _numField(_temp, 'Temperature', decimal: true),
-            _numField(_spo2, 'SpO2'),
+            _numField(_sbp, 'Systolic BP', key: const Key('referral_sbp')),
+            _numField(_dbp, 'Diastolic BP', key: const Key('referral_dbp')),
+            _numField(_hr, 'Heart rate', key: const Key('referral_hr')),
+            _numField(_rr, 'Respiratory rate', key: const Key('referral_rr')),
+            _numField(
+              _temp,
+              'Temperature',
+              key: const Key('referral_temp'),
+              decimal: true,
+            ),
+            _numField(_spo2, 'SpO2', key: const Key('referral_spo2')),
             DropdownButtonFormField<String>(
               key: ValueKey(_avpu),
               initialValue: _avpu,
@@ -250,9 +282,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
   Widget _numField(
     TextEditingController c,
     String label, {
+    Key? key,
     bool decimal = false,
   }) {
     return TextFormField(
+      key: key,
       controller: c,
       keyboardType: TextInputType.numberWithOptions(decimal: decimal),
       decoration: InputDecoration(labelText: label),
