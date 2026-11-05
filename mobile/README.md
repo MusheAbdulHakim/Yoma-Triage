@@ -25,7 +25,7 @@ flutter run -d emulator-5554 \
   --dart-define=SCREENING_DURATION_SEC="${SCREENING_DURATION_SEC:-15}" \
   --dart-define=APP_ENV="${APP_ENV:-development}" \
   --dart-define=SCREENING_MODEL="${SCREENING_MODEL:-yamnet}" \
-  --dart-define=MOEWS_ONLY="${MOEWS_ONLY:-false}"
+  --dart-define=MOEWS_ONLY="${MOEWS_ONLY:-true}"
 ```
 
 Screening model flags: `SCREENING_MODEL=yamnet|hear_event|opera_ce|stub`, kill switch `MOEWS_ONLY=true`, optional `SCREENING_DUAL_RUN=true`. Details: [`docs/deploy-environments.md`](../docs/deploy-environments.md), [`docs/model-cards/yamnet-v0.md`](../docs/model-cards/yamnet-v0.md).

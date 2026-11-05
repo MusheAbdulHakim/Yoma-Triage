@@ -55,11 +55,11 @@ abstract final class ScreeningConfig {
     return allowed.contains(v) ? v : 'yamnet';
   }
 
-  /// Kill switch: skip acoustic model entirely → INCONCLUSIVE / MOEWS-only journey.
-  /// `--dart-define=MOEWS_ONLY=true`
+  /// Acoustic screening is off and hidden unless explicitly enabled with
+  /// `--dart-define=MOEWS_ONLY=false`. Any other value keeps it off.
   static bool get moewsOnly {
-    const raw = String.fromEnvironment('MOEWS_ONLY', defaultValue: 'false');
-    return raw.toLowerCase() == 'true' || raw == '1';
+    const raw = String.fromEnvironment('MOEWS_ONLY', defaultValue: 'true');
+    return !(raw.toLowerCase() == 'false' || raw == '0');
   }
 
   /// When true and primary model is hear_event/opera_ce, also run YAMNet for ops compare.

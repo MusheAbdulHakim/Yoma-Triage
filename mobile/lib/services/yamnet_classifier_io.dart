@@ -4,9 +4,12 @@ import 'package:flutter/services.dart' show rootBundle;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
 import 'screening_result.dart';
+import 'tflite_output.dart';
 import 'yamnet_classifier_base.dart';
 
-/// Native (Android/iOS): real YAMNet when asset loads and tensors match; otherwise stub.
+/// Native (Android/iOS): real YAMNet when the asset loads and tensors match;
+/// otherwise INCONCLUSIVE. The output tensor is `[1, N]`, so the output buffer
+/// must be nested — `tflite_flutter` rejects a flat list.
 class YamnetClassifierIo implements YamnetClassifier {
   YamnetClassifierIo._live(
       this._interpreter, this._inputSize, this._outputSize);
@@ -26,7 +29,7 @@ class YamnetClassifierIo implements YamnetClassifier {
     42, // Cough
   };
 
-  static Future<YamnetClassifier> create({bool forceRed = false}) async {
+  static Future<YamnetClassifier> create() async {
     try {
       await rootBundle.load('assets/models/yamnet.tflite');
       final interpreter =
@@ -35,7 +38,7 @@ class YamnetClassifierIo implements YamnetClassifier {
       final outTensors = interpreter.getOutputTensors();
       if (inTensors.isEmpty || outTensors.isEmpty) {
         interpreter.close();
-        return _StubWithFlag(forceRed: forceRed);
+        return _UnavailableClassifier();
       }
       final inputSize = inTensors.first.shape.isEmpty
           ? 15600
@@ -45,22 +48,22 @@ class YamnetClassifierIo implements YamnetClassifier {
           : outTensors.first.shape.reduce((a, b) => a * b);
       if (inputSize <= 0 || outputSize <= 0) {
         interpreter.close();
-        return _StubWithFlag(forceRed: forceRed);
+        return _UnavailableClassifier();
       }
-      // Probe once with zeros — if native run fails, fall back to stub.
+      // Probe once with zeros — if the native run fails, report unavailable.
       try {
         final probeIn = List<double>.filled(inputSize, 0.0);
-        final probeOut = List<double>.filled(outputSize, 0.0);
+        final probeOut = singleBatchOutput(outputSize);
         interpreter.run(probeIn, probeOut);
       } catch (_) {
         try {
           interpreter.close();
         } catch (_) {}
-        return _StubWithFlag(forceRed: forceRed);
+        return _UnavailableClassifier();
       }
       return YamnetClassifierIo._live(interpreter, inputSize, outputSize);
     } catch (_) {
-      return _StubWithFlag(forceRed: forceRed);
+      return _UnavailableClassifier();
     }
   }
 
@@ -82,14 +85,14 @@ class YamnetClassifierIo implements YamnetClassifier {
       var sawRespiratory = false;
       var offset = 0;
       final input = List<double>.filled(_inputSize, 0.0);
-      final output = List<double>.filled(_outputSize, 0.0);
+      final output = singleBatchOutput(_outputSize);
 
       while (offset + _inputSize <= samples.length) {
         for (var i = 0; i < _inputSize; i++) {
           input[i] = samples[offset + i];
         }
         _interpreter.run(input, output);
-        final abnormal = _respiratoryAbnormalScore(output);
+        final abnormal = _respiratoryAbnormalScore(output[0]);
         if (abnormal != null) {
           sawRespiratory = true;
           if (abnormal > maxAbnormal) maxAbnormal = abnormal;
@@ -102,7 +105,7 @@ class YamnetClassifierIo implements YamnetClassifier {
           input[i] = i < samples.length ? samples[i] : 0.0;
         }
         _interpreter.run(input, output);
-        final abnormal = _respiratoryAbnormalScore(output);
+        final abnormal = _respiratoryAbnormalScore(output[0]);
         if (abnormal != null) {
           sawRespiratory = true;
           maxAbnormal = abnormal;
@@ -122,13 +125,7 @@ class YamnetClassifierIo implements YamnetClassifier {
 
       return mapYamnetToResult(abnormalScore: maxAbnormal);
     } catch (_) {
-      return ScreeningResult(
-        label: 'INCONCLUSIVE',
-        confidence: 0.0,
-        reason: 'Screening unavailable — use clinical judgment',
-        source: 'stub',
-        modelVersion: 'stub-v0',
-      );
+      return unavailableResult();
     }
   }
 
@@ -191,17 +188,14 @@ class YamnetClassifierIo implements YamnetClassifier {
   }
 }
 
-class _StubWithFlag implements YamnetClassifier {
-  _StubWithFlag({required this.forceRed});
-  final bool forceRed;
-
+class _UnavailableClassifier implements YamnetClassifier {
   @override
   Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async =>
-      stubClassify(forceRed: forceRed);
+      unavailableResult();
 
   @override
   Future<void> dispose() async {}
 }
 
-Future<YamnetClassifier> createYamnetClassifier({bool forceRed = false}) =>
-    YamnetClassifierIo.create(forceRed: forceRed);
+Future<YamnetClassifier> createYamnetClassifier() =>
+    YamnetClassifierIo.create();

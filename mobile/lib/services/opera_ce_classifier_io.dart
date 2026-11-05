@@ -6,6 +6,7 @@ import 'package:tflite_flutter/tflite_flutter.dart';
 import 'opera_ce_head_map.dart';
 import 'opera_ce_mel.dart';
 import 'screening_result.dart';
+import 'tflite_output.dart';
 import 'yamnet_classifier_base.dart';
 
 export 'opera_ce_head_map.dart' show mapOperaCeHeadToResult;
@@ -63,7 +64,7 @@ class OperaCeClassifierIo implements YamnetClassifier {
           : outTensors.first.shape.reduce((a, b) => a * b);
 
       final probeIn = List<double>.filled(inSize, 0.0);
-      final probeOut = List<double>.filled(outSize, 0.0);
+      final probeOut = singleBatchOutput(outSize);
       encoder.run(probeIn, probeOut);
 
       try {
@@ -73,7 +74,7 @@ class OperaCeClassifierIo implements YamnetClassifier {
         final hOut =
             head.getOutputTensors().first.shape.reduce((a, b) => a * b);
         final hProbeIn = List<double>.filled(hIn, 0.0);
-        final hProbeOut = List<double>.filled(hOut, 0.0);
+        final hProbeOut = singleBatchOutput(hOut);
         head.run(hProbeIn, hProbeOut);
         return OperaCeClassifierIo._(
           encoder: encoder,
@@ -126,8 +127,9 @@ class OperaCeClassifierIo implements YamnetClassifier {
       for (var i = 0; i < n; i++) {
         input[i] = mel[i];
       }
-      final embedding = List<double>.filled(encoderOutputSize, 0.0);
-      _encoder.run(input, embedding);
+      final encoderOutput = singleBatchOutput(encoderOutputSize);
+      _encoder.run(input, encoderOutput);
+      final embedding = encoderOutput[0];
 
       final head = _head;
       if (head == null || headInputSize == null || headOutputSize == null) {
@@ -148,9 +150,9 @@ class OperaCeClassifierIo implements YamnetClassifier {
       for (var i = 0; i < copy; i++) {
         hIn[i] = embedding[i];
       }
-      final logits = List<double>.filled(headOutputSize!, 0.0);
-      head.run(hIn, logits);
-      return mapOperaCeHeadToResult(logits);
+      final headOutput = singleBatchOutput(headOutputSize!);
+      head.run(hIn, headOutput);
+      return mapOperaCeHeadToResult(headOutput[0]);
     } catch (_) {
       return ScreeningResult(
         label: 'INCONCLUSIVE',

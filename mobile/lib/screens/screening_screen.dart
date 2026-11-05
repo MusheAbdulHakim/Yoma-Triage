@@ -14,7 +14,10 @@ class ScreeningScreen extends StatefulWidget {
   /// When non-null, overrides [kIsWeb] so widget tests can exercise the simulator.
   final bool? forceWebSimulator;
 
-  const ScreeningScreen({super.key, this.forceWebSimulator});
+  /// Test seam for microphone and classifier failures.
+  final ScreeningService? service;
+
+  const ScreeningScreen({super.key, this.forceWebSimulator, this.service});
 
   @override
   State<ScreeningScreen> createState() => _ScreeningScreenState();
@@ -27,7 +30,8 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
   bool _recording = false;
   bool _finishing = false;
   String? _error;
-  final _screening = ScreeningService();
+  late final ScreeningService _screening =
+      widget.service ?? ScreeningService();
 
   bool get _isWebSimulator => widget.forceWebSimulator ?? kIsWeb;
 
@@ -84,18 +88,14 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         // Brief pause so the breath pulse is visible in the web demo.
         await Future<void>.delayed(const Duration(milliseconds: 700));
       } else if (_error != null || !_recording) {
-        result = stubClassify(forceRed: forceRed);
+        result = unavailableResult(
+          reason: 'Microphone unavailable — use clinical judgment',
+        );
       } else {
-        result = await _screening.stopAndClassify(forceRed: forceRed);
+        result = await _screening.stopAndClassify();
       }
     } catch (_) {
-      result = ScreeningResult(
-        label: 'INCONCLUSIVE',
-        confidence: 0.0,
-        reason: 'Screening unavailable — use clinical judgment',
-        source: 'stub',
-        modelVersion: 'stub-v0',
-      );
+      result = unavailableResult();
     }
 
     if (!mounted) {
@@ -146,6 +146,26 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
   }
 
   Widget _buildWebSimulator() {
+    if (!demoClassifiersEnabled) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          const Text(
+            'Breathing screening is not available on web.',
+            style: TextStyle(fontSize: 20, fontWeight: FontWeight.w600),
+          ),
+          const Spacer(),
+          FilledButton(
+            style: FilledButton.styleFrom(
+              minimumSize: const Size.fromHeight(64),
+            ),
+            onPressed: _analyzing ? null : () => _finish(forceRed: false),
+            child: const Text('Continue to vitals'),
+          ),
+          const Spacer(),
+        ],
+      );
+    }
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -215,7 +235,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         if (_error != null) ...[
           const SizedBox(height: 12),
           Text(
-            'Mic unavailable — use Emergency Referral from Home, or retry stub analyze.',
+            'Mic unavailable — no breathing result. Continue to vitals, or use Emergency Referral from Home.',
             style: TextStyle(color: Colors.orange.shade800),
           ),
         ],

@@ -229,9 +229,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            const Text(
-              'Enter current vitals before viewing the screening result.',
-            ),
+            const Text('Enter current vitals before viewing the result.'),
             const SizedBox(height: 12),
             OutlinedButton.icon(
               key: const Key('advisory_hr_open'),

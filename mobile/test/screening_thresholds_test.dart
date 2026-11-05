@@ -13,10 +13,18 @@ void main() {
     expect(r.modelVersion, 'yamnet-audioset-v0');
   });
 
-  test('low abnormal score maps to GREEN (advisory)', () {
-    final r = mapYamnetToResult(abnormalScore: 0.4);
-    expect(r.label, 'GREEN');
-    expect(r.reason, isNot(contains('Normal breathing pattern')));
+  test('score below 0.5 is INCONCLUSIVE per spec 7.1.1, never GREEN', () {
+    for (final score in [0.0, 0.1, 0.4, 0.499]) {
+      final r = mapYamnetToResult(abnormalScore: score);
+      expect(r.label, 'INCONCLUSIVE', reason: 'score $score');
+      expect(r.reason, contains('use clinical judgment'));
+    }
+  });
+
+  test('YAMNet mapping can never return GREEN', () {
+    for (var i = 0; i <= 100; i++) {
+      expect(mapYamnetToResult(abnormalScore: i / 100).label, isNot('GREEN'));
+    }
   });
 
   test('mid-band is INCONCLUSIVE — never labeled normal', () {

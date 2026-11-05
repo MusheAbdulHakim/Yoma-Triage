@@ -7,9 +7,18 @@ import 'package:record/record.dart';
 
 import 'audio_recorder_base.dart';
 
+const _recordingPrefix = 'yoma_triage_breath_';
+
 /// Native (Android/iOS) recorder: 16 kHz mono PCM via `record`.
 class AudioRecorderIo implements AudioRecorderService {
-  final AudioRecorder _recorder = AudioRecorder();
+  AudioRecorderIo({
+    AudioRecorder? recorder,
+    Future<Directory> Function()? tempDirectory,
+  })  : _recorder = recorder ?? AudioRecorder(),
+        _tempDirectory = tempDirectory ?? getTemporaryDirectory;
+
+  final AudioRecorder _recorder;
+  final Future<Directory> Function() _tempDirectory;
   String? _path;
 
   @override
@@ -18,10 +27,10 @@ class AudioRecorderIo implements AudioRecorderService {
     if (!hasPerm) {
       throw StateError('Microphone permission denied');
     }
-    final dir = await getTemporaryDirectory();
+    final dir = await _tempDirectory();
     _path = p.join(
       dir.path,
-      'yoma_triage_breath_${DateTime.now().millisecondsSinceEpoch}.wav',
+      '$_recordingPrefix${DateTime.now().millisecondsSinceEpoch}.wav',
     );
     await _recorder.start(
       const RecordConfig(
@@ -36,6 +45,7 @@ class AudioRecorderIo implements AudioRecorderService {
   @override
   Future<Uint8List> stop() async {
     if (!await _recorder.isRecording()) {
+      await _deleteRecording();
       return Uint8List(0);
     }
     final path = await _recorder.stop();
@@ -44,9 +54,7 @@ class AudioRecorderIo implements AudioRecorderService {
     final file = File(filePath);
     if (!await file.exists()) return Uint8List(0);
     final bytes = await file.readAsBytes();
-    try {
-      await file.delete();
-    } catch (_) {}
+    await _deleteRecording(filePath);
     return bytes;
   }
 
@@ -57,8 +65,38 @@ class AudioRecorderIo implements AudioRecorderService {
         await _recorder.stop();
       }
     } catch (_) {}
+    await _deleteRecording();
     await _recorder.dispose();
+  }
+
+  Future<void> _deleteRecording([String? path]) async {
+    final target = path ?? _path;
+    _path = null;
+    if (target == null) return;
+    try {
+      await File(target).delete();
+    } catch (_) {}
   }
 }
 
 AudioRecorderService createAudioRecorder() => AudioRecorderIo();
+
+/// Removes recordings left behind by a crash or kill. Returns how many it removed.
+Future<int> purgeStaleRecordings({Directory? directory}) async {
+  var removed = 0;
+  try {
+    final dir = directory ?? await getTemporaryDirectory();
+    await for (final entity in dir.list()) {
+      final name = p.basename(entity.path);
+      if (entity is File &&
+          name.startsWith(_recordingPrefix) &&
+          name.endsWith('.wav')) {
+        await entity.delete();
+        removed++;
+      }
+    }
+  } catch (_) {
+    // Best effort: a purge failure must never stop the app from starting.
+  }
+  return removed;
+}
