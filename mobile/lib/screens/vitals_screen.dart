@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/advisory_hr.dart';
 import '../services/moews_calculator.dart';
 import '../services/screening_result.dart';
+import '../services/vital_limits.dart';
 import '../widgets/vital_field.dart';
 import 'result_screen.dart';
 
@@ -249,16 +250,19 @@ class _VitalsScreenState extends State<VitalsScreen> {
             const SizedBox(height: 12),
             VitalField(
               input: _sbp,
+              limits: VitalLimits.systolicBp,
               label: 'Systolic BP',
               fieldKey: 'vitals_sbp',
             ),
             VitalField(
               input: _dbp,
+              limits: VitalLimits.diastolicBp,
               label: 'Diastolic BP',
               fieldKey: 'vitals_dbp',
             ),
             VitalField(
               input: _hr,
+              limits: VitalLimits.heartRate,
               label: 'Heart rate',
               fieldKey: 'vitals_hr',
               highlight: hrAbnormal,
@@ -268,17 +272,20 @@ class _VitalsScreenState extends State<VitalsScreen> {
             ),
             VitalField(
               input: _rr,
+              limits: VitalLimits.respiratoryRate,
               label: 'Respiratory rate',
               fieldKey: 'vitals_rr',
             ),
             VitalField(
               input: _temp,
+              limits: VitalLimits.temperature,
               label: 'Temperature',
               fieldKey: 'vitals_temp',
               decimal: true,
             ),
             VitalField(
               input: _spo2,
+              limits: VitalLimits.spo2,
               label: 'SpO2',
               fieldKey: 'vitals_spo2',
             ),

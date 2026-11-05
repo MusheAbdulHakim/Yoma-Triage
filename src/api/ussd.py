@@ -75,12 +75,9 @@ def _service_code_allowed(incoming: str | None) -> bool:
 
 
 def _menu_choice(user_input: str) -> str | None:
-    """Map AT accumulated text (e.g. '1' or '1*2') to a leaf menu digit."""
-    if user_input in {"1", "2", "3"}:
-        return user_input
-    if user_input and user_input[-1] in {"1", "2", "3"}:
-        return user_input[-1]
-    return None
+    """Exact match on the whole input. The menu has one level, so AT never sends
+    accumulated text here, and "21" or "1*2" must not be read as a choice."""
+    return user_input if user_input in {"1", "2", "3"} else None
 
 
 async def _find_driver(session: AsyncSession, phone_number: str) -> Driver | None:

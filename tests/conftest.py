@@ -287,7 +287,7 @@ def sample_referral_payload():
         "chps_compound_id": 1,
         "facility_id": 1,
         "patient_hash": VALID_PATIENT_HASH,
-        "emergency_type": "Obstetric haemorrhage",
+        "emergency_type": "pph",
         "gestational_weeks": 38,
         "client_request_id": "11111111-1111-1111-1111-111111111111",
         "vitals": {

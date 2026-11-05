@@ -9,6 +9,7 @@ import '../services/catalog_store.dart';
 import '../services/geo.dart';
 import '../services/offline_queue.dart';
 import '../services/patient_token.dart';
+import '../services/vital_limits.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/vital_field.dart';
 import 'dispatch_status_screen.dart';
@@ -343,32 +344,38 @@ class _ReferralScreenState extends State<ReferralScreen> {
             ),
             VitalField(
               input: _sbp,
+              limits: VitalLimits.systolicBp,
               label: 'Systolic BP',
               fieldKey: 'referral_sbp',
             ),
             VitalField(
               input: _dbp,
+              limits: VitalLimits.diastolicBp,
               label: 'Diastolic BP',
               fieldKey: 'referral_dbp',
             ),
             VitalField(
               input: _hr,
+              limits: VitalLimits.heartRate,
               label: 'Heart rate',
               fieldKey: 'referral_hr',
             ),
             VitalField(
               input: _rr,
+              limits: VitalLimits.respiratoryRate,
               label: 'Respiratory rate',
               fieldKey: 'referral_rr',
             ),
             VitalField(
               input: _temp,
+              limits: VitalLimits.temperature,
               label: 'Temperature',
               fieldKey: 'referral_temp',
               decimal: true,
             ),
             VitalField(
               input: _spo2,
+              limits: VitalLimits.spo2,
               label: 'SpO2',
               fieldKey: 'referral_spo2',
             ),

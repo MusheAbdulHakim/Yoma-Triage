@@ -6,6 +6,7 @@ import 'package:yoma_triage/screens/result_screen.dart';
 import 'package:yoma_triage/screens/vitals_screen.dart';
 import 'package:yoma_triage/services/moews_calculator.dart';
 import 'package:yoma_triage/services/screening_result.dart';
+import 'package:yoma_triage/services/vital_limits.dart';
 
 import 'helpers/vitals_helper.dart';
 
@@ -154,6 +155,8 @@ void main() {
     });
   });
 
+  group('limits', _limitTests);
+
   group('calculateMoews', () {
     test('null consciousness is UNKNOWN', () {
       final r = calculateMoews(
@@ -168,5 +171,27 @@ void main() {
       expect(r.riskLevel, 'UNKNOWN');
       expect(r.score, isNull);
     });
+  });
+}
+
+void _limitTests() {
+  testWidgets('out-of-range values cannot be submitted', (tester) async {
+    useTallScreen(tester);
+    await tester.pumpWidget(
+      MaterialApp(home: VitalsScreen(result: moewsOnlyResult())),
+    );
+    await fillVitals(tester, overrides: {'sbp': '1200'});
+    await tester.tap(find.text('Continue to Result'));
+    await tester.pumpAndSettle();
+    expect(find.byType(ResultScreen), findsNothing);
+    expect(find.text('Check this value: must be 0 to 300'), findsOneWidget);
+  });
+
+  test('limits accept the bounds and reject just outside them', () {
+    const limits = VitalLimits.temperature;
+    expect(limits.errorFor(20), isNull);
+    expect(limits.errorFor(45), isNull);
+    expect(limits.errorFor(19.9), isNotNull);
+    expect(limits.errorFor(45.1), isNotNull);
   });
 }

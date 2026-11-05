@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../services/vital_limits.dart';
 import '../theme/yoma_theme.dart';
 
 /// One vital sign: a typed value, or an explicit "not measured".
@@ -43,6 +44,7 @@ class VitalField extends StatefulWidget {
     required this.input,
     required this.label,
     required this.fieldKey,
+    required this.limits,
     this.decimal = false,
     this.highlight = false,
     this.helperText,
@@ -53,6 +55,7 @@ class VitalField extends StatefulWidget {
 
   /// Key of the text field; the checkbox is `<fieldKey>_not_measured`.
   final String fieldKey;
+  final VitalLimits limits;
   final bool decimal;
   final bool highlight;
   final String? helperText;
@@ -70,7 +73,7 @@ class _VitalFieldState extends State<VitalField> {
     if (parsed == null) {
       return widget.decimal ? 'Invalid number' : 'Invalid whole number';
     }
-    return null;
+    return widget.limits.errorFor(parsed);
   }
 
   void _setNotMeasured(bool value) {
