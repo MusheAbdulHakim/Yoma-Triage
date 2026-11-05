@@ -8,10 +8,9 @@ from contextlib import asynccontextmanager
 from typing import Any
 
 import uvicorn
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.agents.coordinator import yoma_graph
 from src.api.catalog import router as catalog_router
 from src.api.driver import router as driver_router
 from src.api.referral import router as referral_router
@@ -31,11 +30,17 @@ async def lifespan(app: FastAPI):
     await engine.dispose()
 
 
+# API docs are served only in development.
+_docs_urls: dict[str, Any] = (
+    {} if settings.is_development else {"docs_url": None, "redoc_url": None, "openapi_url": None}
+)
+
 app = FastAPI(
     title="Yoma Triage Logistics Engine",
     description="Offline-First Emergency Maternal Referral & Transport Broker for Ghana Health Service",
     version="1.0.0",
     lifespan=lifespan,
+    **_docs_urls,
 )
 
 app.add_middleware(
@@ -58,35 +63,23 @@ app.include_router(catalog_router)
 def health_check():
     """Health check endpoint for local/server monitoring."""
     env = settings.ENVIRONMENT.strip().lower()
+    dev = settings.is_development
     payload: dict[str, Any] = {
         "status": "online",
         "system": "Yoma Triage Emergency Logistics Engine",
         "network_mode": "2G SMS / USSD Enabled",
         "environment": env,
         "at_configured": settings.at_configured,
-        "api_auth_required": bool(settings.API_KEY.strip())
-        or env in {"production", "staging"},
+        "api_auth_required": bool(settings.API_KEY.strip()) or not dev,
     }
     # Avoid advertising webhook URLs on hardened environments.
-    if env not in {"production", "staging"}:
+    if dev:
         payload["public_base_url"] = settings.public_base_url or None
         payload["webhooks"] = {
             "ussd_callback": settings.ussd_callback_url,
             "sms_inbound": settings.sms_inbound_url,
         }
     return payload
-
-
-@app.post("/test-referral")
-def run_test_referral(payload: dict[str, Any]):
-    """
-    Dev-only graph smoke endpoint. Disabled when ENVIRONMENT=production.
-    Prefer POST /api/v1/referral for real referral + dispatch.
-    """
-    if settings.ENVIRONMENT.lower() == "production":
-        raise HTTPException(status_code=404, detail="Not found")
-    result = yoma_graph.invoke(payload)
-    return result
 
 
 if __name__ == "__main__":

@@ -4,7 +4,7 @@ Quick path for judge rehearsal. Details for AT: `docs/plans/at-sandbox-runbook.m
 
 ## Prerequisites
 
-1. Postgres on `127.0.0.1:5433` (`DATABASE_URL` in `.env`).
+1. Postgres on `127.0.0.1:5433` (`DATABASE_URL` in `.env`), and `ENVIRONMENT=development` for a local demo.
 2. `.env` has `AT_API_KEY`, `AT_USERNAME=sandbox`, `AT_SENDER_ID=99193`, `AT_USSD_SERVICE_CODE=*384*99193#`.
 3. API: `./venv/bin/python main.py` (port 8000).
 4. Public tunnel for live phone USSD/SMS callbacks — set **only** in `.env` (never hardcode in source):

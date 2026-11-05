@@ -10,7 +10,8 @@ MIN_FIELD_CASCADE_TIER_SECONDS = 60
 
 
 class Settings:
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    # Anything other than exactly "development" gets production behaviour.
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     DEFAULT_GEMINI_MODEL: str = "gemini-2.0-flash"
@@ -39,7 +40,7 @@ class Settings:
         os.getenv("CASCADE_TIER_SECONDS", str(DEFAULT_CASCADE_TIER_SECONDS))
     )
     # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
-    # Staging/production refuse requests until set (fail closed).
+    # Every other environment refuses to start without it.
     API_KEY: str = os.getenv("API_KEY", "")
     # Africa's Talking webhook shared secret (query ?secret= or X-Webhook-Secret).
     AT_WEBHOOK_SECRET: str = os.getenv("AT_WEBHOOK_SECRET", "")
@@ -50,13 +51,34 @@ class Settings:
         "http://localhost:7357,http://127.0.0.1:7357",
     )
 
+    @property
+    def is_development(self) -> bool:
+        """The only insecure mode, and it has to be asked for by name."""
+        return self.ENVIRONMENT.strip().lower() == "development"
+
     def startup_errors(self) -> list[str]:
         """Configuration that makes this environment unsafe to serve."""
-        errors: list[str] = []
+        if self.is_development:
+            return []
+        errors = [
+            f"{name} must be set"
+            for name, value in (
+                ("API_KEY", self.API_KEY),
+                ("AT_WEBHOOK_SECRET", self.AT_WEBHOOK_SECRET),
+                ("AT_API_KEY", self.AT_API_KEY),
+                ("AT_USERNAME", self.AT_USERNAME),
+                # Without it the USSD callback rejects every driver.
+                ("AT_USSD_SERVICE_CODE", self.AT_USSD_SERVICE_CODE),
+            )
+            if not value.strip()
+        ]
+        # The sandbox accepts sends but never reaches real phones.
         if (
-            self.ENVIRONMENT.strip().lower() in {"production", "staging"}
-            and self.CASCADE_TIER_SECONDS < MIN_FIELD_CASCADE_TIER_SECONDS
+            self.AT_USERNAME.strip().lower() == "sandbox"
+            and self.ENVIRONMENT.strip().lower() != "staging"
         ):
+            errors.append("AT_USERNAME must not be sandbox")
+        if self.CASCADE_TIER_SECONDS < MIN_FIELD_CASCADE_TIER_SECONDS:
             errors.append(
                 f"CASCADE_TIER_SECONDS must be at least {MIN_FIELD_CASCADE_TIER_SECONDS}"
             )

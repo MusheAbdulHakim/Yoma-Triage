@@ -5,7 +5,7 @@ CHO OTP is deferred. Until then:
 - Set ``AT_WEBHOOK_SECRET`` and register AT callbacks with ``?secret=...``
   or header ``X-Webhook-Secret``.
 
-Fail-closed in staging/production when secrets are unset.
+Fail-closed outside development when secrets are unset.
 """
 from __future__ import annotations
 
@@ -18,7 +18,7 @@ from src.config import settings
 
 
 def _env_fail_closed() -> bool:
-    return settings.ENVIRONMENT.strip().lower() in {"production", "staging"}
+    return not settings.is_development
 
 
 async def require_api_key(

@@ -64,11 +64,11 @@ def _configured_service_code() -> str:
 
 
 def _service_code_allowed(incoming: str | None) -> bool:
-    """Require configured shortcode in staging/production; match when set."""
+    """Require a configured shortcode outside development; match when set."""
     expected = _configured_service_code()
     if not expected:
         # Fail closed outside local/demo — empty allow-all is unsafe.
-        return settings.ENVIRONMENT.strip().lower() not in {"production", "staging"}
+        return settings.is_development
     if not incoming:
         return False
     return _normalize_service_code(incoming) == expected
