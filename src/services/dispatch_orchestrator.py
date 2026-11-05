@@ -23,6 +23,20 @@ ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
 FUEL_STIPEND_GHS = 22.5
 
 
+def _locked_dispatch(dispatch_id: int):
+    """SELECT ... FOR UPDATE that returns the row as committed once the lock is held.
+
+    Without populate_existing, a Dispatch already loaded in the session keeps its
+    stale attributes after the lock wait, and two drivers can both claim it.
+    """
+    return (
+        select(Dispatch)
+        .where(Dispatch.id == dispatch_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+
+
 def build_driver_offer_message(
     *,
     tier: int,
@@ -146,7 +160,7 @@ class DispatchOrchestrator:
         self, session: AsyncSession, dispatch_id: int, driver_id: int
     ) -> dict:
         dispatch = await session.scalar(
-            select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+            _locked_dispatch(dispatch_id)
         )
         if not dispatch:
             return {"ussd": "END No active dispatch.", "run_side_effects": False}
@@ -201,7 +215,7 @@ class DispatchOrchestrator:
     ) -> dict:
         """Record a decline and indicate whether escalation should run after commit."""
         dispatch = await session.scalar(
-            select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+            _locked_dispatch(dispatch_id)
         )
         if not dispatch:
             return {"ussd": "END No active dispatch.", "run_side_effects": False}
@@ -233,7 +247,7 @@ class DispatchOrchestrator:
     ) -> dict:
         """Confirm patient arrival at hospital and mark dispatch complete."""
         dispatch = await session.scalar(
-            select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+            _locked_dispatch(dispatch_id)
         )
         if not dispatch:
             return {"ussd": "END No active dispatch.", "run_side_effects": False}
@@ -276,7 +290,7 @@ class DispatchOrchestrator:
         """Notify CHO once after a successful arrival confirmation."""
         async with async_session() as session:
             dispatch = await session.scalar(
-                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+                _locked_dispatch(dispatch_id)
             )
             if (
                 not dispatch
@@ -318,7 +332,7 @@ class DispatchOrchestrator:
         """Run payment and hospital notification once after a successful claim."""
         async with async_session() as session:
             dispatch = await session.scalar(
-                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+                _locked_dispatch(dispatch_id)
             )
             if (
                 not dispatch
@@ -376,7 +390,7 @@ class DispatchOrchestrator:
         """Escalate an eligible decline after its USSD response has returned."""
         async with async_session() as session:
             dispatch = await session.scalar(
-                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+                _locked_dispatch(dispatch_id)
             )
             if (
                 not dispatch
@@ -422,7 +436,7 @@ class DispatchOrchestrator:
         await asyncio.sleep(settings.CASCADE_TIER_SECONDS)
         async with async_session() as session:
             dispatch = await session.scalar(
-                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+                _locked_dispatch(dispatch_id)
             )
             if (
                 not dispatch
