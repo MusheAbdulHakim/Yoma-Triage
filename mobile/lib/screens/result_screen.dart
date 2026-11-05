@@ -9,7 +9,7 @@ import 'referral_screen.dart';
 class ResultScreen extends StatelessWidget {
   final ScreeningResult result;
   final MoewsResult? moews;
-  final Map<String, Object>? vitals;
+  final Map<String, Object?>? vitals;
 
   const ResultScreen({
     super.key,

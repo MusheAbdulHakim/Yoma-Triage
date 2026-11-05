@@ -136,3 +136,26 @@ def test_demo_protocol_seed_documents_cover_moews_and_transport():
     assert "Motor-King" in joined or "transport" in joined.lower()
     # Construction of engine may pull embeddings; only assert constant content here.
     assert ProtocolRAGEngine.__name__ == "ProtocolRAGEngine"
+
+
+@pytest.mark.parametrize("missing", [None, "", "  "])
+def test_not_measured_consciousness_reaches_moews_as_unknown(monkeypatch, missing):
+    from src.agents import clinical_agent
+
+    monkeypatch.setattr(clinical_agent, "_get_rag_engine", lambda: None)
+    monkeypatch.setattr(clinical_agent, "_get_llm", lambda: None)
+    result = clinical_agent.run_clinical_assessment(
+        {
+            "vitals": {
+                "systolic_bp": 120,
+                "diastolic_bp": 80,
+                "heart_rate": 80,
+                "respiratory_rate": 18,
+                "temperature": 37.0,
+                "spo2": 98,
+                "consciousness_level": missing,
+            },
+        }
+    )
+    assert result["risk_level"] == "UNKNOWN"
+    assert result["moews_score"] is None

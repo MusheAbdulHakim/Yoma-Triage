@@ -77,7 +77,7 @@ def calculate_moews(
     rr: int | None,
     temp: float | None,
     spo2: int | None = None,
-    consciousness: str = "A",
+    consciousness: str | None = "A",
 ) -> dict:
     """
     Calculates the MOEWS risk score based on Ghana Health Service clinical thresholds.
@@ -92,9 +92,10 @@ def calculate_moews(
     - Consciousness: not Alert (A) / Alert
 
     Risk: any param score 3 or total ≥5 → RED; total 3–4 or any param 1 → YELLOW; 0–2 → GREEN.
-    Missing required vitals (sbp, dbp, hr, rr, temp) → UNKNOWN.
+    Missing required vitals (sbp, dbp, hr, rr, temp, consciousness) → UNKNOWN.
     """
-    required = (sbp, dbp, hr, rr, temp)
+    # Consciousness scores 3 when impaired, so unmeasured must not read as Alert.
+    required = (sbp, dbp, hr, rr, temp, consciousness)
     if any(v is None for v in required):
         return {"moews_score": None, "risk_level": "UNKNOWN"}
 

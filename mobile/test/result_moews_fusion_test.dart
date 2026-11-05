@@ -6,6 +6,8 @@ import 'package:yoma_triage/screens/vitals_screen.dart';
 import 'package:yoma_triage/services/moews_calculator.dart';
 import 'package:yoma_triage/services/screening_result.dart';
 
+import 'helpers/vitals_helper.dart';
+
 void main() {
   testWidgets('GREEN acoustic + RED MOEWS shows Confirm Referral',
       (tester) async {
@@ -37,9 +39,10 @@ void main() {
       reason: 'ok',
       source: 'yamnet',
     );
+    useTallScreen(tester);
     await tester.pumpWidget(MaterialApp(home: VitalsScreen(result: result)));
 
-    await tester.enterText(find.byKey(const Key('vitals_sbp')), '70');
+    await fillVitals(tester, overrides: {'sbp': '70'});
     await tester.tap(find.text('Continue to Result'));
     await tester.pumpAndSettle();
 

@@ -42,3 +42,19 @@ def test_single_parameter_score_three_is_red():
     })
     assert result["moews_score"] == 3
     assert result["risk_level"] == "RED"
+
+
+def test_unmeasured_consciousness_is_unknown_not_alert():
+    result = calculate_moews.invoke({
+        "sbp": 120, "dbp": 80, "hr": 80, "rr": 18, "temp": 37.0, "spo2": 98, "consciousness": None
+    })
+    assert result["risk_level"] == "UNKNOWN"
+    assert result["moews_score"] is None
+
+
+def test_unmeasured_spo2_is_scored_from_the_rest():
+    result = calculate_moews.invoke({
+        "sbp": 120, "dbp": 80, "hr": 80, "rr": 18, "temp": 37.0, "spo2": None, "consciousness": "A"
+    })
+    assert result["risk_level"] == "GREEN"
+    assert result["moews_score"] == 0

@@ -3,7 +3,7 @@ import 'package:flutter/material.dart';
 import '../services/advisory_hr.dart';
 import '../services/moews_calculator.dart';
 import '../services/screening_result.dart';
-import '../theme/yoma_theme.dart';
+import '../widgets/vital_field.dart';
 import 'result_screen.dart';
 
 class VitalsScreen extends StatefulWidget {
@@ -17,25 +17,25 @@ class VitalsScreen extends StatefulWidget {
 
 class _VitalsScreenState extends State<VitalsScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _sbp = TextEditingController(text: '120');
-  final _dbp = TextEditingController(text: '80');
-  final _hr = TextEditingController(text: '80');
-  final _rr = TextEditingController(text: '18');
-  final _temp = TextEditingController(text: '37.0');
-  final _spo2 = TextEditingController(text: '98');
-  String _avpu = 'A';
+  final _sbp = VitalInput();
+  final _dbp = VitalInput();
+  final _hr = VitalInput();
+  final _rr = VitalInput();
+  final _temp = VitalInput();
+  final _spo2 = VitalInput();
+  String? _avpu;
   int _hrScore = 0;
   AdvisoryHrReading? _advisoryApplied;
 
   @override
   void initState() {
     super.initState();
-    _hr.addListener(_recomputeHrBand);
+    _hr.controller.addListener(_recomputeHrBand);
     _recomputeHrBand();
   }
 
   void _recomputeHrBand() {
-    final hr = int.tryParse(_hr.text.trim());
+    final hr = _hr.intValue;
     final next = hr == null
         ? 0
         : calculateMoews(
@@ -54,7 +54,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
 
   @override
   void dispose() {
-    _hr.removeListener(_recomputeHrBand);
+    _hr.controller.removeListener(_recomputeHrBand);
     _sbp.dispose();
     _dbp.dispose();
     _hr.dispose();
@@ -65,7 +65,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
   }
 
   Future<void> _openAdvisoryHrSheet() async {
-    final hrCtrl = TextEditingController(text: _hr.text);
+    final hrCtrl = TextEditingController(text: _hr.controller.text);
     final spo2Ctrl = TextEditingController();
     var source = AdvisoryHrSource.blePulseOx;
 
@@ -177,9 +177,9 @@ class _VitalsScreenState extends State<VitalsScreen> {
     if (confirmed != true || !mounted) return;
 
     setState(() {
-      _hr.text = draft.heartRateBpm.toString();
+      _hr.setValue(draft.heartRateBpm);
       if (draft.spo2Percent != null) {
-        _spo2.text = draft.spo2Percent.toString();
+        _spo2.setValue(draft.spo2Percent!);
       }
       _advisoryApplied = draft;
     });
@@ -189,23 +189,24 @@ class _VitalsScreenState extends State<VitalsScreen> {
   void _continue() {
     if (!_formKey.currentState!.validate()) return;
 
-    final vitals = <String, Object>{
-      'systolic_bp': int.parse(_sbp.text.trim()),
-      'diastolic_bp': int.parse(_dbp.text.trim()),
-      'heart_rate': int.parse(_hr.text.trim()),
-      'respiratory_rate': int.parse(_rr.text.trim()),
-      'temperature': double.parse(_temp.text.trim()),
-      'spo2': int.parse(_spo2.text.trim()),
-      'consciousness_level': _avpu,
+    final consciousness = AvpuField.apiValue(_avpu);
+    final vitals = <String, Object?>{
+      'systolic_bp': _sbp.intValue,
+      'diastolic_bp': _dbp.intValue,
+      'heart_rate': _hr.intValue,
+      'respiratory_rate': _rr.intValue,
+      'temperature': _temp.doubleValue,
+      'spo2': _spo2.intValue,
+      'consciousness_level': consciousness,
     };
     final moews = calculateMoews(
-      sbp: vitals['systolic_bp'] as int,
-      dbp: vitals['diastolic_bp'] as int,
-      hr: vitals['heart_rate'] as int,
-      rr: vitals['respiratory_rate'] as int,
-      temp: vitals['temperature'] as double,
-      spo2: vitals['spo2'] as int,
-      consciousness: vitals['consciousness_level'] as String,
+      sbp: _sbp.intValue,
+      dbp: _dbp.intValue,
+      hr: _hr.intValue,
+      rr: _rr.intValue,
+      temp: _temp.doubleValue,
+      spo2: _spo2.intValue,
+      consciousness: consciousness,
     );
 
     Navigator.of(context).pushReplacement(
@@ -246,38 +247,45 @@ class _VitalsScreenState extends State<VitalsScreen> {
               ),
             ],
             const SizedBox(height: 12),
-            _numberField(_sbp, 'Systolic BP', const Key('vitals_sbp')),
-            _numberField(_dbp, 'Diastolic BP', const Key('vitals_dbp')),
-            _numberField(
-              _hr,
-              'Heart rate',
-              const Key('vitals_hr'),
+            VitalField(
+              input: _sbp,
+              label: 'Systolic BP',
+              fieldKey: 'vitals_sbp',
+            ),
+            VitalField(
+              input: _dbp,
+              label: 'Diastolic BP',
+              fieldKey: 'vitals_dbp',
+            ),
+            VitalField(
+              input: _hr,
+              label: 'Heart rate',
+              fieldKey: 'vitals_hr',
               highlight: hrAbnormal,
               helperText: hrAbnormal
                   ? 'MOEWS HR band elevated (score $_hrScore) — may escalate referral'
                   : 'Normal adult band roughly 60–110 bpm (GHS MOEWS)',
             ),
-            _numberField(_rr, 'Respiratory rate', const Key('vitals_rr')),
-            _numberField(
-              _temp,
-              'Temperature',
-              const Key('vitals_temp'),
+            VitalField(
+              input: _rr,
+              label: 'Respiratory rate',
+              fieldKey: 'vitals_rr',
+            ),
+            VitalField(
+              input: _temp,
+              label: 'Temperature',
+              fieldKey: 'vitals_temp',
               decimal: true,
             ),
-            _numberField(_spo2, 'SpO2', const Key('vitals_spo2')),
-            DropdownButtonFormField<String>(
-              key: ValueKey(_avpu),
-              initialValue: _avpu,
-              decoration: const InputDecoration(labelText: 'AVPU'),
-              items: const [
-                DropdownMenuItem(value: 'A', child: Text('A — Alert')),
-                DropdownMenuItem(value: 'V', child: Text('V — Voice')),
-                DropdownMenuItem(value: 'P', child: Text('P — Pain')),
-                DropdownMenuItem(value: 'U', child: Text('U — Unresponsive')),
-              ],
-              onChanged: (value) {
-                if (value != null) setState(() => _avpu = value);
-              },
+            VitalField(
+              input: _spo2,
+              label: 'SpO2',
+              fieldKey: 'vitals_spo2',
+            ),
+            AvpuField(
+              key: const Key('vitals_avpu'),
+              value: _avpu,
+              onChanged: (value) => setState(() => _avpu = value),
             ),
           ],
         ),
@@ -294,43 +302,6 @@ class _VitalsScreenState extends State<VitalsScreen> {
           ),
         ),
       ),
-    );
-  }
-
-  Widget _numberField(
-    TextEditingController controller,
-    String label,
-    Key key, {
-    bool decimal = false,
-    bool highlight = false,
-    String? helperText,
-  }) {
-    return TextFormField(
-      key: key,
-      controller: controller,
-      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      decoration: InputDecoration(
-        labelText: label,
-        helperText: helperText,
-        helperMaxLines: 2,
-        filled: highlight,
-        fillColor: highlight ? YomaColors.danger.withValues(alpha: 0.08) : null,
-        enabledBorder: highlight
-            ? const OutlineInputBorder(
-                borderSide: BorderSide(color: YomaColors.danger, width: 1.5),
-              )
-            : null,
-      ),
-      validator: (value) {
-        final raw = value?.trim() ?? '';
-        if (raw.isEmpty) return 'Required';
-        if (decimal
-            ? double.tryParse(raw) == null
-            : int.tryParse(raw) == null) {
-          return 'Invalid number';
-        }
-        return null;
-      },
     );
   }
 }
