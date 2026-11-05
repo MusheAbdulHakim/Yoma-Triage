@@ -8,8 +8,8 @@
 | **Role** | **Embedding encoder only** (1280-d) — not a cough/breath event classifier |
 | **Input** | Mel spectrogram float32 `[B, 251, 64]` = OPERA `pre_process_audio_mel_t(...).T` for ~8 s @ 16 kHz (`n_mels=64`, `n_fft=1024`, `hop=512`, `fmin=50`, `fmax=8000` in upstream call path) |
 | **Output** | float32 `[B, 1280]` embedding |
-| **On-device status** | Encoder ONNX + float16 TFLite shipped. **Classifier pack `opera_ce.tflite` not shipped** — Flutter `SCREENING_MODEL=opera_ce` remains INCONCLUSIVE |
-| **Next** | (1) Train/distill a small advisory head on ethics-approved labels (2) Port mel frontend or bake into TFLite (3) Ship `opera_ce.tflite` as the app pack |
+| **On-device status** | Encoder ONNX + float16 TFLite shipped; Flutter loads encoder + Dart mel. **Head `opera_ce_head.tflite` not shipped** → INCONCLUSIVE |
+| **Next** | (1) Collect ≥100 ethics-approved lab clips (2) Train head via `scripts/train_opera_ce_head.py` (3) Device-gate before installing head into assets |
 | **Telemetry** | Scores-only when a head exists; never upload embeddings on the referral path |
 | **Human oversight** | MOEWS floor + CHO confirm; acoustic GREEN never downgrades MOEWS |
 

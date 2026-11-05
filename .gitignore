@@ -14,3 +14,12 @@ docs/superpowers
 .ruff_cache
 .cursorrules
 .idea
+# Lab-set: never commit identifiable audio or local manifests
+data/lab_set/clips/
+data/lab_set/manifest.csv
+data/lab_set/.cache/
+data/lab_set/synthetic_smoke/embeddings.npz
+data/lab_set/synthetic_smoke/opera_ce_head.*
+mobile/assets/models/opera_ce_head.onnx
+mobile/assets/models/opera_ce_head.tflite
+mobile/assets/models/opera_ce_head.json
