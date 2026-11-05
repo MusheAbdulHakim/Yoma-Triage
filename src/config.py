@@ -5,6 +5,10 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DEFAULT_CASCADE_TIER_SECONDS = 90
+MIN_FIELD_CASCADE_TIER_SECONDS = 60
+
+
 class Settings:
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
@@ -30,8 +34,10 @@ class Settings:
     PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "")
     # Local/demo API client base (scripts/demo_flow.py). Defaults to loopback.
     DEMO_API_BASE_URL: str = os.getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000")
-    # Demo default is 5s; field/pilot should use minutes (e.g. 60–180) via env.
-    CASCADE_TIER_SECONDS: int = int(os.getenv("CASCADE_TIER_SECONDS", "5"))
+    # Spec 7.2.1: 90 s per tier. Staging/production refuse to start below 60 s.
+    CASCADE_TIER_SECONDS: int = int(
+        os.getenv("CASCADE_TIER_SECONDS", str(DEFAULT_CASCADE_TIER_SECONDS))
+    )
     # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
     # Staging/production refuse requests until set (fail closed).
     API_KEY: str = os.getenv("API_KEY", "")
@@ -43,6 +49,23 @@ class Settings:
         "http://localhost:5000,http://127.0.0.1:5000,"
         "http://localhost:7357,http://127.0.0.1:7357",
     )
+
+    def startup_errors(self) -> list[str]:
+        """Configuration that makes this environment unsafe to serve."""
+        errors: list[str] = []
+        if (
+            self.ENVIRONMENT.strip().lower() in {"production", "staging"}
+            and self.CASCADE_TIER_SECONDS < MIN_FIELD_CASCADE_TIER_SECONDS
+        ):
+            errors.append(
+                f"CASCADE_TIER_SECONDS must be at least {MIN_FIELD_CASCADE_TIER_SECONDS}"
+            )
+        return errors
+
+    def validate_for_startup(self) -> None:
+        errors = self.startup_errors()
+        if errors:
+            raise RuntimeError("Refusing to start: " + "; ".join(errors))
 
     @property
     def public_base_url(self) -> str:

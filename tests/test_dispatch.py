@@ -154,7 +154,8 @@ async def test_tier_two_driver_cannot_accept_while_tier_one_is_active():
     )
     referral = SimpleNamespace(chps_compound_id=1)
     session = MagicMock()
-    session.scalar = AsyncMock(return_value=dispatch)
+    # dispatch row, then no offer log: tier two has not been notified yet
+    session.scalar = AsyncMock(side_effect=[dispatch, None])
     session.get = AsyncMock(return_value=referral)
     orchestrator = DispatchOrchestrator()
     orchestrator.pool.get_candidates = AsyncMock(return_value=[tier_one_driver])

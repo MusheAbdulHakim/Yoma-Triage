@@ -21,6 +21,7 @@ from src.config import settings
 from src.db.database import get_db
 from src.db.models import Dispatch, Driver, Referral
 from src.services.dispatch_orchestrator import (
+    ACCEPT_ELIGIBLE,
     ARRIVAL_ELIGIBLE,
     CLAIMABLE,
     DispatchOrchestrator,
@@ -145,7 +146,7 @@ async def process_ussd(
         .where(
             Referral.chps_compound_id == driver.chps_compound_id,
             or_(
-                Dispatch.status.in_(CLAIMABLE),
+                Dispatch.status.in_(ACCEPT_ELIGIBLE if choice == "1" else CLAIMABLE),
                 (Dispatch.status == "ACCEPTED") & (Dispatch.driver_id == driver.id),
             ),
         )

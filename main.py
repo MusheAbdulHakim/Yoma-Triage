@@ -23,6 +23,7 @@ from src.db.database import init_db
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    settings.validate_for_startup()
     await init_db()
     yield
     from src.db.database import engine

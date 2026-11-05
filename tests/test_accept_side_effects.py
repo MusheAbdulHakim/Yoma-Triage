@@ -25,7 +25,8 @@ async def test_run_accept_side_effects_disburses_momo_and_notifies_hospital(
     facility = SimpleNamespace(id=1, name="TTH", phone="+233240000099")
 
     session = MagicMock()
-    session.scalar = AsyncMock(side_effect=[dispatch, None])  # dispatch, no existing momo log
+    # dispatch, no existing momo log, cascade had not given up
+    session.scalar = AsyncMock(side_effect=[dispatch, None, None])
     session.get = AsyncMock(side_effect=[referral, driver, facility])
     session.add = MagicMock()
     session.commit = AsyncMock()
