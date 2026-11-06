@@ -3,7 +3,7 @@
 **Generated:** 2026-07-26  
 **Last updated:** 2026-07-27  
 **Scope:** Everything still needed for a credible hackathon demo **and** a true production / pilot-ready system.  
-**Sources:** `TASK_BOARD.md`, `PRODUCT_SPEC.md`, `docs/yoma-triage-product-spec.md`, `docs/architecture-narrative.md`, `docs/plans/yoma-triage-production-hackathon-plan.md` (+ REVIEW / VERIFY), `docs/plans/at-sandbox-runbook.md`, `README.md`, `Yoma Triage Clinical Design Research.md`, `.cursorrules`, `src/`, `main.py`, `tests/`, `scripts/`, `mobile/`.  
+**Sources:** `TASK_BOARD.md`, `PRODUCT_SPEC.md`, `docs/architecture-narrative.md`, `docs/plans/yoma-triage-production-hackathon-plan.md` (+ REVIEW / VERIFY), `docs/plans/at-sandbox-runbook.md`, `README.md`, `Yoma Triage Clinical Design Research.md`, `.cursorrules`, `src/`, `main.py`, `tests/`, `scripts/`, `mobile/`.  
 **Do not treat this as a commit plan** — tracking only.
 
 Evidence baseline (VERIFY 2026-07-26): **pytest 61 passed**, **flutter test 19 passed**; hackathon production-close table in `TASK_BOARD.md` largely `[VERIFIED]`; live AT / real MoMo / clinical models / Dagbani voice still open.
@@ -284,7 +284,7 @@ Grounded in `mobile/lib/`, `mobile/test/`, `mobile/ios/`, `mobile/android/`, `mo
 
 Active mobile/backend surfaces are largely Yoma-clean (`TASK_BOARD` W0.1). Remaining:
 
-- [ ] Reconcile `PRODUCT_SPEC.md` / `docs/yoma-triage-product-spec.md` **Phase 1** roadmap: still lists on-device SLM as this-week deliverable (§XVI) — mark as pilot backlog (W0.2 incomplete).
+- [ ] Reconcile `PRODUCT_SPEC.md` **Phase 1** roadmap: still lists on-device SLM as this-week deliverable (§XVI) — mark as pilot backlog (W0.2 incomplete).
 - [ ] Mark SQLCipher, cert pinning, encrypted SMS telemetry, OTP auth as **not implemented** in security sections (still read as present tense in PRODUCT_SPEC ~§1472).
 - [ ] Align architecture diagrams that historically implied mobile→AT direct SMS with backend-mediated rule.
 - [ ] Update `Yoma Triage Clinical Design Research.md` Kotlin/Compose narrative remnants if any remain vs Flutter stack.
