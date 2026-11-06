@@ -1,9 +1,10 @@
 """
 Yoma Triage Emergency Logistics Engine
-Single Master Entry Point serving FastAPI Webhooks and LangGraph Workflows.
+Single Master Entry Point serving FastAPI Webhooks and the dispatch workers.
 """
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 from typing import Any
 
@@ -18,16 +19,43 @@ from src.api.sms_webhook import router as sms_router
 from src.api.ussd import router as ussd_router
 from src.config import settings
 from src.db.database import init_db
+from src.services.dispatch_orchestrator import DispatchOrchestrator
+from src.services.outbox import OutboxSender
+from src.services.workers import run_worker_loop
 
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     settings.validate_for_startup()
-    await init_db()
+    # Outside development the schema comes only from migrations: alembic upgrade head.
+    if settings.is_development:
+        await init_db()
+    stop_workers = asyncio.Event()
+    workers = [
+        asyncio.create_task(
+            run_worker_loop(
+                "cascade",
+                DispatchOrchestrator().process_due_dispatches,
+                settings.WORKER_POLL_SECONDS,
+                stop_workers,
+            )
+        ),
+        asyncio.create_task(
+            run_worker_loop(
+                "sms-outbox",
+                OutboxSender().run_once,
+                settings.OUTBOX_POLL_SECONDS,
+                stop_workers,
+            )
+        ),
+    ]
     yield
+    stop_workers.set()
+    await asyncio.gather(*workers)
     from src.db.database import engine
 
-    await engine.dispose()
+    if engine is not None:
+        await engine.dispose()
 
 
 # API docs are served only in development.

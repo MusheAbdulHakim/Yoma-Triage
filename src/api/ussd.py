@@ -12,7 +12,7 @@ Contract:
 """
 from __future__ import annotations
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Request, Response
+from fastapi import APIRouter, Depends, Request, Response
 from sqlalchemy import or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -23,6 +23,7 @@ from src.db.models import Dispatch, Driver, Referral
 from src.services.dispatch_orchestrator import (
     ACCEPT_ELIGIBLE,
     ARRIVAL_ELIGIBLE,
+    ASSIGNED,
     CLAIMABLE,
     DispatchOrchestrator,
 )
@@ -90,13 +91,8 @@ async def _find_driver(session: AsyncSession, phone_number: str) -> Driver | Non
     return await session.scalar(select(Driver).where(Driver.phone.in_(candidates)))
 
 
-async def process_ussd(
-    session: AsyncSession,
-    background_tasks: BackgroundTasks,
-    phone_number: str,
-    text: str,
-) -> Response:
-    """Process a USSD response without waiting for external side effects."""
+async def process_ussd(session: AsyncSession, phone_number: str, text: str) -> Response:
+    """Handle a USSD response. All SMS go to the outbox, so this makes no external calls."""
     user_input = text.strip()
 
     if user_input == "":
@@ -124,18 +120,14 @@ async def process_ussd(
                     Dispatch.status == "COMPLETED",
                 ),
             )
-            .order_by(Dispatch.initiated_at.desc())
+            .order_by(Dispatch.initiated_at.desc(), Dispatch.id.desc())
         )
         if not dispatch:
             return _ussd_response("END No active dispatch.")
 
-        result = await orchestrator.handle_arrival(session, dispatch.id, driver.id)
+        reply = await orchestrator.handle_arrival(session, dispatch.id, driver.id)
         await session.commit()
-        if result["run_side_effects"]:
-            background_tasks.add_task(
-                orchestrator.run_arrival_side_effects, dispatch.id, driver.id
-            )
-        return _ussd_response(result["ussd"])
+        return _ussd_response(reply)
 
     dispatch = await session.scalar(
         select(Dispatch)
@@ -144,36 +136,25 @@ async def process_ussd(
             Referral.chps_compound_id == driver.chps_compound_id,
             or_(
                 Dispatch.status.in_(ACCEPT_ELIGIBLE if choice == "1" else CLAIMABLE),
-                (Dispatch.status == "ACCEPTED") & (Dispatch.driver_id == driver.id),
+                Dispatch.status.in_(ASSIGNED) & (Dispatch.driver_id == driver.id),
             ),
         )
-        .order_by(Dispatch.initiated_at.desc())
+        .order_by(Dispatch.initiated_at.desc(), Dispatch.id.desc())
     )
     if not dispatch:
         return _ussd_response("END No active dispatch.")
 
     if choice == "1":
-        result = await orchestrator.handle_accept(session, dispatch.id, driver.id)
-        await session.commit()
-        if result["run_side_effects"]:
-            background_tasks.add_task(
-                orchestrator.run_accept_side_effects, dispatch.id, driver.id
-            )
-        return _ussd_response(result["ussd"])
-
-    result = await orchestrator.handle_decline(session, dispatch.id, driver.id)
+        reply = await orchestrator.handle_accept(session, dispatch.id, driver.id)
+    else:
+        reply = await orchestrator.handle_decline(session, dispatch.id, driver.id)
     await session.commit()
-    if result["run_side_effects"]:
-        background_tasks.add_task(
-            orchestrator.run_decline_side_effects, dispatch.id, driver.id
-        )
-    return _ussd_response(result["ussd"])
+    return _ussd_response(reply)
 
 
 @router.post("/callback", dependencies=[Depends(require_webhook_secret)])
 async def handle_ussd(
     request: Request,
-    background_tasks: BackgroundTasks,
     session: AsyncSession = Depends(get_db),
 ):
     """Africa's Talking USSD session callback (≤10s, text/plain CON|END)."""
@@ -196,4 +177,4 @@ async def handle_ussd(
         return _ussd_response("END Unknown service code.")
 
     _ = session_id  # available for session continuity / logging
-    return await process_ussd(session, background_tasks, phone_number, text)
+    return await process_ussd(session, phone_number, text)

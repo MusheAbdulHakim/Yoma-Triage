@@ -9,6 +9,8 @@ import 'package:yoma_triage/services/screening_result.dart';
 import 'helpers/vitals_helper.dart';
 
 void main() {
+  _neverGatedTests();
+
   testWidgets('GREEN acoustic + RED MOEWS shows Confirm Referral',
       (tester) async {
     await tester.pumpWidget(
@@ -96,5 +98,26 @@ void main() {
       find.byKey(const Key('referral_sbp')),
     );
     expect(sbp.controller?.text, '70');
+  });
+}
+
+void _neverGatedTests() {
+  testWidgets('MOEWS GREEN still lets the CHO refer', (tester) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        home: ResultScreen(
+          result: ScreeningResult(
+            label: 'GREEN',
+            confidence: 0.9,
+            reason: 'simulated',
+            source: 'simulator',
+          ),
+          moews: const MoewsResult(score: 0, riskLevel: 'GREEN'),
+        ),
+      ),
+    );
+
+    expect(find.text('Continue Monitoring'), findsOneWidget);
+    expect(find.text('Refer with clinical judgment'), findsOneWidget);
   });
 }

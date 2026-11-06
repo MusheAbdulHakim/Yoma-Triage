@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -30,15 +30,6 @@ async def test_create_referral_persists_ai_screen_fields(
     monkeypatch.setattr(
         "src.api.referral.DispatchOrchestrator.initiate_dispatch",
         initiate,
-    )
-    monkeypatch.setattr(
-        "src.api.referral.yoma_graph.invoke",
-        lambda state: {
-            "risk_level": "RED",
-            "moews_score": 6,
-            "clinical_summary": "Critical",
-            "compressed_sms_payload": "abc",
-        },
     )
 
     payload = {
@@ -82,15 +73,6 @@ async def test_duplicate_client_request_id_is_idempotent_no_second_cascade(
         "src.api.referral.DispatchOrchestrator.initiate_dispatch",
         initiate,
     )
-    monkeypatch.setattr(
-        "src.api.referral.yoma_graph.invoke",
-        lambda state: {
-            "risk_level": "RED",
-            "moews_score": 6,
-            "clinical_summary": "Critical",
-            "compressed_sms_payload": "abc",
-        },
-    )
 
     payload = {
         **sample_referral_payload,
@@ -132,15 +114,6 @@ async def test_missing_client_request_id_gets_server_uuid(
         "src.api.referral.DispatchOrchestrator.initiate_dispatch",
         AsyncMock(side_effect=fake_initiate),
     )
-    monkeypatch.setattr(
-        "src.api.referral.yoma_graph.invoke",
-        lambda state: {
-            "risk_level": "GREEN",
-            "moews_score": 0,
-            "clinical_summary": "Stable",
-            "compressed_sms_payload": "abc",
-        },
-    )
     payload = {**sample_referral_payload}
     payload.pop("client_request_id", None)
     res = await client.post("/api/v1/referral", json=payload)
@@ -174,10 +147,6 @@ async def test_clinical_graph_failure_still_creates_unknown_referral(
         "src.api.referral.DispatchOrchestrator.initiate_dispatch",
         initiate,
     )
-    monkeypatch.setattr(
-        "src.api.referral.yoma_graph.invoke",
-        MagicMock(side_effect=RuntimeError("graph down")),
-    )
     payload = {
         **sample_referral_payload,
         "client_request_id": "22222222-2222-2222-2222-222222222222",
@@ -185,6 +154,7 @@ async def test_clinical_graph_failure_still_creates_unknown_referral(
     res = await client.post("/api/v1/referral", json=payload)
     assert res.status_code == 201
     body = res.json()
-    assert body["referral"]["risk_level"] == "UNKNOWN"
+    # Graph down: MOEWS is still calculated, so critical vitals stay RED.
+    assert body["referral"]["risk_level"] == "RED"
     assert body["dispatch"] is not None
     assert initiate.await_count == 1

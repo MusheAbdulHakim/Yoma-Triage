@@ -1,3 +1,5 @@
+import '../parameters.dart';
+
 class MoewsResult {
   const MoewsResult({
     required this.score,
@@ -9,6 +11,7 @@ class MoewsResult {
     this.tempScore = 0,
     this.spo2Score = 0,
     this.consciousnessScore = 0,
+    this.missingVitals = const [],
   });
 
   final int? score;
@@ -23,43 +26,53 @@ class MoewsResult {
   final int spo2Score;
   final int consciousnessScore;
 
+  /// API names of the vitals that were not measured.
+  final List<String> missingVitals;
+
   bool get hrAbnormal => hrScore > 0;
+
+  bool get isIncomplete => riskLevel == 'INCOMPLETE';
+
+  /// What the CHO sees about missing vitals, or null if nothing is missing.
+  String? get notMeasuredText {
+    if (missingVitals.isEmpty) return null;
+    if (missingVitals.length == 1 && missingVitals.first == 'spo2') {
+      return 'SpO₂ not measured';
+    }
+    final labels = missingVitals.map((name) => _vitalLabels[name] ?? name);
+    return 'Not measured: ${labels.join(', ')}';
+  }
 }
 
-int _scoreSbp(int sbp) {
-  if (sbp < 80 || sbp > 150) return 3;
-  if ((sbp >= 80 && sbp <= 90) || (sbp >= 140 && sbp <= 150)) return 1;
-  return 0;
-}
+const _vitalLabels = {
+  'systolic_bp': 'Systolic BP',
+  'diastolic_bp': 'Diastolic BP',
+  'heart_rate': 'Heart rate',
+  'respiratory_rate': 'Respiratory rate',
+  'temperature': 'Temperature',
+  'spo2': 'SpO₂',
+  'consciousness_level': 'AVPU',
+};
 
-int _scoreDbp(int dbp) {
-  if (dbp > 100) return 3;
-  if (dbp >= 90 && dbp <= 100) return 1;
-  if (dbp < 60) return 3;
-  return 0;
-}
-
-int _scoreHr(int hr) {
-  if (hr < 50 || hr > 130) return 3;
-  if ((hr >= 50 && hr <= 60) || (hr >= 110 && hr <= 130)) return 1;
-  return 0;
-}
-
-int _scoreRr(int rr) {
-  if (rr < 10 || rr > 30) return 3;
-  if ((rr >= 10 && rr <= 14) || (rr >= 24 && rr <= 30)) return 1;
-  return 0;
-}
-
-int _scoreTemp(double temp) {
-  if (temp < 35 || temp > 39) return 3;
-  if ((temp >= 35 && temp <= 36) || (temp >= 38 && temp <= 39)) return 1;
-  return 0;
-}
-
-int _scoreSpo2(int spo2) {
-  if (spo2 < 90) return 3;
-  if (spo2 >= 90 && spo2 <= 94) return 1;
+int _scoreBand(MoewsBand band, num value) {
+  final below = band.redBelow;
+  final above = band.redAbove;
+  if ((below != null && value < below) || (above != null && value > above)) {
+    return 3;
+  }
+  final lowMin = band.yellowLowMin;
+  final lowMax = band.yellowLowMax;
+  if (lowMin != null && lowMax != null && value >= lowMin && value <= lowMax) {
+    return 1;
+  }
+  final highMin = band.yellowHighMin;
+  final highMax = band.yellowHighMax;
+  if (highMin != null &&
+      highMax != null &&
+      value >= highMin &&
+      value <= highMax) {
+    return 1;
+  }
   return 0;
 }
 
@@ -68,12 +81,22 @@ int _scoreConsciousness(String consciousness) {
   return 0;
 }
 
-String _riskLevel(List<int> scores, int total) {
-  if (scores.any((s) => s == 3) || total >= 5) return 'RED';
-  if (total >= 3 || scores.any((s) => s == 1)) return 'YELLOW';
+String _riskLevel(List<int> scores, int total, List<String> missing) {
+  // A measured critical value is never hidden by what wasn't measured.
+  if (scores.any((s) => s == Parameters.moewsRedParameterScore) ||
+      total >= Parameters.moewsRedTotal) {
+    return 'RED';
+  }
+  // A patient can't be called normal from half a set. SpO₂ alone is optional.
+  if (missing.any((name) => name != 'spo2')) return 'INCOMPLETE';
+  if (total >= Parameters.moewsYellowTotal || scores.any((s) => s == 1)) {
+    return 'YELLOW';
+  }
   return 'GREEN';
 }
 
+/// Scores what was measured. Keep in step with `src/tools/moews_calculator.py`;
+/// `tests/fixtures/moews_cases.json` runs against both.
 MoewsResult calculateMoews({
   required int? sbp,
   required int? dbp,
@@ -83,34 +106,38 @@ MoewsResult calculateMoews({
   int? spo2,
   String? consciousness = 'A',
 }) {
-  // Consciousness scores 3 when impaired, so unmeasured must not read as Alert.
-  final required = [sbp, dbp, hr, rr, temp, consciousness];
-  if (required.any((v) => v == null)) {
-    return const MoewsResult(score: null, riskLevel: 'UNKNOWN');
-  }
-
-  final sbpScore = _scoreSbp(sbp!);
-  final dbpScore = _scoreDbp(dbp!);
-  final hrScore = _scoreHr(hr!);
-  final rrScore = _scoreRr(rr!);
-  final tempScore = _scoreTemp(temp!);
-  final consciousnessScore = _scoreConsciousness(consciousness!);
-  final spo2Score = spo2 == null ? 0 : _scoreSpo2(spo2);
+  final sbpScore = sbp == null ? 0 : _scoreBand(Parameters.systolicBpBand, sbp);
+  final dbpScore = dbp == null ? 0 : _scoreBand(Parameters.diastolicBpBand, dbp);
+  final hrScore = hr == null ? 0 : _scoreBand(Parameters.heartRateBand, hr);
+  final rrScore = rr == null ? 0 : _scoreBand(Parameters.respiratoryRateBand, rr);
+  final tempScore = temp == null ? 0 : _scoreBand(Parameters.temperatureBand, temp);
+  final spo2Score = spo2 == null ? 0 : _scoreBand(Parameters.spo2Band, spo2);
+  final consciousnessScore =
+      consciousness == null ? 0 : _scoreConsciousness(consciousness);
 
   final scores = <int>[
-    sbpScore,
-    dbpScore,
-    hrScore,
-    rrScore,
-    tempScore,
-    consciousnessScore,
+    if (sbp != null) sbpScore,
+    if (dbp != null) dbpScore,
+    if (hr != null) hrScore,
+    if (rr != null) rrScore,
+    if (temp != null) tempScore,
     if (spo2 != null) spo2Score,
+    if (consciousness != null) consciousnessScore,
+  ];
+  final missing = <String>[
+    if (sbp == null) 'systolic_bp',
+    if (dbp == null) 'diastolic_bp',
+    if (hr == null) 'heart_rate',
+    if (rr == null) 'respiratory_rate',
+    if (temp == null) 'temperature',
+    if (spo2 == null) 'spo2',
+    if (consciousness == null) 'consciousness_level',
   ];
 
   final total = scores.fold<int>(0, (sum, s) => sum + s);
   return MoewsResult(
-    score: total,
-    riskLevel: _riskLevel(scores, total),
+    score: scores.isEmpty ? null : total,
+    riskLevel: _riskLevel(scores, total, missing),
     hrScore: hrScore,
     sbpScore: sbpScore,
     dbpScore: dbpScore,
@@ -118,5 +145,6 @@ MoewsResult calculateMoews({
     tempScore: tempScore,
     spo2Score: spo2Score,
     consciousnessScore: consciousnessScore,
+    missingVitals: missing,
   );
 }

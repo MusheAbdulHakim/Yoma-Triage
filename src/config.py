@@ -3,25 +3,24 @@ import os
 
 from dotenv import load_dotenv
 
+from src import parameters
+
 load_dotenv()
-
-DEFAULT_CASCADE_TIER_SECONDS = 90
-MIN_FIELD_CASCADE_TIER_SECONDS = 60
-
 
 class Settings:
     # Anything other than exactly "development" gets production behaviour.
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    # Off: POST /referral never uses RAG or an LLM. This only gates the code left in
+    # src/agents and src/rag, which also needs requirements-rag.txt.
+    RAG_ENABLED: bool = os.getenv("RAG_ENABLED", "false").strip().lower() == "true"
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     DEFAULT_GEMINI_MODEL: str = "gemini-2.0-flash"
     VECTOR_STORE_DIR: str = os.getenv("VECTOR_STORE_DIR", "./data/vector_store")
     MOMO_API_URL: str = os.getenv("MOMO_API_URL", "https://sandbox.momodeveloper.mtn.com")
     MOMO_PRIMARY_KEY: str = os.getenv("MOMO_PRIMARY_KEY", "")
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/yoma_triage",
-    )
+    # No default: a credential in code is one nobody remembers to change.
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     AT_API_KEY: str = os.getenv("AT_API_KEY", "")
     AT_USERNAME: str = os.getenv("AT_USERNAME", "sandbox")
     AT_SENDER_ID: str = os.getenv("AT_SENDER_ID", "YOMATRIAGE")
@@ -35,9 +34,19 @@ class Settings:
     PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "")
     # Local/demo API client base (scripts/demo_flow.py). Defaults to loopback.
     DEMO_API_BASE_URL: str = os.getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000")
-    # Spec 7.2.1: 90 s per tier. Staging/production refuse to start below 60 s.
+    # Staging/production refuse to start below parameters.MIN_FIELD_CASCADE_TIER_SECONDS.
     CASCADE_TIER_SECONDS: int = int(
-        os.getenv("CASCADE_TIER_SECONDS", str(DEFAULT_CASCADE_TIER_SECONDS))
+        os.getenv("CASCADE_TIER_SECONDS", str(parameters.CASCADE_TIER_SECONDS))
+    )
+    WORKER_POLL_SECONDS: float = float(
+        os.getenv("WORKER_POLL_SECONDS", str(parameters.WORKER_POLL_SECONDS))
+    )
+    OUTBOX_POLL_SECONDS: float = float(
+        os.getenv("OUTBOX_POLL_SECONDS", str(parameters.OUTBOX_POLL_SECONDS))
+    )
+    # How long after dispatch start a notified driver can still claim a FAILED dispatch.
+    LATE_CLAIM_WINDOW_MINUTES: int = int(
+        os.getenv("LATE_CLAIM_WINDOW_MINUTES", str(parameters.LATE_CLAIM_WINDOW_MINUTES))
     )
     # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
     # Every other environment refuses to start without it.
@@ -58,9 +67,10 @@ class Settings:
 
     def startup_errors(self) -> list[str]:
         """Configuration that makes this environment unsafe to serve."""
+        errors = [] if self.DATABASE_URL.strip() else ["DATABASE_URL must be set"]
         if self.is_development:
-            return []
-        errors = [
+            return errors
+        errors += [
             f"{name} must be set"
             for name, value in (
                 ("API_KEY", self.API_KEY),
@@ -78,9 +88,10 @@ class Settings:
             and self.ENVIRONMENT.strip().lower() != "staging"
         ):
             errors.append("AT_USERNAME must not be sandbox")
-        if self.CASCADE_TIER_SECONDS < MIN_FIELD_CASCADE_TIER_SECONDS:
+        if self.CASCADE_TIER_SECONDS < parameters.MIN_FIELD_CASCADE_TIER_SECONDS:
             errors.append(
-                f"CASCADE_TIER_SECONDS must be at least {MIN_FIELD_CASCADE_TIER_SECONDS}"
+                "CASCADE_TIER_SECONDS must be at least "
+                f"{parameters.MIN_FIELD_CASCADE_TIER_SECONDS}"
             )
         return errors
 

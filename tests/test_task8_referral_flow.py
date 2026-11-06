@@ -2,8 +2,10 @@ from unittest.mock import AsyncMock, MagicMock
 
 import pytest
 
+from tests.conftest import added_sms
 
-def test_clinical_assessment_returns_unknown_template_for_missing_vitals(monkeypatch):
+
+def test_clinical_assessment_reports_incomplete_for_missing_vitals(monkeypatch):
     from src.agents import clinical_agent
 
     rag = MagicMock()
@@ -23,9 +25,10 @@ def test_clinical_assessment_returns_unknown_template_for_missing_vitals(monkeyp
 
     result = clinical_agent.run_clinical_assessment(state)
 
-    assert result["risk_level"] == "UNKNOWN"
-    assert result["moews_score"] is None
-    assert "UNKNOWN" in result["clinical_summary"]
+    assert result["risk_level"] == "INCOMPLETE"
+    assert result["missing_vitals"] == ["systolic_bp", "spo2", "consciousness_level"]
+    assert "INCOMPLETE" in result["clinical_summary"]
+    assert "Not measured: systolic_bp" in result["clinical_summary"]
 
 
 def test_clinical_assessment_handles_absent_vitals_and_gestational_weeks(monkeypatch):
@@ -37,7 +40,7 @@ def test_clinical_assessment_handles_absent_vitals_and_gestational_weeks(monkeyp
 
     result = clinical_agent.run_clinical_assessment({"vitals": {}})
 
-    assert result["risk_level"] == "UNKNOWN"
+    assert result["risk_level"] == "INCOMPLETE"
     assert result["moews_score"] is None
     assert "Gestational age: unknown weeks." in result["clinical_summary"]
 
@@ -47,8 +50,10 @@ def test_clinical_rag_initialization_seeds_protocols(monkeypatch):
 
     engine = MagicMock()
     monkeypatch.setattr(clinical_agent, "rag_engine", None)
+    pytest.importorskip("langchain_chroma", reason="needs requirements-rag.txt")
+    monkeypatch.setattr("src.config.settings.RAG_ENABLED", True)
     monkeypatch.setattr(
-        clinical_agent, "ProtocolRAGEngine", lambda *args, **kwargs: engine
+        "src.rag.engine.ProtocolRAGEngine", lambda *args, **kwargs: engine
     )
 
     assert clinical_agent._get_rag_engine() is engine
@@ -56,6 +61,7 @@ def test_clinical_rag_initialization_seeds_protocols(monkeypatch):
 
 
 def test_prepare_dispatch_encodes_unknown_score_as_zero():
+    pytest.importorskip("langgraph", reason="needs requirements-rag.txt")
     from src.agents.coordinator import prepare_dispatch_node
 
     result = prepare_dispatch_node(
@@ -93,11 +99,6 @@ async def test_divert_updates_destination_and_notifies(monkeypatch):
     )
     session.add = MagicMock()
     session.commit = AsyncMock()
-    gateway = MagicMock()
-    gateway.send_sms = __import__("unittest.mock").mock.AsyncMock(
-        return_value={"status": "MOCKED"}
-    )
-    monkeypatch.setattr(sms_webhook, "MessagingGateway", lambda: gateway)
 
     result = await sms_webhook.process_inbound_sms(
         session, "+233 200 000 001", "DIVERT 11 2"
@@ -106,7 +107,9 @@ async def test_divert_updates_destination_and_notifies(monkeypatch):
     assert result["status"] == "DIVERTED"
     assert referral.facility_id == 2
     assert dispatch.status == "DIVERTED"
-    assert gateway.send_sms.await_count == 2
+    sms = added_sms(session)
+    assert {message.purpose for message in sms} == {"divert_driver", "divert_cho"}
+    assert all("Alt Hospital" in message.body or message.body for message in sms)
 
 
 @pytest.mark.asyncio
@@ -145,9 +148,6 @@ async def test_inbound_sms_status_reply_before_driver_acceptance(monkeypatch):
     session.get = AsyncMock(side_effect=[dispatch, referral, current_facility, current_facility])
     session.add = MagicMock()
     session.commit = AsyncMock()
-    gateway = MagicMock()
-    gateway.send_sms = AsyncMock(return_value={"status": "MOCKED"})
-    monkeypatch.setattr(sms_webhook, "MessagingGateway", lambda: gateway)
 
     result = await sms_webhook.process_inbound_sms(
         session, "0200000001", "CONFIRM 11"
@@ -155,5 +155,6 @@ async def test_inbound_sms_status_reply_before_driver_acceptance(monkeypatch):
 
     assert result["status"] == "STATUS_ONLY"
     assert dispatch.status == "TIER1_NOTIFIED"
-    gateway.send_sms.assert_awaited_once()
-    assert "TIER1_NOTIFIED" in gateway.send_sms.await_args.args[1]
+    sms = added_sms(session)
+    assert len(sms) == 1
+    assert "TIER1_NOTIFIED" in sms[0].body

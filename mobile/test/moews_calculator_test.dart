@@ -45,7 +45,7 @@ void main() {
     expect(r.riskLevel, 'YELLOW');
   });
 
-  test('null required vital is UNKNOWN', () {
+  test('null required vital with nothing critical is INCOMPLETE', () {
     final r = calculateMoews(
       sbp: null,
       dbp: 80,
@@ -55,8 +55,8 @@ void main() {
       spo2: 98,
       consciousness: 'A',
     );
-    expect(r.riskLevel, 'UNKNOWN');
-    expect(r.score, isNull);
+    expect(r.riskLevel, 'INCOMPLETE');
+    expect(r.missingVitals, ['systolic_bp']);
   });
 
   test('single param score 3 is red', () {

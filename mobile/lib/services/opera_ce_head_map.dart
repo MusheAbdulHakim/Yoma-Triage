@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import '../parameters.dart';
 import 'screening_result.dart';
 
 /// Map 2-class head logits `[normal, abnormal]` to advisory labels.
@@ -26,7 +27,7 @@ ScreeningResult mapOperaCeHeadToResult(List<double> logits) {
   final probs = exps.map((e) => e / sum).toList();
   final abnormal = probs.length >= 2 ? probs[1] : probs[0];
 
-  if (abnormal > 0.7) {
+  if (abnormal > Parameters.acousticRedAbove) {
     return ScreeningResult(
       label: 'RED',
       confidence: abnormal,
@@ -36,7 +37,9 @@ ScreeningResult mapOperaCeHeadToResult(List<double> logits) {
       modelVersion: version,
     );
   }
-  if (abnormal < 0.5 && probs.length >= 2 && probs[0] > 0.7) {
+  if (abnormal < Parameters.acousticInconclusiveBelow &&
+      probs.length >= 2 &&
+      probs[0] > Parameters.operaGreenAbove) {
     return ScreeningResult(
       label: 'GREEN',
       confidence: probs[0],

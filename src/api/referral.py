@@ -8,15 +8,18 @@ import uuid
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from src.agents.coordinator import yoma_graph
+from src import parameters
 from src.api.deps import require_api_key
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
+from src.tools.clinical_summary import build_clinical_summary
+from src.tools.moews_calculator import missing_vitals, score_vitals
+from src.tools.sms_codec import encode_referral_payload_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +32,20 @@ router = APIRouter(
 PATIENT_HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
-# Keep in sync with mobile/lib/services/vital_limits.dart: the app must reject what
-# the API rejects, or a referral sits in the outbox retrying a 422 forever.
-# These catch typos and impossible readings; they are not clinical thresholds.
-SYSTOLIC_BP = Field(ge=0, le=300)
-DIASTOLIC_BP = Field(ge=0, le=200)
-HEART_RATE = Field(ge=0, le=300)
-RESPIRATORY_RATE = Field(ge=0, le=120)
-TEMPERATURE = Field(ge=20, le=45)
-SPO2 = Field(ge=0, le=100)
+
+def _vital_range(vital: str) -> Any:
+    """The app enforces the same limits: a referral rejected here would otherwise sit in
+    the outbox retrying forever. They catch typos; they are not clinical thresholds."""
+    low, high = parameters.VITAL_RANGES[vital]
+    return Field(ge=low, le=high)
+
+
+SYSTOLIC_BP = _vital_range("systolic_bp")
+DIASTOLIC_BP = _vital_range("diastolic_bp")
+HEART_RATE = _vital_range("heart_rate")
+RESPIRATORY_RATE = _vital_range("respiratory_rate")
+TEMPERATURE = _vital_range("temperature")
+SPO2 = _vital_range("spo2")
 
 EmergencyType = Literal[
     # Offered by the CHO app today.
@@ -81,8 +89,10 @@ class ReferralCreate(BaseModel):
     facility_id: DbInt
     patient_hash: str = Field(min_length=64, max_length=64)
     emergency_type: EmergencyType
-    vitals: VitalsInput
-    gestational_weeks: int = Field(default=0, ge=0, le=45)
+    vitals: VitalsInput = Field(default_factory=VitalsInput)
+    # False for "Emergency: skip vitals": dispatch at once, no clinical assessment.
+    vitals_taken: bool = True
+    gestational_weeks: int = Field(default=0, ge=0, le=parameters.GESTATIONAL_WEEKS_MAX)
     client_request_id: str | None = Field(default=None, max_length=36)
     ai_screen_result: str | None = Field(default=None, max_length=32)
     ai_confidence: float | None = Field(default=None, ge=0, le=1)
@@ -94,6 +104,14 @@ class ReferralCreate(BaseModel):
         if not PATIENT_HASH_PATTERN.match(value):
             raise ValueError("patient_hash must be exactly 64 lowercase hex characters")
         return value
+
+    @model_validator(mode="after")
+    def validate_vitals_taken(self) -> ReferralCreate:
+        if not self.vitals_taken and any(
+            value is not None for value in self.vitals.model_dump().values()
+        ):
+            raise ValueError("vitals_taken=false cannot be sent with vitals")
+        return self
 
 
 def _referral_response(referral: Referral) -> dict[str, Any]:
@@ -110,6 +128,8 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "compressed_sms_payload": referral.compressed_sms_payload,
         "status": referral.status,
         "vitals": referral.vitals_json,
+        "missing_vitals": missing_vitals(referral.vitals_json),
+        "vitals_taken": (referral.vitals_json or {}).get("vitals_taken", True),
         "client_request_id": referral.client_request_id,
         "ai_screen_result": referral.ai_screen_result,
         "ai_confidence": referral.ai_confidence,
@@ -130,7 +150,7 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
                 "HOSPITAL_NOTIFIED",
                 "HOSPITAL_CONFIRMED",
             }:
-                eta_minutes = 30
+                eta_minutes = parameters.PLACEHOLDER_ETA_MINUTES
     return {
         "id": dispatch.id,
         "referral_id": dispatch.referral_id,
@@ -140,6 +160,48 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
         "eta_minutes": eta_minutes,
         "status": dispatch.status,
         "current_tier": dispatch.current_tier,
+    }
+
+
+def _assess(payload: ReferralCreate) -> dict[str, Any]:
+    """Score locally: no I/O, no LLM, and no failure here can stop dispatch."""
+    vitals = payload.vitals
+    risk_level, moews_score = "UNKNOWN", None
+    if payload.vitals_taken:
+        try:
+            result = score_vitals(
+                vitals.systolic_bp,
+                vitals.diastolic_bp,
+                vitals.heart_rate,
+                vitals.respiratory_rate,
+                vitals.temperature,
+                vitals.spo2,
+                vitals.consciousness_level,
+            )
+            risk_level, moews_score = result["risk_level"], result["moews_score"]
+        except Exception:
+            logger.exception("MOEWS scoring failed; dispatching with UNKNOWN risk")
+    return {
+        "risk_level": risk_level,
+        "moews_score": moews_score,
+        "clinical_summary": build_clinical_summary(
+            emergency_type=payload.emergency_type,
+            risk_level=risk_level,
+            moews_score=moews_score,
+            vitals=vitals.model_dump(),
+            vitals_taken=payload.vitals_taken,
+        ),
+        "compressed_sms_payload": (
+            encode_referral_payload_or_none(
+                chps_id_int=payload.chps_compound_id,
+                moews_score=moews_score,
+                risk_level=risk_level,
+                hr=vitals.heart_rate,
+                sbp=vitals.systolic_bp,
+            )
+            if payload.vitals_taken
+            else None
+        ),
     }
 
 
@@ -166,25 +228,10 @@ async def create_referral(
             "idempotent": True,
         }
 
-    state = {
-        "chps_id": str(payload.chps_compound_id),
-        "patient_hash": payload.patient_hash,
-        "gestational_weeks": payload.gestational_weeks,
-        "vitals": payload.vitals.model_dump(),
-        "errors": [],
-    }
-    try:
-        assessed = yoma_graph.invoke(state)
-    except Exception:
-        # Spec §10: clinical failure must not block referral/dispatch.
-        logger.exception("Clinical assessment failed; continuing with UNKNOWN risk")
-        assessed = {
-            "risk_level": "UNKNOWN",
-            "moews_score": None,
-            "clinical_summary": "Clinical assessment unavailable — use clinical judgment",
-            "compressed_sms_payload": None,
-            "errors": ["clinical_assessment_failed"],
-        }
+    vitals_json = payload.vitals.model_dump()
+    if not payload.vitals_taken:
+        vitals_json["vitals_taken"] = False
+    assessed = _assess(payload)
 
     referral = Referral(
         chps_compound_id=payload.chps_compound_id,
@@ -192,12 +239,12 @@ async def create_referral(
         patient_hash=payload.patient_hash,
         patient_name="Unknown",
         emergency_type=payload.emergency_type,
-        severity=assessed.get("risk_level") or "UNKNOWN",
-        moews_score=assessed.get("moews_score"),
-        risk_level=assessed.get("risk_level") or "UNKNOWN",
-        clinical_summary=assessed.get("clinical_summary"),
-        compressed_sms_payload=assessed.get("compressed_sms_payload"),
-        vitals_json=payload.vitals.model_dump(),
+        severity=assessed["risk_level"],
+        moews_score=assessed["moews_score"],
+        risk_level=assessed["risk_level"],
+        clinical_summary=assessed["clinical_summary"],
+        compressed_sms_payload=assessed["compressed_sms_payload"],
+        vitals_json=vitals_json,
         status="CONFIRMED",
         client_request_id=client_request_id,
         ai_screen_result=payload.ai_screen_result,

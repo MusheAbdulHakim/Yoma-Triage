@@ -25,7 +25,8 @@ class ReferralState(TypedDict, total=False):
 
     # Clinical Agent Outputs (risk_level ALWAYS from MOEWS)
     moews_score: int | None
-    risk_level: str | None  # 'GREEN', 'YELLOW', 'RED', 'UNKNOWN'
+    risk_level: str | None  # 'GREEN', 'YELLOW', 'RED', 'INCOMPLETE', 'UNKNOWN'
+    missing_vitals: list[str] | None
     clinical_summary: str | None
     retrieved_protocol_citations: list[str] | None
     protocol_assist: str | None  # optional Gemini advisory; never authoritative

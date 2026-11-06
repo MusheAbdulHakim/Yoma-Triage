@@ -6,6 +6,12 @@ from unittest.mock import MagicMock
 import pytest
 
 
+@pytest.fixture(autouse=True)
+def rag_enabled(monkeypatch):
+    """These cover the disabled RAG code, with the flag turned on."""
+    monkeypatch.setattr("src.config.settings.RAG_ENABLED", True)
+
+
 def test_moews_risk_never_overridden_by_llm(monkeypatch):
     """Gemini may enrich protocol assist text but must not change MOEWS risk."""
     from src.agents import clinical_agent
@@ -113,9 +119,9 @@ def test_moews_tool_exception_returns_unknown(monkeypatch):
     monkeypatch.setattr(clinical_agent, "rag_engine", None)
     monkeypatch.setattr(clinical_agent, "llm", None)
 
-    broken = MagicMock()
-    broken.invoke.side_effect = RuntimeError("moews boom")
-    monkeypatch.setattr(clinical_agent, "calculate_moews", broken)
+    monkeypatch.setattr(
+        clinical_agent, "score_vitals", MagicMock(side_effect=RuntimeError("moews boom"))
+    )
 
     result = clinical_agent.run_clinical_assessment(
         {"vitals": {"systolic_bp": 120}, "gestational_weeks": 28}
@@ -128,6 +134,7 @@ def test_moews_tool_exception_returns_unknown(monkeypatch):
 
 
 def test_demo_protocol_seed_documents_cover_moews_and_transport():
+    pytest.importorskip("langchain_chroma", reason="needs requirements-rag.txt")
     from src.rag.engine import DEMO_PROTOCOL_DOCUMENTS, ProtocolRAGEngine
 
     assert len(DEMO_PROTOCOL_DOCUMENTS) >= 3
@@ -139,7 +146,7 @@ def test_demo_protocol_seed_documents_cover_moews_and_transport():
 
 
 @pytest.mark.parametrize("missing", [None, "", "  "])
-def test_not_measured_consciousness_reaches_moews_as_unknown(monkeypatch, missing):
+def test_not_measured_consciousness_reaches_moews_as_incomplete(monkeypatch, missing):
     from src.agents import clinical_agent
 
     monkeypatch.setattr(clinical_agent, "_get_rag_engine", lambda: None)
@@ -157,5 +164,5 @@ def test_not_measured_consciousness_reaches_moews_as_unknown(monkeypatch, missin
             },
         }
     )
-    assert result["risk_level"] == "UNKNOWN"
-    assert result["moews_score"] is None
+    assert result["risk_level"] == "INCOMPLETE"
+    assert result["missing_vitals"] == ["consciousness_level"]

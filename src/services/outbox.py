@@ -1,0 +1,264 @@
+"""Transactional outbox for all outbound SMS.
+
+Business code calls ``enqueue_sms`` in the same transaction as its state change, so a
+message exists if and only if that change committed. ``OutboxSender`` sends separately
+and never holds a row lock during a network call: it claims rows in a short transaction,
+sends with no transaction open, then records the result in another short transaction.
+
+Delivery is at least once. If the process dies after sending but before recording, the
+claim expires and the message is sent again. Duplicate SMS is the accepted cost, because
+a lost emergency SMS is worse.
+
+Phone numbers and message bodies must never reach application logs.
+"""
+from __future__ import annotations
+
+import logging
+from dataclasses import dataclass
+from datetime import UTC, datetime, timedelta
+from typing import Any
+
+from sqlalchemy import select
+from sqlalchemy.ext.asyncio import AsyncSession
+
+from src import parameters
+from src.db.database import async_session
+from src.db.models import CHPSCompound, Dispatch, DispatchLog, OutboundMessage, Referral
+from src.services.messaging_gateway import MessagingGateway
+
+logger = logging.getLogger(__name__)
+
+PENDING = "PENDING"
+SENDING = "SENDING"
+SENT = "SENT"
+FAILED = "FAILED"
+CANCELLED = "CANCELLED"
+
+
+@dataclass(frozen=True)
+class Purpose:
+    role: str
+    sent_action: str
+    failed_action: str
+
+
+PURPOSES = {
+    "driver_offer": Purpose("driver", "sms_send", "sms_failed"),
+    "hospital_pre_arrival": Purpose("hospital", "hospital_notify", "hospital_notify_failed"),
+    "cho_escalation": Purpose("cho", "cho_give_up", "cho_give_up_failed"),
+    "cho_arrival": Purpose("cho", "cho_arrival_notify", "cho_arrival_notify_failed"),
+    "cho_late_accept": Purpose("cho", "cho_late_accept_notify", "cho_late_accept_notify_failed"),
+    "divert_driver": Purpose("driver", "divert_notify", "divert_notify_failed"),
+    "divert_cho": Purpose("cho", "divert_notify", "divert_notify_failed"),
+    "inbound_reply": Purpose("inbound_reply", "inbound_status_reply", "inbound_reply_failed"),
+    "inbound_confirm_ack": Purpose("inbound_reply", "inbound_confirm_ack", "inbound_reply_failed"),
+    "send_failure_alert": Purpose("cho", "send_failure_alert", "send_failure_alert_failed"),
+}
+# If one of these roles can't be reached, the CHO has to step in.
+ALERT_CHO_ROLES = frozenset({"driver", "hospital"})
+# What the provider returned is kept for diagnosis, minus who was messaged and what it said.
+_REDACTED_RESPONSE_KEYS = frozenset({"to", "message", "dispatch_id", "role"})
+
+
+def enqueue_sms(
+    session: AsyncSession,
+    *,
+    recipient: str,
+    body: str,
+    purpose: str,
+    dispatch_id: int | None,
+) -> OutboundMessage:
+    """Add a message to the caller's transaction. Nothing is sent until it commits."""
+    if purpose not in PURPOSES:
+        raise ValueError(f"Unknown SMS purpose: {purpose}")
+    message = OutboundMessage(
+        recipient=recipient,
+        body=body,
+        purpose=purpose,
+        dispatch_id=dispatch_id,
+        status=PENDING,
+        attempts=0,
+        next_attempt_at=datetime.now(UTC),
+    )
+    session.add(message)
+    return message
+
+
+def _backoff(attempts: int) -> timedelta:
+    return timedelta(seconds=parameters.OUTBOX_BACKOFF_SECONDS * 2 ** max(attempts - 1, 0))
+
+
+def _safe_response(result: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in result.items() if key not in _REDACTED_RESPONSE_KEYS}
+
+
+@dataclass(frozen=True)
+class _Claimed:
+    id: int
+    recipient: str
+    body: str
+    purpose: str
+    dispatch_id: int | None
+    attempts: int
+
+
+class OutboxSender:
+    def __init__(self, gateway: MessagingGateway | None = None):
+        self.gateway = gateway or MessagingGateway()
+
+    async def run_once(self, limit: int = parameters.OUTBOX_BATCH_SIZE) -> int:
+        """Send what's due. Returns how many messages were attempted."""
+        claimed = await self._claim(limit)
+        for message in claimed:
+            result = await self._send(message)
+            await self._record(message, result)
+        return len(claimed)
+
+    async def _claim(self, limit: int) -> list[_Claimed]:
+        """Mark due messages SENDING and release their locks before anything is sent.
+
+        The claim's next_attempt_at is a lease: if this process dies, the message comes
+        due again and another run picks it up.
+        """
+        now = datetime.now(UTC)
+        claimed: list[_Claimed] = []
+        async with async_session() as session:
+            rows = (
+                await session.scalars(
+                    select(OutboundMessage)
+                    .where(
+                        OutboundMessage.status.in_((PENDING, SENDING)),
+                        OutboundMessage.next_attempt_at <= now,
+                    )
+                    .order_by(OutboundMessage.next_attempt_at, OutboundMessage.id)
+                    .limit(limit)
+                    .with_for_update(skip_locked=True)
+                    .execution_options(populate_existing=True)
+                )
+            ).all()
+            for row in rows:
+                if await self._offer_is_stale(session, row):
+                    row.status = CANCELLED
+                    row.next_attempt_at = None
+                elif row.attempts >= parameters.OUTBOX_MAX_ATTEMPTS:
+                    # Only reached when the lease on a final attempt expired.
+                    await self._fail(session, row, {"error": "No result recorded for last attempt"})
+                else:
+                    row.status = SENDING
+                    row.attempts += 1
+                    row.next_attempt_at = now + timedelta(
+                        seconds=parameters.OUTBOX_SENDING_LEASE_SECONDS
+                    )
+                    claimed.append(
+                        _Claimed(
+                            id=row.id,
+                            recipient=row.recipient,
+                            body=row.body,
+                            purpose=row.purpose,
+                            dispatch_id=row.dispatch_id,
+                            attempts=row.attempts,
+                        )
+                    )
+            await session.commit()
+        return claimed
+
+    @staticmethod
+    async def _offer_is_stale(session: AsyncSession, row: OutboundMessage) -> bool:
+        """Don't tell a driver about an emergency someone else has already taken."""
+        if row.purpose != "driver_offer" or row.dispatch_id is None:
+            return False
+        from src.services.dispatch_orchestrator import ACCEPT_ELIGIBLE
+
+        dispatch = await session.get(Dispatch, row.dispatch_id)
+        return dispatch is not None and dispatch.status not in ACCEPT_ELIGIBLE
+
+    async def _send(self, message: _Claimed) -> dict[str, Any]:
+        """Runs with no transaction open and no row locked."""
+        try:
+            return await self.gateway.send_sms(
+                message.recipient,
+                message.body,
+                message.dispatch_id or 0,
+                PURPOSES[message.purpose].role,
+            )
+        except Exception as exc:
+            logger.warning(
+                "SMS send raised for outbound message %s: %s", message.id, type(exc).__name__
+            )
+            return {"status": "FAILED", "error_type": type(exc).__name__}
+
+    async def _record(self, message: _Claimed, result: dict[str, Any]) -> None:
+        async with async_session() as session:
+            row = await session.scalar(
+                select(OutboundMessage)
+                .where(OutboundMessage.id == message.id)
+                .with_for_update()
+                .execution_options(populate_existing=True)
+            )
+            # If the lease expired, a newer attempt owns this row now.
+            if row is None or row.status != SENDING or row.attempts != message.attempts:
+                return
+            row.provider_response = _safe_response(result)
+            if result.get("status") != "FAILED":
+                row.status = SENT
+                row.next_attempt_at = None
+                self._log_outcome(session, row, PURPOSES[row.purpose].sent_action, result)
+            elif row.attempts >= parameters.OUTBOX_MAX_ATTEMPTS:
+                await self._fail(session, row, result)
+            else:
+                row.status = PENDING
+                row.next_attempt_at = datetime.now(UTC) + _backoff(row.attempts)
+            await session.commit()
+
+    async def _fail(
+        self, session: AsyncSession, row: OutboundMessage, result: dict[str, Any]
+    ) -> None:
+        purpose = PURPOSES[row.purpose]
+        row.status = FAILED
+        row.next_attempt_at = None
+        row.provider_response = _safe_response(result)
+        logger.error("Outbound message %s failed permanently (%s)", row.id, row.purpose)
+        self._log_outcome(session, row, purpose.failed_action, {**result, "status": FAILED})
+        if purpose.role in ALERT_CHO_ROLES and row.dispatch_id is not None:
+            await self._alert_cho(session, row, purpose.role)
+
+    @staticmethod
+    async def _alert_cho(session: AsyncSession, row: OutboundMessage, role: str) -> None:
+        dispatch = await session.get(Dispatch, row.dispatch_id)
+        referral = await session.get(Referral, dispatch.referral_id) if dispatch else None
+        compound = (
+            await session.get(CHPSCompound, referral.chps_compound_id) if referral else None
+        )
+        if referral is None or compound is None:
+            return
+        enqueue_sms(
+            session,
+            recipient=compound.cho_phone,
+            body=(
+                f"Yoma: SMS to the {role} for Ref #{referral.id} could not be delivered. "
+                "Call them directly."
+            ),
+            purpose="send_failure_alert",
+            dispatch_id=row.dispatch_id,
+        )
+
+    @staticmethod
+    def _log_outcome(
+        session: AsyncSession, row: OutboundMessage, action: str, result: dict[str, Any]
+    ) -> None:
+        if row.dispatch_id is None:
+            return
+        session.add(
+            DispatchLog(
+                dispatch_id=row.dispatch_id,
+                action=action,
+                target_phone=row.recipient,
+                target_role=PURPOSES[row.purpose].role,
+                response=str(result.get("status", "")),
+                metadata_json={
+                    "outbound_message_id": row.id,
+                    "message_preview": row.body.split("\n", 1)[0],
+                    **_safe_response(result),
+                },
+            )
+        )

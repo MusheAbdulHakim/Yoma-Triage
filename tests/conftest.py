@@ -7,6 +7,8 @@ from collections.abc import AsyncGenerator
 # Before anything imports src.config. The default is production behaviour, so the
 # suite opts in to development explicitly; tests that need otherwise patch settings.
 os.environ["ENVIRONMENT"] = "development"
+# There is no default. Tests use their own engines; this only satisfies startup checks.
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
@@ -300,3 +302,26 @@ def sample_referral_payload():
             "consciousness_level": "V",
         },
     }
+
+
+async def queued_sms(session, purpose=None):
+    """SMS waiting in the outbox, oldest first. Nothing is sent inside a request."""
+    from sqlalchemy import select
+
+    from src.db.models import OutboundMessage
+
+    query = select(OutboundMessage).order_by(OutboundMessage.id)
+    if purpose is not None:
+        query = query.where(OutboundMessage.purpose == purpose)
+    return list(await session.scalars(query))
+
+
+def added_sms(mock_session):
+    """OutboundMessages a mocked session was given."""
+    from src.db.models import OutboundMessage
+
+    return [
+        call.args[0]
+        for call in mock_session.add.call_args_list
+        if isinstance(call.args[0], OutboundMessage)
+    ]

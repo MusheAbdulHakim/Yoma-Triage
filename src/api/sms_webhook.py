@@ -11,7 +11,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps import require_webhook_secret
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
-from src.services.messaging_gateway import MessagingGateway
+from src.services.outbox import enqueue_sms
 from src.utils.phones import normalize_ghana_phone
 
 router = APIRouter(prefix="/api/v1/sms", tags=["SMS Gateway"])
@@ -148,24 +148,17 @@ async def _reply_sms(
     message: str,
     dispatch_id: int | None,
     *,
-    action: str = "inbound_status_reply",
-) -> dict[str, Any]:
-    gateway = MessagingGateway()
-    did = dispatch_id or 0
-    result = await gateway.send_sms(sender, message, did, "inbound_reply")
-    if dispatch_id:
-        session.add(
-            DispatchLog(
-                dispatch_id=dispatch_id,
-                action=action,
-                target_phone=sender,
-                target_role="inbound_reply",
-                response=result["status"],
-                metadata_json={"message": message, **result},
-            )
-        )
-        await session.commit()
-    return result
+    purpose: str = "inbound_reply",
+) -> None:
+    """Queue a reply to whoever texted us, and commit it with any state change."""
+    enqueue_sms(
+        session,
+        recipient=sender,
+        body=message,
+        purpose=purpose,
+        dispatch_id=dispatch_id,
+    )
+    await session.commit()
 
 
 async def _facility_name(session: AsyncSession, facility_id: int | None) -> str:
@@ -253,7 +246,6 @@ async def process_inbound_sms(
                 metadata_json={"text": text},
             )
         )
-        await session.commit()
         await _reply_sms(
             session,
             sender,
@@ -262,7 +254,7 @@ async def process_inbound_sms(
                 f"#{referral.id}."
             ),
             dispatch.id,
-            action="inbound_confirm_ack",
+            purpose="inbound_confirm_ack",
         )
         return {"status": "CONFIRMED", "dispatch_id": dispatch.id}
 
@@ -295,27 +287,25 @@ async def process_inbound_sms(
         )
     )
 
-    gateway = MessagingGateway()
     message = (
         f"Yoma Triage diversion: referral #{referral.id} destination changed to "
         f"{destination.name}."
     )
-    recipients = []
     if driver:
-        recipients.append((driver.phone, "driver"))
+        enqueue_sms(
+            session,
+            recipient=driver.phone,
+            body=message,
+            purpose="divert_driver",
+            dispatch_id=dispatch.id,
+        )
     if compound:
-        recipients.append((compound.cho_phone, "cho"))
-    for phone, role in recipients:
-        result = await gateway.send_sms(phone, message, dispatch.id, role)
-        session.add(
-            DispatchLog(
-                dispatch_id=dispatch.id,
-                action="divert_notify" if result["status"] != "FAILED" else "divert_notify_failed",
-                target_phone=phone,
-                target_role=role,
-                response=result["status"],
-                metadata_json=result,
-            )
+        enqueue_sms(
+            session,
+            recipient=compound.cho_phone,
+            body=message,
+            purpose="divert_cho",
+            dispatch_id=dispatch.id,
         )
     await session.commit()
     return {

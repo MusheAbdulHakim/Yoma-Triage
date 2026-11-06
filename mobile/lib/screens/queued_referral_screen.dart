@@ -4,6 +4,7 @@ import '../services/api_client.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
 import 'dispatch_status_screen.dart';
+import 'failed_referrals_screen.dart';
 
 class QueuedReferralScreen extends StatefulWidget {
   final String clientRequestId;
@@ -42,6 +43,17 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
 
     try {
       await _queue.flush(_api);
+      final refused = (await _queue.failed())
+          .any((q) => q.clientRequestId == widget.clientRequestId);
+      if (!mounted) return;
+      if (refused) {
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => FailedReferralsScreen(queue: _queue),
+          ),
+        );
+        return;
+      }
       final dispatchId = await _queue.lookupDispatchId(widget.clientRequestId);
       if (!mounted) return;
       if (dispatchId == null) {

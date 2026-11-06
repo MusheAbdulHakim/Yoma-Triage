@@ -122,6 +122,8 @@ DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/yoma_triage
 ENVIRONMENT=development
 ```
 
+Outside development the API doesn't create tables, so run `alembic upgrade head` first.
+
 Seed the demo data, then start the API in one terminal:
 
 ```bash

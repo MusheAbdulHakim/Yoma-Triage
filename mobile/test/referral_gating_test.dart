@@ -55,4 +55,14 @@ void main() {
       isFalse,
     );
   });
+
+  test('INCOMPLETE vitals do not lead with Continue Monitoring', () {
+    expect(
+      referralIndicated(
+        acousticLabel: 'INCONCLUSIVE',
+        moewsRiskLevel: 'INCOMPLETE',
+      ),
+      isTrue,
+    );
+  });
 }

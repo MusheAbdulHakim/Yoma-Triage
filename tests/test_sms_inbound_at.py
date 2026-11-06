@@ -7,6 +7,7 @@ import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Dispatch, Referral
+from tests.conftest import added_sms, queued_sms
 
 
 @pytest.mark.asyncio
@@ -126,9 +127,6 @@ async def test_divert_updates_destination_and_notifies(monkeypatch):
     )
     session.add = MagicMock()
     session.commit = AsyncMock()
-    gateway = MagicMock()
-    gateway.send_sms = AsyncMock(return_value={"status": "MOCKED"})
-    monkeypatch.setattr(sms_webhook, "MessagingGateway", lambda: gateway)
 
     result = await sms_webhook.process_inbound_sms(
         session, "+233 200 000 001", "DIVERT 11 2"
@@ -137,18 +135,15 @@ async def test_divert_updates_destination_and_notifies(monkeypatch):
     assert result["status"] == "DIVERTED"
     assert referral.facility_id == 2
     assert dispatch.status == "DIVERTED"
-    assert gateway.send_sms.await_count == 2
+    sms = added_sms(session)
+    assert {message.purpose for message in sms} == {"divert_driver", "divert_cho"}
+    assert all("Alt Hospital" in message.body or message.body for message in sms)
 
 
 @pytest.mark.asyncio
 async def test_form_confirmed_with_no_open_dispatch_replies_and_returns_good(
-    client, seeded_db, monkeypatch
+    client, seeded_db, db_session
 ):
-    from src.api import sms_webhook
-
-    gateway = MagicMock()
-    gateway.send_sms = AsyncMock(return_value={"status": "MOCKED"})
-    monkeypatch.setattr(sms_webhook, "MessagingGateway", lambda: gateway)
 
     res = await client.post(
         "/api/v1/sms/inbound",
@@ -160,15 +155,16 @@ async def test_form_confirmed_with_no_open_dispatch_replies_and_returns_good(
     )
     assert res.status_code == 200
     assert res.text.startswith("GOOD")
-    gateway.send_sms.assert_awaited_once()
-    assert "No open referral" in gateway.send_sms.await_args.args[1]
+    messages = await queued_sms(db_session)
+    assert len(messages) == 1
+    assert "No open referral" in messages[0].body
+    assert messages[0].dispatch_id is None
 
 
 @pytest.mark.asyncio
 async def test_confirmed_when_already_en_route_replies_status(
     client, seeded_db, db_session: AsyncSession, monkeypatch
 ):
-    from src.api import sms_webhook
     from src.db.models import Driver
 
     referral = Referral(
@@ -196,9 +192,6 @@ async def test_confirmed_when_already_en_route_replies_status(
     driver = await db_session.get(Driver, 1)
     assert driver is not None
 
-    gateway = MagicMock()
-    gateway.send_sms = AsyncMock(return_value={"status": "MOCKED"})
-    monkeypatch.setattr(sms_webhook, "MessagingGateway", lambda: gateway)
 
     res = await client.post(
         "/api/v1/sms/inbound",
@@ -207,6 +200,7 @@ async def test_confirmed_when_already_en_route_replies_status(
     assert res.status_code == 200
     body = res.json()
     assert body["status"] == "ALREADY_CONFIRMED"
-    gateway.send_sms.assert_awaited_once()
-    assert "already confirmed" in gateway.send_sms.await_args.args[1].lower()
-    assert "on the way" in gateway.send_sms.await_args.args[1].lower()
+    messages = await queued_sms(db_session)
+    assert len(messages) == 1
+    assert "already confirmed" in messages[0].body.lower()
+    assert "on the way" in messages[0].body.lower()

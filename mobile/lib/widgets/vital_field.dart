@@ -168,6 +168,7 @@ class AvpuField extends StatelessWidget {
   Widget build(BuildContext context) {
     return DropdownButtonFormField<String>(
       initialValue: value,
+      isExpanded: true,
       decoration: const InputDecoration(labelText: 'AVPU'),
       items: const [
         DropdownMenuItem(value: 'A', child: Text('A — Alert')),

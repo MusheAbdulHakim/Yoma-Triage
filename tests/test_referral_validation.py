@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from src.agents.coordinator import prepare_dispatch_node
 from src.api.referral import VitalsInput
 from src.api.ussd import _menu_choice
+from src.tools.sms_codec import encode_referral_payload_or_none
 
 REPO = Path(__file__).resolve().parents[1]
 NORMAL_VITALS = {
@@ -25,12 +25,7 @@ NORMAL_VITALS = {
 
 @pytest.fixture
 def no_side_effects(monkeypatch):
-    monkeypatch.setattr(
-        "src.services.dispatch_orchestrator.DispatchOrchestrator.schedule_tier_timeouts",
-        lambda self, *a, **k: None,
-    )
-    monkeypatch.setattr("src.agents.clinical_agent._get_rag_engine", lambda: None)
-    monkeypatch.setattr("src.agents.clinical_agent._get_llm", lambda: None)
+    return None
 
 
 def _payload(**overrides):
@@ -136,31 +131,19 @@ async def test_top_of_range_vitals_keep_moews_when_codec_cannot_encode(
     assert referral["compressed_sms_payload"] is None
 
 
-def test_codec_failure_keeps_state_and_records_error():
-    state = {
-        "chps_id": "1",
-        "moews_score": 3,
-        "risk_level": "RED",
-        "vitals": {"heart_rate": 80, "systolic_bp": 999},
-        "errors": ["earlier"],
-    }
-    result = prepare_dispatch_node(state)
-    assert result["moews_score"] == 3
-    assert result["risk_level"] == "RED"
-    assert result["compressed_sms_payload"] is None
-    assert result["errors"] == ["earlier", "sms_payload_encode_failed"]
-
-
-def test_codec_success_still_encodes():
-    result = prepare_dispatch_node(
-        {
-            "chps_id": "1",
-            "moews_score": 0,
-            "risk_level": "GREEN",
-            "vitals": {"heart_rate": 80, "systolic_bp": 120},
-        }
+def test_payload_that_cannot_be_encoded_is_dropped_not_raised():
+    assert (
+        encode_referral_payload_or_none(
+            chps_id_int=1, moews_score=3, risk_level="RED", hr=80, sbp=999
+        )
+        is None
     )
-    assert result["compressed_sms_payload"]
+
+
+def test_payload_within_range_is_encoded():
+    assert encode_referral_payload_or_none(
+        chps_id_int=1, moews_score=0, risk_level="GREEN", hr=80, sbp=120
+    )
 
 
 @pytest.mark.parametrize("text", ["1", "2", "3"])
@@ -194,33 +177,6 @@ async def test_ussd_typo_does_not_claim_dispatch(
     assert dispatch["driver_id"] is None
 
 
-def _dart_limits() -> dict[str, tuple[float, float]]:
-    source = (REPO / "mobile/lib/services/vital_limits.dart").read_text()
-    pairs = re.findall(r"static const (\w+) = VitalLimits\((\d+), (\d+)\);", source)
-    return {name: (float(low), float(high)) for name, low, high in pairs}
-
-
-def test_app_and_api_limits_match():
-    """The app must reject what the API rejects, or referrals get stuck in the outbox."""
-    fields = {
-        "systolicBp": "systolic_bp",
-        "diastolicBp": "diastolic_bp",
-        "heartRate": "heart_rate",
-        "respiratoryRate": "respiratory_rate",
-        "temperature": "temperature",
-        "spo2": "spo2",
-    }
-    limits = _dart_limits()
-    assert set(limits) == set(fields)
-    for dart_name, api_name in fields.items():
-        low, high = limits[dart_name]
-        VitalsInput(**{api_name: low})
-        VitalsInput(**{api_name: high})
-        for outside in (low - 1, high + 1):
-            with pytest.raises(ValueError):
-                VitalsInput(**{api_name: outside})
-
-
 def test_every_emergency_type_in_the_app_is_accepted():
     source = (REPO / "mobile/lib/screens/referral_screen.dart").read_text()
     block = source[source.index("labelText: 'Emergency type'") :]
@@ -231,3 +187,30 @@ def test_every_emergency_type_in_the_app_is_accepted():
     from src.api.referral import EmergencyType
 
     assert set(values) <= set(get_args(EmergencyType))
+
+
+@pytest.mark.asyncio
+async def test_api_reports_red_and_what_is_missing_for_partial_vitals(
+    client, seeded_db, no_side_effects
+):
+    response = await client.post(
+        "/api/v1/referral", json=_vitals(systolic_bp=60, temperature=None)
+    )
+    assert response.status_code == 201, response.text
+    referral = response.json()["referral"]
+    assert referral["risk_level"] == "RED"
+    assert referral["moews_score"] == 3
+    assert referral["missing_vitals"] == ["temperature"]
+
+
+@pytest.mark.asyncio
+async def test_api_reports_incomplete_when_nothing_measured_is_critical(
+    client, seeded_db, no_side_effects
+):
+    response = await client.post(
+        "/api/v1/referral", json=_vitals(temperature=None, spo2=None)
+    )
+    assert response.status_code == 201, response.text
+    referral = response.json()["referral"]
+    assert referral["risk_level"] == "INCOMPLETE"
+    assert referral["missing_vitals"] == ["temperature", "spo2"]

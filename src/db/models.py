@@ -82,6 +82,11 @@ class Dispatch(Base):
     # PENDING|TIER1_NOTIFIED|TIER2_NOTIFIED|ACCEPTED|HOSPITAL_NOTIFIED|COMPLETED|DIVERTED|FAILED
     current_tier: Mapped[int] = mapped_column(Integer, default=0)
     declined_driver_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # What the worker must do next, and when. Null means nothing is scheduled.
+    next_action: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    next_action_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     initiated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )
@@ -100,6 +105,24 @@ class DispatchLog(Base):
     target_role: Mapped[str | None] = mapped_column(String(32), nullable=True)
     response: Mapped[str | None] = mapped_column(String(64), nullable=True)
     metadata_json: Mapped[dict | None] = mapped_column("metadata", JSON, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class OutboundMessage(Base):
+    """Transactional SMS outbox: see src/services/outbox.py."""
+
+    __tablename__ = "outbound_messages"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    recipient: Mapped[str] = mapped_column(String(32))
+    body: Mapped[str] = mapped_column(Text)
+    purpose: Mapped[str] = mapped_column(String(32))
+    dispatch_id: Mapped[int | None] = mapped_column(ForeignKey("dispatches.id"), nullable=True)
+    status: Mapped[str] = mapped_column(String(16), default="PENDING")
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    next_attempt_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
+    provider_response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

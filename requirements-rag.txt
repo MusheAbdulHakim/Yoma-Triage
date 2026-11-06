@@ -1,0 +1,20 @@
+# Only for the disabled code in src/agents and src/rag. Neither the API nor its tests need
+# this: POST /api/v1/referral doesn't use it. Enable with RAG_ENABLED=true.
+-r requirements.txt
+
+# Orchestration & Frameworks
+langgraph>=0.2.0
+langchain>=0.3.0
+langchain-community>=0.3.0
+langchain-openai>=0.2.0
+langchain-google-genai>=2.0.0
+
+# RAG & Vector Database
+chromadb>=0.5.0
+langchain-chroma>=0.1.0
+tiktoken>=0.7.0
+pypdf>=4.0.0
+
+# ML & Embeddings
+sentence-transformers>=3.0.0
+langchain-huggingface>=0.1.0

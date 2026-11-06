@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:convert';
 
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show ValueNotifier, kIsWeb;
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -13,7 +13,9 @@ import 'api_client.dart';
 class QueuedReferral {
   final String clientRequestId;
   final Map<String, dynamic> payload;
-  String status; // pending | sent | failed
+  /// pending: will be retried. sent: done. failed: the server refused it, so it
+  /// will not be retried and the CHO has to coordinate manually.
+  String status;
   String? lastError;
   DateTime createdAt;
   DateTime updatedAt;
@@ -76,6 +78,9 @@ class OfflineQueue {
 
   /// Process-wide queue used by UI + connectivity sync.
   static final OfflineQueue shared = OfflineQueue._();
+
+  /// How many referrals the server has refused. The Home screen shows this.
+  final ValueNotifier<int> failedCount = ValueNotifier<int>(0);
 
   Database? _db;
   final DatabaseFactory? databaseFactoryOverride;
@@ -259,25 +264,57 @@ class OfflineQueue {
     return null;
   }
 
-  /// Retry pending/failed items. Never silent-drops: failures stay queued.
+  /// Referrals the server refused, oldest first.
+  Future<List<QueuedReferral>> failed() {
+    return _serialized(() async {
+      final items = await _failedUnlocked();
+      failedCount.value = items.length;
+      return items;
+    });
+  }
+
+  /// Records that the server refused this referral, so it is never retried.
+  Future<void> markFailed(String clientRequestId, String reason) {
+    return _serialized(() async {
+      final items = await _pendingUnlocked();
+      for (final queued in items) {
+        if (queued.clientRequestId == clientRequestId) {
+          await _failUnlocked(queued, reason);
+        }
+      }
+      failedCount.value = (await _failedUnlocked()).length;
+    });
+  }
+
+  Future<void> _failUnlocked(QueuedReferral queued, String reason) async {
+    queued.status = 'failed';
+    queued.lastError = reason;
+    queued.updatedAt = DateTime.now();
+    await _persistUnlocked(queued);
+  }
+
+  /// Sends pending items. A permanent refusal (see [ApiException.isPermanent]) moves
+  /// an item to failed. Network errors, 5xx, 408 and 429 keep it pending for retry.
   Future<int> flush(ApiClient api) {
     return _serialized(() async {
       final items = await _pendingUnlocked();
       var sent = 0;
       for (final queued in items) {
+        final chps = _asInt(queued.payload['chps_compound_id']);
+        final facility = _asInt(queued.payload['facility_id']);
+        final hash = _asString(queued.payload['patient_hash']);
+        final emergency = _asString(queued.payload['emergency_type']);
+        final vitalsRaw = queued.payload['vitals'];
+        if (chps == null ||
+            facility == null ||
+            hash == null ||
+            emergency == null ||
+            vitalsRaw is! Map) {
+          // Retrying can't repair what was saved on this phone.
+          await _failUnlocked(queued, 'The saved referral on this phone is invalid');
+          continue;
+        }
         try {
-          final chps = _asInt(queued.payload['chps_compound_id']);
-          final facility = _asInt(queued.payload['facility_id']);
-          final hash = _asString(queued.payload['patient_hash']);
-          final emergency = _asString(queued.payload['emergency_type']);
-          final vitalsRaw = queued.payload['vitals'];
-          if (chps == null ||
-              facility == null ||
-              hash == null ||
-              emergency == null ||
-              vitalsRaw is! Map) {
-            throw const FormatException('Invalid queued referral payload');
-          }
           final confidence = queued.payload['ai_confidence'];
           final originLat = queued.payload['origin_lat'];
           final originLon = queued.payload['origin_lon'];
@@ -299,6 +336,7 @@ class OfflineQueue {
               originLon:
                   originLon == null ? null : (originLon as num).toDouble(),
               originSource: queued.payload['origin_source'] as String?,
+              vitalsTaken: queued.payload['vitals_taken'] != false,
             ),
           );
           final dispatchId = parseDispatchIdFromResponse(response);
@@ -310,15 +348,44 @@ class OfflineQueue {
           queued.updatedAt = DateTime.now();
           await _persistUnlocked(queued);
           sent++;
+        } on ApiException catch (e) {
+          if (e.isPermanent) {
+            await _failUnlocked(queued, e.reason);
+          } else {
+            await _keepPending(queued, e);
+          }
         } catch (e) {
-          queued.status = 'pending';
-          queued.lastError = e.toString();
-          queued.updatedAt = DateTime.now();
-          await _persistUnlocked(queued);
+          await _keepPending(queued, e);
         }
       }
+      failedCount.value = (await _failedUnlocked()).length;
       return sent;
     });
+  }
+
+  Future<void> _keepPending(QueuedReferral queued, Object error) async {
+    queued.status = 'pending';
+    queued.lastError = error.toString();
+    queued.updatedAt = DateTime.now();
+    await _persistUnlocked(queued);
+  }
+
+  Future<List<QueuedReferral>> _failedUnlocked() async {
+    if (kIsWeb) {
+      final prefs = await SharedPreferences.getInstance();
+      return [
+        for (final s in prefs.getStringList(_prefsKey) ?? <String>[])
+          if (_decodeRow(s) case final q? when q.status == 'failed') q,
+      ];
+    }
+    final db = await _openDb();
+    final rows = await db.query(
+      _table,
+      where: 'status = ?',
+      whereArgs: ['failed'],
+      orderBy: 'created_at ASC',
+    );
+    return rows.map(_fromRow).toList();
   }
 
   /// Internal pending without re-entering the mutex (caller already holds it).
@@ -329,15 +396,15 @@ class OfflineQueue {
       final out = <QueuedReferral>[];
       for (final s in list) {
         final q = _decodeRow(s);
-        if (q != null && q.status != 'sent') out.add(q);
+        if (q != null && q.status == 'pending') out.add(q);
       }
       return out;
     }
     final db = await _openDb();
     final rows = await db.query(
       _table,
-      where: 'status != ?',
-      whereArgs: ['sent'],
+      where: 'status = ?',
+      whereArgs: ['pending'],
       orderBy: 'created_at ASC',
     );
     return rows.map(_fromRow).toList();

@@ -1,5 +1,8 @@
 """
-Clinical reasoning node (MOEWS-first).
+Clinical reasoning node (MOEWS-first). Disabled and outside the request path.
+
+POST /api/v1/referral doesn't use this. It stays in the repo behind RAG_ENABLED, and
+needs requirements-rag.txt.
 
 Risk level is ALWAYS from deterministic MOEWS. RAG cites GHS-aligned demo
 protocols; Gemini (if GEMINI_API_KEY set) may only add an advisory
@@ -13,12 +16,11 @@ from typing import Any
 
 from src.agents.state import ReferralState
 from src.config import settings
-from src.rag.engine import ProtocolRAGEngine
-from src.tools.moews_calculator import calculate_moews
+from src.tools.moews_calculator import score_vitals
 
 logger = logging.getLogger(__name__)
 
-rag_engine: ProtocolRAGEngine | None = None
+rag_engine: Any = None
 llm: Any = None
 
 _UNKNOWN_RESULT = {
@@ -28,11 +30,15 @@ _UNKNOWN_RESULT = {
 }
 
 
-def _get_rag_engine() -> ProtocolRAGEngine | None:
-    """Initialize local RAG only when an assessment needs it."""
+def _get_rag_engine() -> Any:
+    """Initialize local RAG only when an assessment needs it and RAG_ENABLED is set."""
     global rag_engine
+    if not settings.RAG_ENABLED:
+        return None
     if rag_engine is None:
         try:
+            from src.rag.engine import ProtocolRAGEngine
+
             rag_engine = ProtocolRAGEngine(persist_directory=settings.VECTOR_STORE_DIR)
             rag_engine.seed_initial_protocols()
         except (OSError, ImportError, RuntimeError, ValueError) as exc:
@@ -42,8 +48,10 @@ def _get_rag_engine() -> ProtocolRAGEngine | None:
 
 
 def _get_llm() -> Any:
-    """Return Gemini only when configured and importable."""
+    """Return Gemini only when RAG_ENABLED is set, configured and importable."""
     global llm
+    if not settings.RAG_ENABLED:
+        return None
     if llm is None and settings.GEMINI_API_KEY:
         try:
             from langchain_google_genai import ChatGoogleGenerativeAI
@@ -85,9 +93,11 @@ def _structured_summary(
             cite_bit += "…"
     score = moews_result.get("moews_score")
     score_txt = "n/a" if score is None else str(score)
+    missing = moews_result.get("missing_vitals") or []
+    missing_bit = f" Not measured: {', '.join(missing)}." if missing else ""
     return (
         f"Maternal referral assessment: {moews_result['risk_level']} risk "
-        f"(MOEWS {score_txt}). "
+        f"(MOEWS {score_txt}).{missing_bit} "
         f"Gestational age: {ga} weeks.{flag_bit}{cite_bit}"
     )
 
@@ -137,16 +147,14 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
     errors = list(state.get("errors") or [])
 
     try:
-        moews_result = calculate_moews.invoke(
-            {
-                "sbp": vitals.get("systolic_bp"),
-                "dbp": vitals.get("diastolic_bp"),
-                "hr": vitals.get("heart_rate"),
-                "rr": vitals.get("respiratory_rate"),
-                "temp": vitals.get("temperature"),
-                "spo2": vitals.get("spo2"),
-                "consciousness": _consciousness_code(vitals.get("consciousness_level")),
-            }
+        moews_result = score_vitals(
+            vitals.get("systolic_bp"),
+            vitals.get("diastolic_bp"),
+            vitals.get("heart_rate"),
+            vitals.get("respiratory_rate"),
+            vitals.get("temperature"),
+            vitals.get("spo2"),
+            _consciousness_code(vitals.get("consciousness_level")),
         )
     except (TypeError, ValueError, KeyError, RuntimeError) as exc:
         logger.exception("MOEWS assessment failed: %s", exc)
@@ -181,6 +189,7 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
 
     state["moews_score"] = moews_result.get("moews_score")
     state["risk_level"] = moews_result.get("risk_level") or "UNKNOWN"
+    state["missing_vitals"] = moews_result.get("missing_vitals") or []
     state["retrieved_protocol_citations"] = retrieved_docs
     state["clinical_summary"] = summary
     state["protocol_assist"] = assist
