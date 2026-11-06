@@ -70,6 +70,10 @@ def test_stale_threshold_matches_the_app():
     assert _dart_constant("staleAfterMinutes") == parameters.STALE_AFTER_MINUTES
 
 
+def test_local_record_ttl_matches_the_app():
+    assert _dart_constant("localRecordTtlHours") == parameters.LOCAL_RECORD_TTL_HOURS
+
+
 def test_risk_rules_match_the_app():
     assert _dart_constant("moewsRedParameterScore") == parameters.MOEWS_RED_PARAMETER_SCORE
     assert _dart_constant("moewsRedTotal") == parameters.MOEWS_RED_TOTAL
@@ -133,6 +137,7 @@ def test_sheet_lists_each_moews_band(vital):
         ("Shortest tier wait allowed in the field", parameters.MIN_FIELD_CASCADE_TIER_SECONDS),
         ("Late-claim window", parameters.LATE_CLAIM_WINDOW_MINUTES),
         ("Stale queued referral", parameters.STALE_AFTER_MINUTES),
+        ("Local record TTL", parameters.LOCAL_RECORD_TTL_HOURS),
         ("Cascade worker poll interval", parameters.WORKER_POLL_SECONDS),
         ("SMS outbox poll interval", parameters.OUTBOX_POLL_SECONDS),
         ("SMS send attempts before giving up", parameters.OUTBOX_MAX_ATTEMPTS),
@@ -165,6 +170,7 @@ def test_sheet_lists_each_setting_with_its_current_value(label, value):
         ("Device SpO₂, lowest accepted", "deviceSpo2Min"),
         ("Device SpO₂, highest accepted", "deviceSpo2Max"),
         ("Facility list refresh warning", "catalogStaleAfterDays"),
+        ("Local record deletion warning", "localRecordWarningHours"),
     ],
 )
 def test_sheet_lists_each_app_only_setting(label, name):

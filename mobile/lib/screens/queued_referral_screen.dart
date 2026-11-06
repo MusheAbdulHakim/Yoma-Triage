@@ -140,6 +140,24 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
             ),
+            ValueListenableBuilder<String?>(
+              valueListenable: _queue.retryWarning,
+              builder: (context, warning, _) {
+                if (warning == null) return const SizedBox.shrink();
+                return Padding(
+                  padding: const EdgeInsets.only(top: 16),
+                  child: Text(
+                    warning,
+                    key: const Key('queued_retry_warning'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      color: YomaColors.caution,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                );
+              },
+            ),
             if (_retryMessage != null) ...[
               const SizedBox(height: 16),
               Text(

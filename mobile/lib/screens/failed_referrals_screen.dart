@@ -21,7 +21,38 @@ class FailedReferralsScreen extends StatefulWidget {
 }
 
 class _FailedReferralsScreenState extends State<FailedReferralsScreen> {
-  late final Future<List<QueuedReferral>> _failed = widget.queue.failed();
+  late Future<List<QueuedReferral>> _failed = widget.queue.failed();
+
+  /// Asks first, because this deletes the only record of the referral on this phone.
+  Future<void> _markHandled(QueuedReferral item) async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Mark as handled?'),
+        content: const Text(
+          'Only do this if the patient no longer needs this referral, or you arranged '
+          'transport yourself. This deletes it from this phone.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep it'),
+          ),
+          TextButton(
+            key: const Key('mark_handled_confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Mark handled'),
+          ),
+        ],
+      ),
+    );
+    if (yes != true) return;
+    await widget.queue.markHandled(item.clientRequestId);
+    if (!mounted) return;
+    setState(() {
+      _failed = widget.queue.failed();
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -45,14 +76,24 @@ class _FailedReferralsScreenState extends State<FailedReferralsScreen> {
               const SizedBox(height: 16),
               for (final item in items)
                 Card(
-                  child: ListTile(
-                    title: Text(
-                      item.payload['emergency_type']?.toString() ?? 'Referral',
-                    ),
-                    subtitle: Text(
-                      'Reason: ${item.lastError ?? 'Unknown'}\n'
-                      'Request: ${item.clientRequestId}',
-                    ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      ListTile(
+                        title: Text(
+                          item.payload['emergency_type']?.toString() ?? 'Referral',
+                        ),
+                        subtitle: Text(
+                          'Reason: ${item.lastError ?? 'Unknown'}\n'
+                          'Request: ${item.clientRequestId}',
+                        ),
+                      ),
+                      TextButton(
+                        key: Key('mark_handled_${item.clientRequestId}'),
+                        onPressed: () => _markHandled(item),
+                        child: const Text('Mark handled'),
+                      ),
+                    ],
                   ),
                 ),
               const SizedBox(height: 16),

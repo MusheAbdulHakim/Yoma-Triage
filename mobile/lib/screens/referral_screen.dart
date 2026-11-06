@@ -285,7 +285,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
           );
           return;
         }
-        // 5xx, 408, 429: the referral stays queued for retry.
+        // Anything else: the referral stays queued for retry.
+        if (e.needsRetryWarning) _queue.noteRetryWarning(e.retryWarning);
       } catch (_) {
         // Offline / API down — the referral remains durably queued.
       }

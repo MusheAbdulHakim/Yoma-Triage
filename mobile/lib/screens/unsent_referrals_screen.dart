@@ -46,7 +46,10 @@ class _UnsentReferralsScreenState extends State<UnsentReferralsScreen> {
     };
     if (screen == null) return;
     await Navigator.of(context).push(MaterialPageRoute(builder: (_) => screen));
-    if (mounted) setState(() => _items = widget.queue.unsent());
+    if (!mounted) return;
+    setState(() {
+      _items = widget.queue.unsent();
+    });
   }
 
   @override

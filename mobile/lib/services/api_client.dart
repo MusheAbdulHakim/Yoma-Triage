@@ -27,13 +27,31 @@ class ApiException implements Exception {
 
   ApiException(this.statusCode, this.body);
 
-  /// The server refused this request, and sending it again won't change that.
+  /// Our server refused this request, and sending it again won't change that.
+  ///
+  /// A 4xx alone isn't enough: captive portals and proxies send them too, and treating
+  /// one as final would strand an emergency. So it must carry a code our API defines.
   /// 408 and 429 are 4xx codes that mean "try again later".
   bool get isPermanent =>
       statusCode >= 400 &&
       statusCode < 500 &&
       statusCode != 408 &&
-      statusCode != 429;
+      statusCode != 429 &&
+      code != null;
+
+  /// Something other than our server refused this, or it refused in a way that may pass.
+  /// The referral keeps retrying, and the CHO needs to know it isn't getting through.
+  bool get needsRetryWarning =>
+      statusCode >= 400 &&
+      statusCode < 500 &&
+      statusCode != 408 &&
+      statusCode != 429 &&
+      code == null;
+
+  /// What to tell the CHO when [needsRetryWarning] is true.
+  String get retryWarning =>
+      'A referral is not getting through (HTTP $statusCode). If you are on Wi-Fi, you may '
+      'need to log in to it. The app keeps trying. Call or SMS if you can\'t wait.';
 
   /// The defined error code in the body, or null if there isn't a recognised one.
   String? get code {

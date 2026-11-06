@@ -11,6 +11,7 @@ import '../theme/yoma_theme.dart';
 import 'failed_referrals_screen.dart';
 import 'referral_screen.dart';
 import 'stale_referral_screen.dart';
+import 'unsent_referrals_screen.dart';
 import 'screening_screen.dart';
 import 'vitals_screen.dart';
 
@@ -48,6 +49,8 @@ class _HomeScreenState extends State<HomeScreen> {
     _queue.failed().catchError((_) => <QueuedReferral>[]);
     _queue.needsConfirmationCount.addListener(_onStaleCountChanged);
     _queue.needsConfirmation().catchError((_) => <QueuedReferral>[]);
+    // The CHO can see this screen, so this counts as being warned.
+    _queue.noteExpiryWarning().catchError((_) => 0);
   }
 
   @override
@@ -116,6 +119,45 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ),
+            ValueListenableBuilder<String?>(
+              valueListenable: _queue.retryWarning,
+              builder: (context, warning, _) {
+                if (warning == null) return const SizedBox.shrink();
+                return Card(
+                  color: YomaColors.caution.withValues(alpha: 0.15),
+                  child: ListTile(
+                    leading: const Icon(Icons.wifi_off, color: YomaColors.caution),
+                    title: Text(warning, key: const Key('home_retry_warning')),
+                  ),
+                );
+              },
+            ),
+            ValueListenableBuilder<int>(
+              valueListenable: _queue.expiringCount,
+              builder: (context, count, _) {
+                if (count == 0) return const SizedBox.shrink();
+                return Card(
+                  color: YomaColors.caution.withValues(alpha: 0.15),
+                  child: ListTile(
+                    key: const Key('home_expiring'),
+                    leading: const Icon(Icons.delete_outline, color: YomaColors.caution),
+                    title: Text(
+                      count == 1
+                          ? '1 unsent referral will soon be deleted from this phone'
+                          : '$count unsent referrals will soon be deleted from this phone',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text('Tap to see them, and to Call or SMS.'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            UnsentReferralsScreen(queue: _queue, api: widget.api),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
             ValueListenableBuilder<int>(
               valueListenable: _queue.needsConfirmationCount,
               builder: (context, count, _) {

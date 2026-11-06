@@ -55,14 +55,33 @@ void main() {
   });
 
   group('classification', () {
+    const ours = '{"detail":"x","code":"FACILITY_NOT_FOUND"}';
     for (final code in [400, 401, 403, 404, 409, 422, 499]) {
-      test('$code is permanent', () {
-        expect(ApiException(code, '').isPermanent, isTrue);
+      test('$code with our error code is permanent', () {
+        expect(ApiException(code, ours).isPermanent, isTrue);
+        expect(ApiException(code, ours).needsRetryWarning, isFalse);
+      });
+      test('$code without it retries with a warning', () {
+        expect(ApiException(code, '').isPermanent, isFalse);
+        expect(ApiException(code, '').needsRetryWarning, isTrue);
+      });
+    }
+    for (final body in [
+      '<html>Log in to Wi-Fi</html>',
+      '{"detail":"Not Found"}',
+      '{"detail":"x","code":"SOME_PORTAL_CODE"}',
+      '{"code":42}',
+      '[1,2]',
+    ]) {
+      test('a 403 with $body is not trusted', () {
+        expect(ApiException(403, body).isPermanent, isFalse);
+        expect(ApiException(403, body).needsRetryWarning, isTrue);
       });
     }
     for (final code in [408, 429, 500, 502, 503, 504]) {
-      test('$code is retried', () {
-        expect(ApiException(code, '').isPermanent, isFalse);
+      test('$code is retried with no warning, even with a code', () {
+        expect(ApiException(code, ours).isPermanent, isFalse);
+        expect(ApiException(code, ours).needsRetryWarning, isFalse);
       });
     }
   });
@@ -89,7 +108,7 @@ void main() {
 
   group('flush', () {
     test('a permanent refusal is marked failed and never retried', () async {
-      final api = _FailingApi(ApiException(404, '{"detail":"Facility not found"}'));
+      final api = _FailingApi(ApiException(404, '{"detail":"Facility not found","code":"FACILITY_NOT_FOUND"}'));
       await queue.enqueue(_sample('a'));
 
       await queue.flush(api);
@@ -153,7 +172,7 @@ void main() {
 
     testWidgets('a refused referral says why and to call manually',
         (tester) async {
-      final api = _FailingApi(ApiException(404, '{"detail":"Facility not found"}'));
+      final api = _FailingApi(ApiException(404, '{"detail":"Facility not found","code":"FACILITY_NOT_FOUND"}'));
       await tester.pumpWidget(
         MaterialApp(home: ReferralScreen(queue: queue, api: api)),
       );
@@ -179,7 +198,7 @@ void main() {
 
     testWidgets('a retry that gets refused also reaches the failed screen',
         (tester) async {
-      final api = _FailingApi(ApiException(422, '{"detail":"Bad"}'));
+      final api = _FailingApi(ApiException(422, '{"detail":"Bad","code":"VALIDATION_ERROR"}'));
       await tester.runAsync(() => queue.enqueue(_sample('a')));
       await tester.pumpWidget(
         MaterialApp(

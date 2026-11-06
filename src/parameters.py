@@ -69,5 +69,9 @@ OUTBOX_BATCH_SIZE = 20
 OUTBOX_SEND_CONCURRENCY = 5
 OUTBOX_SEND_TIMEOUT_SECONDS = 5
 
+# Records on the phone: unsent or refused referrals are deleted after this long, once the
+# CHO has been warned. The app does the deleting; this keeps both sides' sheets in step.
+LOCAL_RECORD_TTL_HOURS = 72
+
 # Payments: mock ledger only. No money moves.
 FUEL_STIPEND_GHS = 22.5

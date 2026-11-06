@@ -79,6 +79,8 @@ The first matching row applies. Only measured vitals are scored.
 | Device heart rate, highest accepted | 250 | bpm | Plausibility check on a typed-in device reading | Engineering placeholder | |
 | Device SpO₂, lowest accepted | 50 | % | Plausibility check on a typed-in device reading | Engineering placeholder | |
 | Device SpO₂, highest accepted | 100 | % | Plausibility check on a typed-in device reading | Engineering placeholder | |
+| Local record TTL | 72 | hours | Unsent or refused referrals are deleted from the phone after this long, once the CHO has been warned | Engineering placeholder (batch 4) | |
+| Local record deletion warning | 12 | hours | The CHO is warned this long before deletion. A record is never deleted sooner than this after the warning, even if it is already past the TTL | Engineering placeholder (batch 4) | |
 | Facility list refresh warning | 30 | days | The app warns when its facility list is older than this | Engineering placeholder | |
 
 ## Sign-off

@@ -122,7 +122,7 @@ void main() {
     testWidgets('an unregistered phone shows the server reason and stores nothing',
         (tester) async {
       final api = _Api(
-        error: ApiException(404, '{"detail":"This phone number is not registered as a CHO."}'),
+        error: ApiException(404, '{"detail":"This phone number is not registered as a CHO.","code":"CHO_NOT_REGISTERED"}'),
       );
       final completed = await submit(tester, api, '0240000999');
 
@@ -132,9 +132,17 @@ void main() {
     });
 
     testWidgets('an inactive CHO shows the server reason', (tester) async {
-      final api = _Api(error: ApiException(403, '{"detail":"This CHO is no longer active."}'));
+      final api = _Api(error: ApiException(403, '{"detail":"This CHO is no longer active.","code":"CHO_NOT_ACTIVE"}'));
       expect(await submit(tester, api, '0240000700'), isNull);
       expect(find.textContaining('no longer active'), findsOneWidget);
+    });
+
+    testWidgets('a captive portal refusal is not shown as a verdict on the CHO',
+        (tester) async {
+      final api = _Api(error: ApiException(403, '<html>Log in to Wi-Fi</html>'));
+      expect(await submit(tester, api, '0240000700'), isNull);
+      expect(find.textContaining('you may need to log in'), findsOneWidget);
+      expect(find.textContaining('<html>'), findsNothing);
     });
 
     testWidgets('no network says so and points to a direct call', (tester) async {

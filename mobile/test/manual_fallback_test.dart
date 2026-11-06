@@ -84,7 +84,7 @@ class _FailedDispatchApi extends ApiClient {
 class _RefusingApi extends ApiClient {
   @override
   Future<Map<String, dynamic>> createReferral(ReferralRequest req) async {
-    throw ApiException(404, '{"detail":"Facility not found"}');
+    throw ApiException(404, '{"detail":"Facility not found","code":"FACILITY_NOT_FOUND"}');
   }
 }
 

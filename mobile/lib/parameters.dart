@@ -90,6 +90,11 @@ abstract final class Parameters {
   static const deviceSpo2Min = 50;
   static const deviceSpo2Max = 100;
 
+  // Records on this phone. Unsent or refused referrals are deleted after the TTL, and
+  // only after the CHO has had at least the warning period's notice (app only).
+  static const localRecordTtlHours = 72;
+  static const localRecordWarningHours = 12;
+
   // Facility catalog (app only).
   static const catalogStaleAfterDays = 30;
 }

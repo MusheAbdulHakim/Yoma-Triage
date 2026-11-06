@@ -39,6 +39,7 @@ class _SetupScreenState extends State<SetupScreen> {
   late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
   String? _notice;
   int _unsentCount = 0;
+  int _expiringCount = 0;
   bool _submitting = false;
   String? _error;
 
@@ -52,8 +53,10 @@ class _SetupScreenState extends State<SetupScreen> {
   Future<void> _loadReturnState() async {
     final notice = await _store.loadNotice();
     var unsent = 0;
+    var expiring = 0;
     try {
       unsent = (await _queue.unsent()).length;
+      expiring = await _queue.noteExpiryWarning();
     } catch (_) {
       // Setup must still work if the local queue can't be read.
     }
@@ -61,6 +64,7 @@ class _SetupScreenState extends State<SetupScreen> {
     setState(() {
       _notice = notice;
       _unsentCount = unsent;
+      _expiringCount = expiring;
     });
   }
 
@@ -90,7 +94,10 @@ class _SetupScreenState extends State<SetupScreen> {
     } on ApiException catch (e) {
       error = e.statusCode >= 500
           ? 'The server is having a problem. Try again shortly.'
-          : e.reason;
+          : e.code == null
+              ? 'Could not reach the Yoma server. If you are on Wi-Fi, you may need '
+                  'to log in to it. Try again.'
+              : e.reason;
     } catch (_) {
       error = 'No connection. Setup needs internet once. '
           'If this is an emergency, call the driver and hospital directly.';
@@ -136,7 +143,12 @@ class _SetupScreenState extends State<SetupScreen> {
                       : '$_unsentCount referrals have not reached a driver',
                   style: const TextStyle(fontWeight: FontWeight.w700),
                 ),
-                subtitle: const Text('Tap to see them, and to Call or SMS.'),
+                subtitle: Text(
+                  _expiringCount > 0
+                      ? 'Tap to see them, and to Call or SMS. '
+                          '$_expiringCount will soon be deleted from this phone.'
+                      : 'Tap to see them, and to Call or SMS.',
+                ),
                 onTap: () async {
                   await Navigator.of(context).push(
                     MaterialPageRoute(
