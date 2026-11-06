@@ -11,6 +11,7 @@ import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
+import 'helpers/cho_helper.dart';
 
 class _FailingApi extends ApiClient {
   _FailingApi(this.error);
@@ -30,6 +31,7 @@ ReferralRequest _sample(String id) => ReferralRequest(
       chpsCompoundId: 1,
       facilityId: 1,
       patientHash: 'h',
+      choPhone: '+233240000100',
       emergencyType: 'pph',
       vitals: const {'systolic_bp': 120},
     );
@@ -43,7 +45,7 @@ void main() {
 
   setUp(() {
     rootBundle.clear();
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(registeredChoPrefs());
     dbDir = Directory.systemTemp.createTempSync('yoma_permanent');
     addTearDown(() => dbDir.deleteSync(recursive: true));
     queue = OfflineQueue(

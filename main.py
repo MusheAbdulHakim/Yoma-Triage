@@ -13,6 +13,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.catalog import router as catalog_router
+from src.api.cho import router as cho_router
 from src.api.driver import router as driver_router
 from src.api.referral import router as referral_router
 from src.api.sms_webhook import router as sms_router
@@ -85,6 +86,7 @@ app.include_router(referral_router)
 app.include_router(sms_router)
 app.include_router(driver_router)
 app.include_router(catalog_router)
+app.include_router(cho_router)
 
 
 @app.get("/")

@@ -66,7 +66,8 @@ class FacilityPickerScreen extends StatelessWidget {
       child: ListTile(
         title: Text(r.name),
         subtitle: Text(
-          '${r.facility.district} · ${r.distanceKm.toStringAsFixed(1)} km'
+          '${r.facility.district}'
+          '${r.distanceKm.isNaN ? '' : ' · ${r.distanceKm.toStringAsFixed(1)} km'}'
           '${r.facility.hasMaternity ? ' · maternity' : ''}',
         ),
         trailing: selected ? const Icon(Icons.check_circle) : null,

@@ -17,6 +17,18 @@ class CHPSCompound(Base):
     drivers: Mapped[list["Driver"]] = relationship(back_populates="compound")
 
 
+class Cho(Base):
+    """A registered Community Health Officer: the identity OTP will verify later."""
+
+    __tablename__ = "chos"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    name: Mapped[str] = mapped_column(String(120))
+    phone: Mapped[str] = mapped_column(String(32), unique=True)
+    compound_id: Mapped[int] = mapped_column(ForeignKey("chps_compounds.id"))
+    active: Mapped[bool] = mapped_column(Boolean, default=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
 class Driver(Base):
     __tablename__ = "drivers"
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

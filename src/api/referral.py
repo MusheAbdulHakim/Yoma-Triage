@@ -13,6 +13,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src import parameters
+from src.api.cho import NOT_ACTIVE, NOT_REGISTERED, find_cho
 from src.api.deps import require_api_key
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
@@ -87,6 +88,8 @@ class VitalsInput(BaseModel):
 class ReferralCreate(BaseModel):
     chps_compound_id: DbInt
     facility_id: DbInt
+    # The registered CHO sending this. OTP will verify it later.
+    cho_phone: str = Field(min_length=1, max_length=32)
     patient_hash: str = Field(min_length=64, max_length=64)
     emergency_type: EmergencyType
     vitals: VitalsInput = Field(default_factory=VitalsInput)
@@ -231,6 +234,19 @@ async def create_referral(
     vitals_json = payload.vitals.model_dump()
     if not payload.vitals_taken:
         vitals_json["vitals_taken"] = False
+    # After the idempotency check, so a retry of a referral that was already accepted
+    # still gets its dispatch back even if the CHO has since been deactivated.
+    cho = await find_cho(session, payload.cho_phone)
+    if cho is None:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=NOT_REGISTERED)
+    if not cho.active:
+        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=NOT_ACTIVE)
+    if cho.compound_id != payload.chps_compound_id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This CHO does not belong to this CHPS compound.",
+        )
+
     assessed = _assess(payload)
 
     referral = Referral(

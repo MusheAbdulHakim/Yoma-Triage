@@ -6,6 +6,7 @@ import 'package:yoma_triage/services/screening_result.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/vitals_helper.dart';
+import 'helpers/cho_helper.dart';
 
 Future<void> pumpUntilFound(
   WidgetTester tester,
@@ -24,7 +25,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(registeredChoPrefs());
   });
 
   testWidgets('screening early-stop is never GREEN; offers clinical judgment',

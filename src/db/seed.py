@@ -14,7 +14,7 @@ from sqlalchemy import select
 
 from src.config import settings
 from src.db.database import async_session, init_db
-from src.db.models import CHPSCompound, Driver, Facility
+from src.db.models import Cho, CHPSCompound, Driver, Facility
 
 DATA_PATH = Path(__file__).resolve().parents[2] / "data" / "demo_data.json"
 
@@ -71,6 +71,13 @@ async def seed() -> None:
             session.add(Driver(**d, availability="AVAILABLE", is_active=True))
             added_drivers += 1
             existing_phones.add(d["phone"])
+
+        existing_chos = set((await session.scalars(select(Cho.phone))).all())
+        for c in raw["compounds"]:
+            if c["cho_phone"] not in existing_chos:
+                session.add(
+                    Cho(name=f"CHO {c['name']}", phone=c["cho_phone"], compound_id=c["id"])
+                )
 
         await session.commit()
         print(

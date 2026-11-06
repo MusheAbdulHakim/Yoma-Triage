@@ -20,11 +20,6 @@ void main() {
     expect(withCoords.length, 16);
   });
 
-  test('home CHPS default is 1', () async {
-    final id = await CatalogStore().homeChpsCompoundId();
-    expect(id, 1);
-  });
-
   test('catalog is stale until first sync', () async {
     expect(await CatalogStore().isStale(), isTrue);
   });

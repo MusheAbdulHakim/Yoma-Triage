@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:yoma_triage/main.dart';
 import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'helpers/cho_helper.dart';
 
 const _acousticDefined = String.fromEnvironment('MOEWS_ONLY') == 'false';
 
@@ -10,12 +11,13 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(registeredChoPrefs());
   });
 
   testWidgets('Home hides acoustic screening by default', skip: _acousticDefined,
       (tester) async {
     await tester.pumpWidget(const YomaApp());
+    await tester.pumpAndSettle();
     expect(find.text('Screen Breathing'), findsNothing);
     expect(find.text('Record Vitals'), findsOneWidget);
     expect(find.text('Emergency Referral'), findsOneWidget);
@@ -44,6 +46,7 @@ void main() {
 
   testWidgets('Emergency Referral bypasses screening', (tester) async {
     await tester.pumpWidget(const YomaApp());
+    await tester.pumpAndSettle();
     await tester.tap(find.text('Emergency Referral'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Vitals'), findsWidgets);

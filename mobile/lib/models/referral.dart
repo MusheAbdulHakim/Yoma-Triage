@@ -4,6 +4,9 @@ class ReferralRequest {
   final int facilityId;
   final String patientHash;
 
+  /// The registered CHO sending this. The server rejects anyone else.
+  final String choPhone;
+
   /// In-memory display label only — never serialized to outbox/API JSON.
   final String? patientName;
   final String emergencyType;
@@ -24,6 +27,7 @@ class ReferralRequest {
     required this.chpsCompoundId,
     required this.facilityId,
     required this.patientHash,
+    required this.choPhone,
     this.patientName,
     required this.emergencyType,
     required this.vitals,
@@ -42,6 +46,7 @@ class ReferralRequest {
         'chps_compound_id': chpsCompoundId,
         'facility_id': facilityId,
         'patient_hash': patientHash,
+        'cho_phone': choPhone,
         'emergency_type': emergencyType,
         'vitals': vitals,
         if (!vitalsTaken) 'vitals_taken': false,

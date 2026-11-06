@@ -132,6 +132,7 @@ async def test_referral_commits_its_offers_and_makes_no_provider_call(
             "/api/v1/referral",
             json={
                 "chps_compound_id": 1,
+                "cho_phone": CHO_PHONE,
                 "facility_id": 1,
                 "patient_hash": "0" * 64,
                 "emergency_type": "pph",

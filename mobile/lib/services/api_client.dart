@@ -69,6 +69,19 @@ class ApiClient {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  /// First-run setup. Throws [ApiException] if this phone isn't an active CHO.
+  Future<Map<String, dynamic>> lookupCho(String phone) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/v1/cho/lookup'),
+      headers: _headers(json: true),
+      body: jsonEncode({'phone': phone}),
+    );
+    if (res.statusCode >= 400) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getDispatch(int id) async {
     final res = await _client.get(
       Uri.parse('$baseUrl/api/v1/dispatch/$id'),

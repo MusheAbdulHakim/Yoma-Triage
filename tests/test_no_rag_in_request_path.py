@@ -52,7 +52,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import StaticPool
 import main
 from src.db.database import Base, get_db
-from src.db.models import CHPSCompound, Facility
+from src.db.models import Cho, CHPSCompound, Facility
 
 async def run():
     engine = create_async_engine("sqlite+aiosqlite:///:memory:", poolclass=StaticPool)
@@ -62,6 +62,8 @@ async def run():
     async with sessions() as session:
         session.add(CHPSCompound(id=1, name="C", zone="Z", cho_phone="+1"))
         session.add(Facility(id=1, name="H", phone="+2", district="D"))
+        await session.flush()
+        session.add(Cho(name="CHO", phone="+233240000100", compound_id=1))
         await session.commit()
     async def override():
         async with sessions() as session:
@@ -70,6 +72,7 @@ async def run():
     async with AsyncClient(transport=ASGITransport(app=main.app), base_url="http://t") as client:
         response = await client.post("/api/v1/referral", json={
             "chps_compound_id": 1, "facility_id": 1, "patient_hash": "0" * 64,
+            "cho_phone": "+233240000100",
             "emergency_type": "pph", "client_request_id": str(uuid.uuid4()),
             "vitals": {"systolic_bp": 60},
         })
@@ -178,6 +181,7 @@ async def test_api_stores_the_template_summary(client, seeded_db):
         "/api/v1/referral",
         json={
             "chps_compound_id": 1,
+            "cho_phone": "+233240000010",
             "facility_id": 1,
             "patient_hash": "0" * 64,
             "emergency_type": "pph",

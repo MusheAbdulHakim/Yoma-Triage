@@ -8,6 +8,7 @@ void main() {
       chpsCompoundId: 1,
       facilityId: 1,
       patientHash: 'h',
+      choPhone: '+233240000100',
       emergencyType: 'respiratory_distress',
       vitals: {'systolic_bp': 120},
       aiScreenResult: 'GREEN',

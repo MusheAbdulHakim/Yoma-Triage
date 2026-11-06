@@ -303,11 +303,13 @@ class OfflineQueue {
         final chps = _asInt(queued.payload['chps_compound_id']);
         final facility = _asInt(queued.payload['facility_id']);
         final hash = _asString(queued.payload['patient_hash']);
+        final choPhone = _asString(queued.payload['cho_phone']);
         final emergency = _asString(queued.payload['emergency_type']);
         final vitalsRaw = queued.payload['vitals'];
         if (chps == null ||
             facility == null ||
             hash == null ||
+            choPhone == null ||
             emergency == null ||
             vitalsRaw is! Map) {
           // Retrying can't repair what was saved on this phone.
@@ -324,6 +326,7 @@ class OfflineQueue {
               chpsCompoundId: chps,
               facilityId: facility,
               patientHash: hash,
+              choPhone: choPhone,
               emergencyType: emergency,
               vitals: Map<String, dynamic>.from(vitalsRaw),
               aiScreenResult: queued.payload['ai_screen_result'] as String?,

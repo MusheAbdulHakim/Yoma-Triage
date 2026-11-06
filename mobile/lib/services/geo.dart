@@ -32,6 +32,18 @@ double haversineKm(
 
 double _toRad(double deg) => deg * pi / 180.0;
 
+/// When the compound's location isn't known. A distance of NaN means "not known".
+List<RankedFacility> listByName({
+  required List<CatalogFacility> facilities,
+  bool maternityOnly = true,
+}) {
+  return facilities
+      .where((f) => !maternityOnly || f.hasMaternity)
+      .map((f) => RankedFacility(facility: f, distanceKm: double.nan))
+      .toList()
+    ..sort((a, b) => a.name.compareTo(b.name));
+}
+
 List<RankedFacility> rankNearest({
   required double originLat,
   required double originLon,

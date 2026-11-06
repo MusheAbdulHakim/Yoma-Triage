@@ -85,14 +85,10 @@ abstract final class AppEnvironment {
   static bool get isProduction => name == 'production';
 }
 
-/// Seed-aligned facility labels (ids 1 / 1).
-/// Prefer on-device catalog + picker in production journeys.
+/// Seed-aligned facility label, shown only until the catalog has loaded.
 abstract final class FacilityConfig {
-  static const chpsCompoundId = 1;
-  static const chpsLabel = 'Tamale South CHPS';
   static const facilityId = 1;
   static const facilityLabel = 'Tamale Teaching Hospital';
-  static const homeChpsPrefsKey = 'home_chps_compound_id';
 }
 
 /// Catalog freshness (days). Banner when older.

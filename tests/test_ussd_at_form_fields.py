@@ -9,6 +9,7 @@ async def _seed_open_referral(client, monkeypatch, request_id: str):
         "/api/v1/referral",
         json={
             "chps_compound_id": 1,
+            "cho_phone": "+233240000010",
             "facility_id": 1,
             "patient_hash": "0123456789abcdef" * 4,
             "emergency_type": "pph",

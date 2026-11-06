@@ -9,6 +9,7 @@ import 'package:yoma_triage/services/screening_result.dart';
 import 'package:yoma_triage/services/vital_limits.dart';
 
 import 'helpers/vitals_helper.dart';
+import 'helpers/cho_helper.dart';
 
 const _ids = ['sbp', 'dbp', 'hr', 'rr', 'temp', 'spo2'];
 
@@ -25,7 +26,7 @@ Future<void> _tickAllNotMeasured(WidgetTester tester, String prefix) async {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  setUp(() => SharedPreferences.setMockInitialValues({}));
+  setUp(() => SharedPreferences.setMockInitialValues(registeredChoPrefs()));
 
   group('VitalsScreen', () {
     Future<void> open(WidgetTester tester) async {
