@@ -9,6 +9,7 @@ from datetime import UTC, datetime, timedelta
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.clinical_params import PARAMS
 from src.config import settings
 from src.db.database import async_session
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral, Wallet
@@ -21,9 +22,9 @@ logger = logging.getLogger(__name__)
 CLAIMABLE = {"PENDING", "TIER1_NOTIFIED", "TIER2_NOTIFIED"}
 # A notified driver may still claim after the cascade gives up, within this window.
 ACCEPT_ELIGIBLE = CLAIMABLE | {"FAILED"}
-LATE_CLAIM_WINDOW = timedelta(hours=2)
+LATE_CLAIM_WINDOW = timedelta(minutes=PARAMS["dispatch"]["late_claim_window_minutes"])
 ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
-FUEL_STIPEND_GHS = 22.5
+FUEL_STIPEND_GHS = PARAMS["payments"]["fuel_stipend_ghs"]
 
 
 def _locked_dispatch(dispatch_id: int):

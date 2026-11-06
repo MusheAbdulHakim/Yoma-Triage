@@ -1,0 +1,53 @@
+{
+  "version": "2026-11-06-draft",
+  "status": "PLACEHOLDER: not yet clinically signed off",
+  "vital_ranges": {
+    "systolic_bp": {"min": 0, "max": 300, "unit": "mmHg"},
+    "diastolic_bp": {"min": 0, "max": 200, "unit": "mmHg"},
+    "heart_rate": {"min": 0, "max": 300, "unit": "bpm"},
+    "respiratory_rate": {"min": 0, "max": 120, "unit": "breaths/min"},
+    "temperature": {"min": 20, "max": 45, "unit": "°C"},
+    "spo2": {"min": 0, "max": 100, "unit": "%"}
+  },
+  "moews_bands": {
+    "systolic_bp": {"red_below": 80, "yellow_low": [80, 90], "yellow_high": [140, 150], "red_above": 150, "unit": "mmHg"},
+    "diastolic_bp": {"red_below": 60, "yellow_low": null, "yellow_high": [90, 100], "red_above": 100, "unit": "mmHg"},
+    "heart_rate": {"red_below": 50, "yellow_low": [50, 60], "yellow_high": [110, 130], "red_above": 130, "unit": "bpm"},
+    "respiratory_rate": {"red_below": 10, "yellow_low": [10, 14], "yellow_high": [24, 30], "red_above": 30, "unit": "breaths/min"},
+    "temperature": {"red_below": 35, "yellow_low": [35, 36], "yellow_high": [38, 39], "red_above": 39, "unit": "°C"},
+    "spo2": {"red_below": 90, "yellow_low": [90, 94], "yellow_high": null, "red_above": null, "unit": "%"}
+  },
+  "moews_risk": {
+    "red_parameter_score": 3,
+    "red_total": 5,
+    "yellow_total": 3
+  },
+  "dispatch": {
+    "cascade_tier_seconds": 90,
+    "min_field_cascade_tier_seconds": 60,
+    "late_claim_window_minutes": 45,
+    "clinical_assessment_timeout_seconds": 3,
+    "placeholder_eta_minutes": 30
+  },
+  "payments": {
+    "fuel_stipend_ghs": 22.5
+  },
+  "acoustic": {
+    "red_above": 0.7,
+    "inconclusive_below": 0.5,
+    "opera_green_above": 0.7,
+    "default_screening_seconds": 15
+  },
+  "referral_input": {
+    "gestational_weeks_max": 45
+  },
+  "advisory_device": {
+    "heart_rate_min": 30,
+    "heart_rate_max": 250,
+    "spo2_min": 50,
+    "spo2_max": 100
+  },
+  "catalog": {
+    "stale_after_days": 30
+  }
+}

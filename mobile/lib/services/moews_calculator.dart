@@ -1,3 +1,5 @@
+import '../generated/clinical_parameters.dart';
+
 class MoewsResult {
   const MoewsResult({
     required this.score,
@@ -26,40 +28,25 @@ class MoewsResult {
   bool get hrAbnormal => hrScore > 0;
 }
 
-int _scoreSbp(int sbp) {
-  if (sbp < 80 || sbp > 150) return 3;
-  if ((sbp >= 80 && sbp <= 90) || (sbp >= 140 && sbp <= 150)) return 1;
-  return 0;
-}
-
-int _scoreDbp(int dbp) {
-  if (dbp > 100) return 3;
-  if (dbp >= 90 && dbp <= 100) return 1;
-  if (dbp < 60) return 3;
-  return 0;
-}
-
-int _scoreHr(int hr) {
-  if (hr < 50 || hr > 130) return 3;
-  if ((hr >= 50 && hr <= 60) || (hr >= 110 && hr <= 130)) return 1;
-  return 0;
-}
-
-int _scoreRr(int rr) {
-  if (rr < 10 || rr > 30) return 3;
-  if ((rr >= 10 && rr <= 14) || (rr >= 24 && rr <= 30)) return 1;
-  return 0;
-}
-
-int _scoreTemp(double temp) {
-  if (temp < 35 || temp > 39) return 3;
-  if ((temp >= 35 && temp <= 36) || (temp >= 38 && temp <= 39)) return 1;
-  return 0;
-}
-
-int _scoreSpo2(int spo2) {
-  if (spo2 < 90) return 3;
-  if (spo2 >= 90 && spo2 <= 94) return 1;
+int _scoreBand(MoewsBand band, num value) {
+  final below = band.redBelow;
+  final above = band.redAbove;
+  if ((below != null && value < below) || (above != null && value > above)) {
+    return 3;
+  }
+  final lowMin = band.yellowLowMin;
+  final lowMax = band.yellowLowMax;
+  if (lowMin != null && lowMax != null && value >= lowMin && value <= lowMax) {
+    return 1;
+  }
+  final highMin = band.yellowHighMin;
+  final highMax = band.yellowHighMax;
+  if (highMin != null &&
+      highMax != null &&
+      value >= highMin &&
+      value <= highMax) {
+    return 1;
+  }
   return 0;
 }
 
@@ -69,8 +56,14 @@ int _scoreConsciousness(String consciousness) {
 }
 
 String _riskLevel(List<int> scores, int total) {
-  if (scores.any((s) => s == 3) || total >= 5) return 'RED';
-  if (total >= 3 || scores.any((s) => s == 1)) return 'YELLOW';
+  if (scores.any((s) => s == ClinicalParameters.moewsRiskRedParameterScore) ||
+      total >= ClinicalParameters.moewsRiskRedTotal) {
+    return 'RED';
+  }
+  if (total >= ClinicalParameters.moewsRiskYellowTotal ||
+      scores.any((s) => s == 1)) {
+    return 'YELLOW';
+  }
   return 'GREEN';
 }
 
@@ -89,13 +82,13 @@ MoewsResult calculateMoews({
     return const MoewsResult(score: null, riskLevel: 'UNKNOWN');
   }
 
-  final sbpScore = _scoreSbp(sbp!);
-  final dbpScore = _scoreDbp(dbp!);
-  final hrScore = _scoreHr(hr!);
-  final rrScore = _scoreRr(rr!);
-  final tempScore = _scoreTemp(temp!);
+  final sbpScore = _scoreBand(ClinicalParameters.systolicBpBand, sbp!);
+  final dbpScore = _scoreBand(ClinicalParameters.diastolicBpBand, dbp!);
+  final hrScore = _scoreBand(ClinicalParameters.heartRateBand, hr!);
+  final rrScore = _scoreBand(ClinicalParameters.respiratoryRateBand, rr!);
+  final tempScore = _scoreBand(ClinicalParameters.temperatureBand, temp!);
   final consciousnessScore = _scoreConsciousness(consciousness!);
-  final spo2Score = spo2 == null ? 0 : _scoreSpo2(spo2);
+  final spo2Score = spo2 == null ? 0 : _scoreBand(ClinicalParameters.spo2Band, spo2);
 
   final scores = <int>[
     sbpScore,

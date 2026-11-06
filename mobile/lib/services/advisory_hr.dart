@@ -4,6 +4,8 @@
 /// Always optional and non-blocking; manual vitals remain authoritative.
 library;
 
+import '../generated/clinical_parameters.dart';
+
 enum AdvisoryHrSource {
   blePulseOx,
   contactPpg,
@@ -29,10 +31,14 @@ class AdvisoryHrReading {
   final AdvisoryHrSource source;
   final int? spo2Percent;
 
-  bool get isPlausibleHr => heartRateBpm >= 30 && heartRateBpm <= 250;
+  bool get isPlausibleHr =>
+      heartRateBpm >= ClinicalParameters.advisoryDeviceHeartRateMin &&
+      heartRateBpm <= ClinicalParameters.advisoryDeviceHeartRateMax;
 
   bool get isPlausibleSpo2 =>
-      spo2Percent == null || (spo2Percent! >= 50 && spo2Percent! <= 100);
+      spo2Percent == null ||
+      (spo2Percent! >= ClinicalParameters.advisoryDeviceSpo2Min &&
+          spo2Percent! <= ClinicalParameters.advisoryDeviceSpo2Max);
 
   String get confirmMessage =>
       'Apply advisory ${source.label} reading of $heartRateBpm bpm'

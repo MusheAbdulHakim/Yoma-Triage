@@ -1,5 +1,7 @@
 import 'package:flutter/foundation.dart' show kReleaseMode;
 
+import '../generated/clinical_parameters.dart';
+
 /// Demo classifiers (web simulator buttons, `SCREENING_MODEL=stub`) exist only
 /// outside release builds. This is a const so release builds tree-shake them.
 const bool demoClassifiersEnabled = !kReleaseMode;
@@ -22,7 +24,7 @@ class ScreeningResult {
 
 ScreeningResult mapYamnetToResult({required double abnormalScore}) {
   // Higher score = more evidence of respiratory AudioSet events.
-  if (abnormalScore > 0.7) {
+  if (abnormalScore > ClinicalParameters.acousticRedAbove) {
     return ScreeningResult(
       label: 'RED',
       confidence: abnormalScore,
@@ -34,7 +36,7 @@ ScreeningResult mapYamnetToResult({required double abnormalScore}) {
   }
   // Spec §7.1.1: below 0.5 is inconclusive. A low respiratory-event score only
   // means nothing was detected, so it must never read as a clinical all-clear.
-  if (abnormalScore < 0.5) {
+  if (abnormalScore < ClinicalParameters.acousticInconclusiveBelow) {
     return ScreeningResult(
       label: 'INCONCLUSIVE',
       confidence: abnormalScore,

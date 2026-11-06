@@ -3,10 +3,12 @@ import os
 
 from dotenv import load_dotenv
 
+from src.clinical_params import PARAMS
+
 load_dotenv()
 
-DEFAULT_CASCADE_TIER_SECONDS = 90
-MIN_FIELD_CASCADE_TIER_SECONDS = 60
+DEFAULT_CASCADE_TIER_SECONDS = PARAMS["dispatch"]["cascade_tier_seconds"]
+MIN_FIELD_CASCADE_TIER_SECONDS = PARAMS["dispatch"]["min_field_cascade_tier_seconds"]
 
 
 class Settings:
@@ -35,7 +37,7 @@ class Settings:
     PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "")
     # Local/demo API client base (scripts/demo_flow.py). Defaults to loopback.
     DEMO_API_BASE_URL: str = os.getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000")
-    # Spec 7.2.1: 90 s per tier. Staging/production refuse to start below 60 s.
+    # Default and field minimum come from config/clinical_parameters.json.
     CASCADE_TIER_SECONDS: int = int(
         os.getenv("CASCADE_TIER_SECONDS", str(DEFAULT_CASCADE_TIER_SECONDS))
     )
