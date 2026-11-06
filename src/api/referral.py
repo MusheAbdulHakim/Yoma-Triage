@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src import parameters
 from src.agents.coordinator import yoma_graph
 from src.api.deps import require_api_key
 from src.db.database import get_db
@@ -30,15 +31,20 @@ router = APIRouter(
 PATIENT_HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
-# Keep in sync with mobile/lib/services/vital_limits.dart: the app must reject what
-# the API rejects, or a referral sits in the outbox retrying a 422 forever.
-# These catch typos and impossible readings; they are not clinical thresholds.
-SYSTOLIC_BP = Field(ge=0, le=300)
-DIASTOLIC_BP = Field(ge=0, le=200)
-HEART_RATE = Field(ge=0, le=300)
-RESPIRATORY_RATE = Field(ge=0, le=120)
-TEMPERATURE = Field(ge=20, le=45)
-SPO2 = Field(ge=0, le=100)
+
+def _vital_range(vital: str) -> Any:
+    """The app enforces the same limits: a referral rejected here would otherwise sit in
+    the outbox retrying forever. They catch typos; they are not clinical thresholds."""
+    low, high = parameters.VITAL_RANGES[vital]
+    return Field(ge=low, le=high)
+
+
+SYSTOLIC_BP = _vital_range("systolic_bp")
+DIASTOLIC_BP = _vital_range("diastolic_bp")
+HEART_RATE = _vital_range("heart_rate")
+RESPIRATORY_RATE = _vital_range("respiratory_rate")
+TEMPERATURE = _vital_range("temperature")
+SPO2 = _vital_range("spo2")
 
 EmergencyType = Literal[
     # Offered by the CHO app today.
@@ -85,7 +91,7 @@ class ReferralCreate(BaseModel):
     vitals: VitalsInput = Field(default_factory=VitalsInput)
     # False for "Emergency: skip vitals": dispatch at once, no clinical assessment.
     vitals_taken: bool = True
-    gestational_weeks: int = Field(default=0, ge=0, le=45)
+    gestational_weeks: int = Field(default=0, ge=0, le=parameters.GESTATIONAL_WEEKS_MAX)
     client_request_id: str | None = Field(default=None, max_length=36)
     ai_screen_result: str | None = Field(default=None, max_length=32)
     ai_confidence: float | None = Field(default=None, ge=0, le=1)
@@ -143,7 +149,7 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
                 "HOSPITAL_NOTIFIED",
                 "HOSPITAL_CONFIRMED",
             }:
-                eta_minutes = 30
+                eta_minutes = parameters.PLACEHOLDER_ETA_MINUTES
     return {
         "id": dispatch.id,
         "referral_id": dispatch.referral_id,

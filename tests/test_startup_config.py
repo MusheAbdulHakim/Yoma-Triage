@@ -9,11 +9,12 @@ from pathlib import Path
 
 import pytest
 
-from src.config import DEFAULT_CASCADE_TIER_SECONDS, settings
+from src import parameters
+from src.config import settings
 
 
 def test_default_tier_wait_matches_spec():
-    assert DEFAULT_CASCADE_TIER_SECONDS == 90
+    assert parameters.CASCADE_TIER_SECONDS == 90
 
 
 @pytest.mark.parametrize("environment", ["production", "staging", "PRODUCTION "])

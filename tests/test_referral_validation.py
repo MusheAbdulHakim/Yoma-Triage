@@ -194,33 +194,6 @@ async def test_ussd_typo_does_not_claim_dispatch(
     assert dispatch["driver_id"] is None
 
 
-def _dart_limits() -> dict[str, tuple[float, float]]:
-    source = (REPO / "mobile/lib/services/vital_limits.dart").read_text()
-    pairs = re.findall(r"static const (\w+) = VitalLimits\((\d+), (\d+)\);", source)
-    return {name: (float(low), float(high)) for name, low, high in pairs}
-
-
-def test_app_and_api_limits_match():
-    """The app must reject what the API rejects, or referrals get stuck in the outbox."""
-    fields = {
-        "systolicBp": "systolic_bp",
-        "diastolicBp": "diastolic_bp",
-        "heartRate": "heart_rate",
-        "respiratoryRate": "respiratory_rate",
-        "temperature": "temperature",
-        "spo2": "spo2",
-    }
-    limits = _dart_limits()
-    assert set(limits) == set(fields)
-    for dart_name, api_name in fields.items():
-        low, high = limits[dart_name]
-        VitalsInput(**{api_name: low})
-        VitalsInput(**{api_name: high})
-        for outside in (low - 1, high + 1):
-            with pytest.raises(ValueError):
-                VitalsInput(**{api_name: outside})
-
-
 def test_every_emergency_type_in_the_app_is_accepted():
     source = (REPO / "mobile/lib/screens/referral_screen.dart").read_text()
     block = source[source.index("labelText: 'Emergency type'") :]

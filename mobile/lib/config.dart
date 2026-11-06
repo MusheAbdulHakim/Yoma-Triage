@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart'
     show TargetPlatform, defaultTargetPlatform, kIsWeb;
 
+import 'parameters.dart';
+
 /// Backend API base URL for the CHO app (Android, iOS, and web).
 ///
 /// Prefer `--dart-define=API_BASE_URL=...` for physical devices and tunnels.
@@ -34,9 +36,9 @@ class ApiConfig {
 ///
 /// Set in repo-root `.env` as `SCREENING_DURATION_SEC`, then pass at run time:
 /// `--dart-define=SCREENING_DURATION_SEC=$SCREENING_DURATION_SEC`
-/// Defaults to 15 when unset or invalid.
+/// Uses the default in `parameters.dart` when unset or invalid.
 abstract final class ScreeningConfig {
-  static const int defaultDurationSec = 15;
+  static const int defaultDurationSec = Parameters.defaultScreeningSeconds;
 
   static int get durationSec {
     const raw = String.fromEnvironment('SCREENING_DURATION_SEC');
@@ -95,7 +97,7 @@ abstract final class FacilityConfig {
 
 /// Catalog freshness (days). Banner when older.
 abstract final class CatalogConfig {
-  static const staleAfterDays = 30;
+  static const staleAfterDays = Parameters.catalogStaleAfterDays;
   static const syncedAtPrefsKey = 'catalog_synced_at';
   static const catalogVersionPrefsKey = 'catalog_version';
 }

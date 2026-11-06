@@ -1,3 +1,5 @@
+import '../parameters.dart';
+
 class MoewsResult {
   const MoewsResult({
     required this.score,
@@ -52,40 +54,25 @@ const _vitalLabels = {
   'consciousness_level': 'AVPU',
 };
 
-int _scoreSbp(int sbp) {
-  if (sbp < 80 || sbp > 150) return 3;
-  if ((sbp >= 80 && sbp <= 90) || (sbp >= 140 && sbp <= 150)) return 1;
-  return 0;
-}
-
-int _scoreDbp(int dbp) {
-  if (dbp > 100) return 3;
-  if (dbp >= 90 && dbp <= 100) return 1;
-  if (dbp < 60) return 3;
-  return 0;
-}
-
-int _scoreHr(int hr) {
-  if (hr < 50 || hr > 130) return 3;
-  if ((hr >= 50 && hr <= 60) || (hr >= 110 && hr <= 130)) return 1;
-  return 0;
-}
-
-int _scoreRr(int rr) {
-  if (rr < 10 || rr > 30) return 3;
-  if ((rr >= 10 && rr <= 14) || (rr >= 24 && rr <= 30)) return 1;
-  return 0;
-}
-
-int _scoreTemp(double temp) {
-  if (temp < 35 || temp > 39) return 3;
-  if ((temp >= 35 && temp <= 36) || (temp >= 38 && temp <= 39)) return 1;
-  return 0;
-}
-
-int _scoreSpo2(int spo2) {
-  if (spo2 < 90) return 3;
-  if (spo2 >= 90 && spo2 <= 94) return 1;
+int _scoreBand(MoewsBand band, num value) {
+  final below = band.redBelow;
+  final above = band.redAbove;
+  if ((below != null && value < below) || (above != null && value > above)) {
+    return 3;
+  }
+  final lowMin = band.yellowLowMin;
+  final lowMax = band.yellowLowMax;
+  if (lowMin != null && lowMax != null && value >= lowMin && value <= lowMax) {
+    return 1;
+  }
+  final highMin = band.yellowHighMin;
+  final highMax = band.yellowHighMax;
+  if (highMin != null &&
+      highMax != null &&
+      value >= highMin &&
+      value <= highMax) {
+    return 1;
+  }
   return 0;
 }
 
@@ -96,10 +83,15 @@ int _scoreConsciousness(String consciousness) {
 
 String _riskLevel(List<int> scores, int total, List<String> missing) {
   // A measured critical value is never hidden by what wasn't measured.
-  if (scores.any((s) => s == 3) || total >= 5) return 'RED';
+  if (scores.any((s) => s == Parameters.moewsRedParameterScore) ||
+      total >= Parameters.moewsRedTotal) {
+    return 'RED';
+  }
   // A patient can't be called normal from half a set. SpO₂ alone is optional.
   if (missing.any((name) => name != 'spo2')) return 'INCOMPLETE';
-  if (total >= 3 || scores.any((s) => s == 1)) return 'YELLOW';
+  if (total >= Parameters.moewsYellowTotal || scores.any((s) => s == 1)) {
+    return 'YELLOW';
+  }
   return 'GREEN';
 }
 
@@ -114,12 +106,12 @@ MoewsResult calculateMoews({
   int? spo2,
   String? consciousness = 'A',
 }) {
-  final sbpScore = sbp == null ? 0 : _scoreSbp(sbp);
-  final dbpScore = dbp == null ? 0 : _scoreDbp(dbp);
-  final hrScore = hr == null ? 0 : _scoreHr(hr);
-  final rrScore = rr == null ? 0 : _scoreRr(rr);
-  final tempScore = temp == null ? 0 : _scoreTemp(temp);
-  final spo2Score = spo2 == null ? 0 : _scoreSpo2(spo2);
+  final sbpScore = sbp == null ? 0 : _scoreBand(Parameters.systolicBpBand, sbp);
+  final dbpScore = dbp == null ? 0 : _scoreBand(Parameters.diastolicBpBand, dbp);
+  final hrScore = hr == null ? 0 : _scoreBand(Parameters.heartRateBand, hr);
+  final rrScore = rr == null ? 0 : _scoreBand(Parameters.respiratoryRateBand, rr);
+  final tempScore = temp == null ? 0 : _scoreBand(Parameters.temperatureBand, temp);
+  final spo2Score = spo2 == null ? 0 : _scoreBand(Parameters.spo2Band, spo2);
   final consciousnessScore =
       consciousness == null ? 0 : _scoreConsciousness(consciousness);
 

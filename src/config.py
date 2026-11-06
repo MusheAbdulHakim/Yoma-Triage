@@ -3,11 +3,9 @@ import os
 
 from dotenv import load_dotenv
 
+from src import parameters
+
 load_dotenv()
-
-DEFAULT_CASCADE_TIER_SECONDS = 90
-MIN_FIELD_CASCADE_TIER_SECONDS = 60
-
 
 class Settings:
     # Anything other than exactly "development" gets production behaviour.
@@ -35,12 +33,14 @@ class Settings:
     PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "")
     # Local/demo API client base (scripts/demo_flow.py). Defaults to loopback.
     DEMO_API_BASE_URL: str = os.getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000")
-    # Spec 7.2.1: 90 s per tier. Staging/production refuse to start below 60 s.
+    # Staging/production refuse to start below parameters.MIN_FIELD_CASCADE_TIER_SECONDS.
     CASCADE_TIER_SECONDS: int = int(
-        os.getenv("CASCADE_TIER_SECONDS", str(DEFAULT_CASCADE_TIER_SECONDS))
+        os.getenv("CASCADE_TIER_SECONDS", str(parameters.CASCADE_TIER_SECONDS))
     )
     # How long after dispatch start a notified driver can still claim a FAILED dispatch.
-    LATE_CLAIM_WINDOW_MINUTES: int = int(os.getenv("LATE_CLAIM_WINDOW_MINUTES", "45"))
+    LATE_CLAIM_WINDOW_MINUTES: int = int(
+        os.getenv("LATE_CLAIM_WINDOW_MINUTES", str(parameters.LATE_CLAIM_WINDOW_MINUTES))
+    )
     # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
     # Every other environment refuses to start without it.
     API_KEY: str = os.getenv("API_KEY", "")
@@ -80,9 +80,10 @@ class Settings:
             and self.ENVIRONMENT.strip().lower() != "staging"
         ):
             errors.append("AT_USERNAME must not be sandbox")
-        if self.CASCADE_TIER_SECONDS < MIN_FIELD_CASCADE_TIER_SECONDS:
+        if self.CASCADE_TIER_SECONDS < parameters.MIN_FIELD_CASCADE_TIER_SECONDS:
             errors.append(
-                f"CASCADE_TIER_SECONDS must be at least {MIN_FIELD_CASCADE_TIER_SECONDS}"
+                "CASCADE_TIER_SECONDS must be at least "
+                f"{parameters.MIN_FIELD_CASCADE_TIER_SECONDS}"
             )
         return errors
 
