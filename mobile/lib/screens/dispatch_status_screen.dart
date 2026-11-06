@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
+import '../services/cho_store.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/manual_contacts_panel.dart';
@@ -47,7 +48,12 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
 
   bool get _needsManualHelp => _status == 'FAILED' || _status == 'QUEUED';
 
-  static const _terminalStates = {'COMPLETED', 'FAILED', 'DIVERTED'};
+  bool _cancelling = false;
+
+  static const _terminalStates = {'COMPLETED', 'FAILED', 'DIVERTED', 'CANCELLED'};
+
+  bool get _canCancel =>
+      _dispatchId != null && _status != 'COMPLETED' && _status != 'CANCELLED';
 
   @override
   void initState() {
@@ -161,6 +167,68 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
     }
   }
 
+  Future<void> _confirmCancel() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel this dispatch?'),
+        content: const Text(
+          'This stops alerting drivers. If a driver has accepted, the driver and the '
+          'hospital will be told it is cancelled.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep it'),
+          ),
+          TextButton(
+            key: const Key('dispatch_cancel_confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cancel dispatch'),
+          ),
+        ],
+      ),
+    );
+    if (yes == true) await _cancel();
+  }
+
+  Future<void> _cancel() async {
+    setState(() => _cancelling = true);
+    String? problem;
+    try {
+      final identity = await ChoStore().load();
+      if (identity == null) {
+        problem = 'This phone is not set up. Call the driver and hospital directly.';
+      } else {
+        final data = await _api.cancelDispatch(
+          dispatchId: _dispatchId!,
+          choPhone: identity.phone,
+        );
+        if (!mounted || _disposed) return;
+        _timer?.cancel();
+        setState(() {
+          _status = (data['status'] as String?) ?? 'CANCELLED';
+          _terminal = true;
+          _driverName = null;
+          _etaMinutes = null;
+          _detail = 'Drivers will not be alerted any more.';
+        });
+      }
+    } on ApiException catch (e) {
+      problem = e.code == null
+          ? 'Could not cancel. Call the driver and hospital directly.'
+          : e.reason;
+    } catch (_) {
+      problem =
+          'Could not cancel: no connection. Call the driver and hospital directly.';
+    }
+    if (!mounted || _disposed) return;
+    setState(() => _cancelling = false);
+    if (problem != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(problem)));
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -223,6 +291,15 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
               key: ValueKey(_facilityId),
               facilityIds: {if (_facilityId != null) _facilityId!},
               launcher: widget.launcher,
+            ),
+          ],
+          if (_canCancel) ...[
+            const SizedBox(height: 24),
+            TextButton(
+              key: const Key('dispatch_cancel'),
+              style: TextButton.styleFrom(foregroundColor: YomaColors.danger),
+              onPressed: _cancelling ? null : _confirmCancel,
+              child: Text(_cancelling ? 'Cancelling…' : 'Cancel this dispatch'),
             ),
           ],
           const SizedBox(height: 24),

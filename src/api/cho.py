@@ -3,12 +3,14 @@ from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from src.api import errors
 from src.api.deps import require_api_key
+from src.api.errors import ApiError
 from src.db.database import get_db
 from src.db.models import Cho, CHPSCompound
 from src.utils.phones import is_valid_ghana_phone, normalize_ghana_phone
@@ -33,15 +35,16 @@ async def find_cho(session: AsyncSession, phone: str) -> Cho | None:
 @router.post("/cho/lookup")
 async def lookup_cho(payload: ChoLookup, session: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     if not is_valid_ghana_phone(normalize_ghana_phone(payload.phone)):
-        raise HTTPException(
-            status_code=422,
-            detail="Enter a valid Ghana phone number, for example 0240000100.",
+        raise ApiError(
+            422,
+            errors.INVALID_PHONE,
+            "Enter a valid Ghana phone number, for example 0240000100.",
         )
     cho = await find_cho(session, payload.phone)
     if cho is None:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail=NOT_REGISTERED)
+        raise ApiError(status.HTTP_404_NOT_FOUND, errors.CHO_NOT_REGISTERED, NOT_REGISTERED)
     if not cho.active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=NOT_ACTIVE)
+        raise ApiError(status.HTTP_403_FORBIDDEN, errors.CHO_NOT_ACTIVE, NOT_ACTIVE)
     compound = await session.get(CHPSCompound, cho.compound_id)
     return {
         "name": cho.name,

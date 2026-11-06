@@ -73,9 +73,12 @@ class Referral(Base):
     risk_level: Mapped[str] = mapped_column(String(32), default="UNKNOWN")
     clinical_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     compressed_sms_payload: Mapped[str | None] = mapped_column(String(256), nullable=True)
+    # CONFIRMED|AWAITING_CONFIRMATION|MANUALLY_HANDLED|CANCELLED
     status: Mapped[str] = mapped_column(String(32), default="CREATED")
     vitals_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     client_request_id: Mapped[str | None] = mapped_column(String(36), unique=True, nullable=True)
+    # How long this waited on the phone before reaching us, by the phone's own clock.
+    queue_age_seconds: Mapped[int | None] = mapped_column(Integer, nullable=True)
     ai_screen_result: Mapped[str | None] = mapped_column(String(32), nullable=True)
     ai_confidence: Mapped[float | None] = mapped_column(Float, nullable=True)
     ai_model_version: Mapped[str | None] = mapped_column(String(64), nullable=True)
@@ -92,6 +95,7 @@ class Dispatch(Base):
     facility_id: Mapped[int] = mapped_column(ForeignKey("facilities.id"))
     status: Mapped[str] = mapped_column(String(32), default="PENDING")
     # PENDING|TIER1_NOTIFIED|TIER2_NOTIFIED|ACCEPTED|HOSPITAL_NOTIFIED|COMPLETED|DIVERTED|FAILED
+    # |CANCELLED
     current_tier: Mapped[int] = mapped_column(Integer, default=0)
     declined_driver_ids: Mapped[list] = mapped_column(JSON, default=list)
     # What the worker must do next, and when. Null means nothing is scheduled.

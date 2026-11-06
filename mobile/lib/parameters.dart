@@ -75,6 +75,9 @@ abstract final class Parameters {
   static const moewsRedTotal = 5;
   static const moewsYellowTotal = 3;
 
+  // Queue. A referral older than this waits for the CHO to say it's still needed.
+  static const staleAfterMinutes = 20;
+
   // Acoustic screening (app only).
   static const acousticRedAbove = 0.7;
   static const acousticInconclusiveBelow = 0.5;

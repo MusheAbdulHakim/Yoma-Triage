@@ -66,6 +66,10 @@ def test_moews_bands_match_the_app(vital):
     assert _dart_band(DART_VITALS[vital]) == expected
 
 
+def test_stale_threshold_matches_the_app():
+    assert _dart_constant("staleAfterMinutes") == parameters.STALE_AFTER_MINUTES
+
+
 def test_risk_rules_match_the_app():
     assert _dart_constant("moewsRedParameterScore") == parameters.MOEWS_RED_PARAMETER_SCORE
     assert _dart_constant("moewsRedTotal") == parameters.MOEWS_RED_TOTAL
@@ -128,6 +132,7 @@ def test_sheet_lists_each_moews_band(vital):
         ("Wait per cascade tier", parameters.CASCADE_TIER_SECONDS),
         ("Shortest tier wait allowed in the field", parameters.MIN_FIELD_CASCADE_TIER_SECONDS),
         ("Late-claim window", parameters.LATE_CLAIM_WINDOW_MINUTES),
+        ("Stale queued referral", parameters.STALE_AFTER_MINUTES),
         ("Cascade worker poll interval", parameters.WORKER_POLL_SECONDS),
         ("SMS outbox poll interval", parameters.OUTBOX_POLL_SECONDS),
         ("SMS send attempts before giving up", parameters.OUTBOX_MAX_ATTEMPTS),

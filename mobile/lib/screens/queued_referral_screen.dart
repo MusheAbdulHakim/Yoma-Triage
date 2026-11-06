@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
+import '../parameters.dart';
 import '../services/api_client.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/manual_contacts_panel.dart';
 import 'dispatch_status_screen.dart';
 import 'failed_referrals_screen.dart';
+import 'stale_referral_screen.dart';
 
 class QueuedReferralScreen extends StatefulWidget {
   final String clientRequestId;
@@ -61,6 +63,21 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
         );
         return;
       }
+      final stale = (await _queue.needsConfirmation())
+          .any((q) => q.clientRequestId == widget.clientRequestId);
+      if (!mounted) return;
+      if (stale) {
+        await Navigator.of(context).pushReplacement(
+          MaterialPageRoute(
+            builder: (_) => StaleReferralScreen(
+              queue: _queue,
+              api: _api,
+              launcher: widget.launcher,
+            ),
+          ),
+        );
+        return;
+      }
       final dispatchId = await _queue.lookupDispatchId(widget.clientRequestId);
       if (!mounted) return;
       if (dispatchId == null) {
@@ -110,6 +127,13 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
               textAlign: TextAlign.center,
               style: TextStyle(fontSize: 18, height: 1.4),
             ),
+            const SizedBox(height: 8),
+            Text(
+              'If it waits more than ${Parameters.staleAfterMinutes} minutes, the app will '
+              'ask you before alerting drivers.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade800),
+            ),
             const SizedBox(height: 16),
             Text(
               'Request: ${widget.clientRequestId}',
@@ -145,6 +169,8 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
             ManualContactsPanel(
               facilityIds: {if (widget.facilityId != null) widget.facilityId!},
               launcher: widget.launcher,
+              onContactUsed: () =>
+                  _queue.markManualContact(widget.clientRequestId),
             ),
           ],
         ),

@@ -15,6 +15,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from src.api.catalog import router as catalog_router
 from src.api.cho import router as cho_router
 from src.api.driver import router as driver_router
+from src.api.errors import install_error_handlers
 from src.api.referral import router as referral_router
 from src.api.sms_webhook import router as sms_router
 from src.api.ussd import router as ussd_router
@@ -71,6 +72,7 @@ app = FastAPI(
     lifespan=lifespan,
     **_docs_urls,
 )
+install_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,

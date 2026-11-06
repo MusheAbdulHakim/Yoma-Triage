@@ -9,6 +9,7 @@ import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
 import 'failed_referrals_screen.dart';
 import 'referral_screen.dart';
+import 'stale_referral_screen.dart';
 import 'screening_screen.dart';
 import 'vitals_screen.dart';
 
@@ -18,8 +19,9 @@ class HomeScreen extends StatefulWidget {
 
   /// Test seam for the sync that runs when Home opens.
   final ApiClient? api;
+  final OfflineQueue? queue;
 
-  const HomeScreen({super.key, this.acousticEnabled, this.api});
+  const HomeScreen({super.key, this.acousticEnabled, this.api, this.queue});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -27,7 +29,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _catalog = CatalogStore();
-  final _queue = OfflineQueue.shared;
+  late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
+  int _lastStaleCount = 0;
   bool _catalogStale = false;
   String? _catalogVersion;
   bool _syncing = false;
@@ -42,6 +45,33 @@ class _HomeScreenState extends State<HomeScreen> {
     _syncCatalog();
     // Picks up referrals refused in an earlier session.
     _queue.failed().catchError((_) => <QueuedReferral>[]);
+    _queue.needsConfirmationCount.addListener(_onStaleCountChanged);
+    _queue.needsConfirmation().catchError((_) => <QueuedReferral>[]);
+  }
+
+  @override
+  void dispose() {
+    _queue.needsConfirmationCount.removeListener(_onStaleCountChanged);
+    super.dispose();
+  }
+
+  /// Asks as soon as a stale referral arrives, unless the CHO is busy on another screen.
+  /// In that case the card below is waiting for them when they come back.
+  void _onStaleCountChanged() {
+    final count = _queue.needsConfirmationCount.value;
+    final arrived = count > _lastStaleCount;
+    _lastStaleCount = count;
+    if (arrived && mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
+      _openStalePrompt();
+    }
+  }
+
+  void _openStalePrompt() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StaleReferralScreen(queue: _queue, api: widget.api),
+      ),
+    );
   }
 
   Future<void> _refreshCatalogStatus() async {
@@ -84,6 +114,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ),
+            ValueListenableBuilder<int>(
+              valueListenable: _queue.needsConfirmationCount,
+              builder: (context, count, _) {
+                if (count == 0) return const SizedBox.shrink();
+                return Card(
+                  color: YomaColors.danger.withValues(alpha: 0.15),
+                  child: ListTile(
+                    key: const Key('home_stale_referrals'),
+                    leading: const Icon(Icons.help, color: YomaColors.danger),
+                    title: const Text(
+                      'Still needs transport?',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      count == 1
+                          ? '1 old referral is waiting for your answer. '
+                              'Drivers have not been told.'
+                          : '$count old referrals are waiting for your answer. '
+                              'Drivers have not been told.',
+                    ),
+                    onTap: _openStalePrompt,
+                  ),
+                );
+              },
+            ),
             ValueListenableBuilder<int>(
               valueListenable: _queue.failedCount,
               builder: (context, count, _) {

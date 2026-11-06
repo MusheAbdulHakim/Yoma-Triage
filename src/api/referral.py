@@ -7,17 +7,29 @@ import re
 import uuid
 from typing import Annotated, Any, Literal
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src import parameters
+from src.api import errors
 from src.api.cho import NOT_ACTIVE, NOT_REGISTERED, find_cho
 from src.api.deps import require_api_key
+from src.api.errors import ApiError
+from src.config import settings
 from src.db.database import get_db
-from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
-from src.services.dispatch_orchestrator import DispatchOrchestrator
+from src.db.models import (
+    AuditLog,
+    Cho,
+    CHPSCompound,
+    Dispatch,
+    DispatchLog,
+    Driver,
+    Facility,
+    Referral,
+)
+from src.services.dispatch_orchestrator import DispatchNotCancellableError, DispatchOrchestrator
 from src.tools.clinical_summary import build_clinical_summary
 from src.tools.moews_calculator import missing_vitals, score_vitals
 from src.tools.sms_codec import encode_referral_payload_or_none
@@ -97,6 +109,9 @@ class ReferralCreate(BaseModel):
     vitals_taken: bool = True
     gestational_weeks: int = Field(default=0, ge=0, le=parameters.GESTATIONAL_WEEKS_MAX)
     client_request_id: str | None = Field(default=None, max_length=36)
+    # How long this waited on the phone, by the phone's own clock. An elapsed time rather
+    # than a timestamp, so a phone clock set to the wrong date can't skew it.
+    queue_age_seconds: int = Field(default=0, ge=0, le=2_147_483_647)
     ai_screen_result: str | None = Field(default=None, max_length=32)
     ai_confidence: float | None = Field(default=None, ge=0, le=1)
     ai_model_version: str | None = Field(default=None, max_length=64)
@@ -117,6 +132,27 @@ class ReferralCreate(BaseModel):
         return self
 
 
+AWAITING_CONFIRMATION = "AWAITING_CONFIRMATION"
+CONFIRMED = "CONFIRMED"
+MANUALLY_HANDLED = "MANUALLY_HANDLED"
+CANCELLED = "CANCELLED"
+RESOLUTIONS = {
+    "send_now": CONFIRMED,
+    "already_handled": MANUALLY_HANDLED,
+    "cancel": CANCELLED,
+}
+WRONG_COMPOUND = "This CHO does not belong to this CHPS compound."
+
+
+class ReferralResolve(BaseModel):
+    action: Literal["send_now", "already_handled", "cancel"]
+    cho_phone: str = Field(min_length=1, max_length=32)
+
+
+class DispatchCancel(BaseModel):
+    cho_phone: str = Field(min_length=1, max_length=32)
+
+
 def _referral_response(referral: Referral) -> dict[str, Any]:
     return {
         "id": referral.id,
@@ -134,6 +170,7 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "missing_vitals": missing_vitals(referral.vitals_json),
         "vitals_taken": (referral.vitals_json or {}).get("vitals_taken", True),
         "client_request_id": referral.client_request_id,
+        "queue_age_seconds": referral.queue_age_seconds,
         "ai_screen_result": referral.ai_screen_result,
         "ai_confidence": referral.ai_confidence,
         "ai_model_version": referral.ai_model_version,
@@ -208,15 +245,44 @@ def _assess(payload: ReferralCreate) -> dict[str, Any]:
     }
 
 
+async def _registered_cho(session: AsyncSession, phone: str) -> Cho:
+    cho = await find_cho(session, phone)
+    if cho is None:
+        raise ApiError(status.HTTP_403_FORBIDDEN, errors.CHO_NOT_REGISTERED, NOT_REGISTERED)
+    return cho
+
+
+async def _active_cho_of(session: AsyncSession, phone: str, compound_id: int) -> Cho:
+    """The check for anything that starts a dispatch."""
+    cho = await _registered_cho(session, phone)
+    if not cho.active:
+        raise ApiError(status.HTTP_403_FORBIDDEN, errors.CHO_NOT_ACTIVE, NOT_ACTIVE)
+    if cho.compound_id != compound_id:
+        raise ApiError(status.HTTP_403_FORBIDDEN, errors.CHO_WRONG_COMPOUND, WRONG_COMPOUND)
+    return cho
+
+
+async def _cho_who_may_stop(session: AsyncSession, phone: str, referral: Referral) -> Cho:
+    """The check for standing transport down.
+
+    A CHO who has since been deactivated may still do this: stopping a trip that is no
+    longer needed is always safe, and otherwise nobody may be left able to.
+    """
+    cho = await _registered_cho(session, phone)
+    if cho.compound_id != referral.chps_compound_id:
+        raise ApiError(status.HTTP_403_FORBIDDEN, errors.CHO_WRONG_COMPOUND, WRONG_COMPOUND)
+    return cho
+
+
 @router.post("/referral", status_code=status.HTTP_201_CREATED)
 async def create_referral(
     payload: ReferralCreate, session: AsyncSession = Depends(get_db)
 ) -> dict[str, Any]:
     """Create the CHO-confirmed referral before initiating external dispatch."""
     if not await session.get(CHPSCompound, payload.chps_compound_id):
-        raise HTTPException(status_code=404, detail="CHPS compound not found")
+        raise ApiError(404, errors.COMPOUND_NOT_FOUND, "CHPS compound not found")
     if not await session.get(Facility, payload.facility_id):
-        raise HTTPException(status_code=404, detail="Facility not found")
+        raise ApiError(404, errors.FACILITY_NOT_FOUND, "Facility not found")
 
     client_request_id = payload.client_request_id or str(uuid.uuid4())
 
@@ -236,18 +302,10 @@ async def create_referral(
         vitals_json["vitals_taken"] = False
     # After the idempotency check, so a retry of a referral that was already accepted
     # still gets its dispatch back even if the CHO has since been deactivated.
-    cho = await find_cho(session, payload.cho_phone)
-    if cho is None:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=NOT_REGISTERED)
-    if not cho.active:
-        raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail=NOT_ACTIVE)
-    if cho.compound_id != payload.chps_compound_id:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="This CHO does not belong to this CHPS compound.",
-        )
+    await _active_cho_of(session, payload.cho_phone, payload.chps_compound_id)
 
     assessed = _assess(payload)
+    stale = payload.queue_age_seconds > settings.STALE_AFTER_MINUTES * 60
 
     referral = Referral(
         chps_compound_id=payload.chps_compound_id,
@@ -261,27 +319,101 @@ async def create_referral(
         clinical_summary=assessed["clinical_summary"],
         compressed_sms_payload=assessed["compressed_sms_payload"],
         vitals_json=vitals_json,
-        status="CONFIRMED",
+        status=AWAITING_CONFIRMATION if stale else CONFIRMED,
         client_request_id=client_request_id,
+        queue_age_seconds=payload.queue_age_seconds,
         ai_screen_result=payload.ai_screen_result,
         ai_confidence=payload.ai_confidence,
         ai_model_version=payload.ai_model_version,
     )
     session.add(referral)
     await session.flush()
-    dispatch = await DispatchOrchestrator().initiate_dispatch(session, referral.id)
+    # A stale referral is stored, but drivers are told only if the CHO says it's still needed.
+    dispatch = (
+        None if stale else await DispatchOrchestrator().initiate_dispatch(session, referral.id)
+    )
     await session.commit()
     return {
         "referral": _referral_response(referral),
-        "dispatch": await _dispatch_response(session, dispatch),
+        "dispatch": await _dispatch_response(session, dispatch) if dispatch else None,
     }
+
+
+@router.post("/referral/{referral_id}/resolve")
+async def resolve_referral(
+    referral_id: int, payload: ReferralResolve, session: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """The CHO's answer to "Still needs transport?" for a stale referral."""
+    # Locked so a double tap can't start two dispatches.
+    referral = await session.scalar(
+        select(Referral)
+        .where(Referral.id == referral_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if referral is None:
+        raise ApiError(404, errors.REFERRAL_NOT_FOUND, "Referral not found")
+    outcome = RESOLUTIONS[payload.action]
+    if payload.action == "send_now":
+        cho = await _active_cho_of(session, payload.cho_phone, referral.chps_compound_id)
+    else:
+        cho = await _cho_who_may_stop(session, payload.cho_phone, referral)
+
+    if referral.status == AWAITING_CONFIRMATION:
+        referral.status = outcome
+        session.add(
+            AuditLog(
+                entity_type="referral",
+                entity_id=str(referral.id),
+                action=f"referral_{payload.action}",
+                actor_id=str(cho.id),
+                metadata_json={"queue_age_seconds": referral.queue_age_seconds},
+            )
+        )
+        await session.flush()
+        if payload.action == "send_now":
+            await DispatchOrchestrator().initiate_dispatch(session, referral.id)
+        await session.commit()
+    elif referral.status != outcome:
+        raise ApiError(
+            status.HTTP_409_CONFLICT,
+            errors.REFERRAL_ALREADY_RESOLVED,
+            f"This referral was already recorded as {referral.status}.",
+        )
+    dispatch = await session.scalar(select(Dispatch).where(Dispatch.referral_id == referral.id))
+    return {
+        "referral": _referral_response(referral),
+        "dispatch": await _dispatch_response(session, dispatch) if dispatch else None,
+    }
+
+
+@router.post("/dispatch/{dispatch_id}/cancel")
+async def cancel_dispatch(
+    dispatch_id: int, payload: DispatchCancel, session: AsyncSession = Depends(get_db)
+) -> dict[str, Any]:
+    """Stop the cascade and tell whoever was already told."""
+    dispatch = await session.get(Dispatch, dispatch_id)
+    if dispatch is None:
+        raise ApiError(404, errors.DISPATCH_NOT_FOUND, "Dispatch not found")
+    referral = await session.get(Referral, dispatch.referral_id)
+    cho = await _cho_who_may_stop(session, payload.cho_phone, referral)
+    try:
+        dispatch = await DispatchOrchestrator().cancel_dispatch(session, dispatch_id, cho.id)
+    except DispatchNotCancellableError as exc:
+        raise ApiError(
+            status.HTTP_409_CONFLICT,
+            errors.DISPATCH_NOT_CANCELLABLE,
+            f"This dispatch is already {exc.status}.",
+        ) from exc
+    await session.commit()
+    return await _dispatch_response(session, dispatch)
 
 
 @router.get("/referral/{referral_id}")
 async def get_referral(referral_id: int, session: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     referral = await session.get(Referral, referral_id)
     if not referral:
-        raise HTTPException(status_code=404, detail="Referral not found")
+        raise ApiError(404, errors.REFERRAL_NOT_FOUND, "Referral not found")
     return _referral_response(referral)
 
 
@@ -289,7 +421,7 @@ async def get_referral(referral_id: int, session: AsyncSession = Depends(get_db)
 async def get_dispatch(dispatch_id: int, session: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     dispatch = await session.get(Dispatch, dispatch_id)
     if not dispatch:
-        raise HTTPException(status_code=404, detail="Dispatch not found")
+        raise ApiError(404, errors.DISPATCH_NOT_FOUND, "Dispatch not found")
     return await _dispatch_response(session, dispatch)
 
 

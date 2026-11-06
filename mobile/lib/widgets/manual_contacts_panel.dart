@@ -16,11 +16,15 @@ class ManualContactsPanel extends StatefulWidget {
     super.key,
     this.facilityIds = const {},
     this.launcher = launchWithPhone,
+    this.onContactUsed,
   });
 
   /// The facilities chosen for these referrals.
   final Set<int> facilityIds;
   final ContactLauncher launcher;
+
+  /// Called when the CHO taps Call or SMS.
+  final VoidCallback? onContactUsed;
 
   @override
   State<ManualContactsPanel> createState() => _ManualContactsPanelState();
@@ -48,6 +52,7 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
   }
 
   Future<void> _open(Uri uri, String phone) async {
+    widget.onContactUsed?.call();
     var opened = false;
     try {
       opened = await widget.launcher(uri);

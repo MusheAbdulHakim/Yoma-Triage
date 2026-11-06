@@ -48,6 +48,10 @@ class Settings:
     LATE_CLAIM_WINDOW_MINUTES: int = int(
         os.getenv("LATE_CLAIM_WINDOW_MINUTES", str(parameters.LATE_CLAIM_WINDOW_MINUTES))
     )
+    # A referral queued on the phone for longer than this waits for the CHO to confirm it.
+    STALE_AFTER_MINUTES: int = int(
+        os.getenv("STALE_AFTER_MINUTES", str(parameters.STALE_AFTER_MINUTES))
+    )
     # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
     # Every other environment refuses to start without it.
     API_KEY: str = os.getenv("API_KEY", "")

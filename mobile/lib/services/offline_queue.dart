@@ -10,11 +10,15 @@ import 'package:sqflite/sqflite.dart';
 import '../models/referral.dart';
 import 'api_client.dart';
 
+const _serverReferralIdKey = 'local_server_referral_id';
+const _manualContactKey = 'local_manual_contact_made';
+
 class QueuedReferral {
   final String clientRequestId;
   final Map<String, dynamic> payload;
   /// pending: will be retried. sent: done. failed: the server refused it, so it
-  /// will not be retried and the CHO has to coordinate manually.
+  /// will not be retried and the CHO has to coordinate manually. needs_confirmation:
+  /// the server stored it as stale and is waiting for the CHO's answer.
   String status;
   String? lastError;
   DateTime createdAt;
@@ -29,6 +33,16 @@ class QueuedReferral {
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
+
+  // Kept in the payload, under keys that are never sent to the server.
+  int? get serverReferralId => payload[_serverReferralIdKey] as int?;
+  bool get manualContactMade => payload[_manualContactKey] == true;
+
+  /// How long this has waited, by this phone's clock. A clock set back reads as zero.
+  int get ageSeconds {
+    final age = DateTime.now().difference(createdAt).inSeconds;
+    return age < 0 ? 0 : age;
+  }
 
   Map<String, dynamic> toJson() => {
         'client_request_id': clientRequestId,
@@ -81,6 +95,9 @@ class OfflineQueue {
 
   /// How many referrals the server has refused. The Home screen shows this.
   final ValueNotifier<int> failedCount = ValueNotifier<int>(0);
+
+  /// How many stale referrals are waiting for the CHO's answer.
+  final ValueNotifier<int> needsConfirmationCount = ValueNotifier<int>(0);
 
   Database? _db;
   final DatabaseFactory? databaseFactoryOverride;
@@ -273,6 +290,44 @@ class OfflineQueue {
     });
   }
 
+  /// Stale referrals waiting for the CHO's answer, oldest first.
+  Future<List<QueuedReferral>> needsConfirmation() {
+    return _serialized(() async {
+      final items = await _withStatusUnlocked('needs_confirmation');
+      needsConfirmationCount.value = items.length;
+      return items;
+    });
+  }
+
+  /// The CHO has answered, and the server has recorded it.
+  Future<void> removeResolved(String clientRequestId) {
+    return _serialized(() async {
+      for (final queued in await _withStatusUnlocked('needs_confirmation')) {
+        if (queued.clientRequestId == clientRequestId) {
+          queued.status = 'sent';
+          await _persistUnlocked(queued);
+        }
+      }
+      needsConfirmationCount.value =
+          (await _withStatusUnlocked('needs_confirmation')).length;
+    });
+  }
+
+  /// The CHO tapped Call or SMS for this referral. If it turns out to be stale, the
+  /// prompt starts on "Already handled".
+  Future<void> markManualContact(String clientRequestId) {
+    return _serialized(() async {
+      for (final status in const ['pending', 'needs_confirmation']) {
+        for (final queued in await _withStatusUnlocked(status)) {
+          if (queued.clientRequestId == clientRequestId) {
+            queued.payload[_manualContactKey] = true;
+            await _persistUnlocked(queued);
+          }
+        }
+      }
+    });
+  }
+
   /// Records that the server refused this referral, so it is never retried.
   Future<void> markFailed(String clientRequestId, String reason) {
     return _serialized(() async {
@@ -340,8 +395,19 @@ class OfflineQueue {
                   originLon == null ? null : (originLon as num).toDouble(),
               originSource: queued.payload['origin_source'] as String?,
               vitalsTaken: queued.payload['vitals_taken'] != false,
+              queueAgeSeconds: queued.ageSeconds,
             ),
           );
+          final referral = response['referral'];
+          if (referral is Map &&
+              referral['status'] == 'AWAITING_CONFIRMATION') {
+            queued.status = 'needs_confirmation';
+            queued.lastError = null;
+            queued.updatedAt = DateTime.now();
+            queued.payload[_serverReferralIdKey] = _asInt(referral['id']);
+            await _persistUnlocked(queued);
+            continue;
+          }
           final dispatchId = parseDispatchIdFromResponse(response);
           if (dispatchId != null) {
             await _saveDispatchId(queued.clientRequestId, dispatchId);
@@ -362,6 +428,8 @@ class OfflineQueue {
         }
       }
       failedCount.value = (await _failedUnlocked()).length;
+      needsConfirmationCount.value =
+          (await _withStatusUnlocked('needs_confirmation')).length;
       return sent;
     });
   }
@@ -373,45 +441,28 @@ class OfflineQueue {
     await _persistUnlocked(queued);
   }
 
-  Future<List<QueuedReferral>> _failedUnlocked() async {
+  Future<List<QueuedReferral>> _failedUnlocked() => _withStatusUnlocked('failed');
+
+  Future<List<QueuedReferral>> _withStatusUnlocked(String status) async {
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
       return [
         for (final s in prefs.getStringList(_prefsKey) ?? <String>[])
-          if (_decodeRow(s) case final q? when q.status == 'failed') q,
+          if (_decodeRow(s) case final q? when q.status == status) q,
       ];
     }
     final db = await _openDb();
     final rows = await db.query(
       _table,
       where: 'status = ?',
-      whereArgs: ['failed'],
+      whereArgs: [status],
       orderBy: 'created_at ASC',
     );
     return rows.map(_fromRow).toList();
   }
 
   /// Internal pending without re-entering the mutex (caller already holds it).
-  Future<List<QueuedReferral>> _pendingUnlocked() async {
-    if (kIsWeb) {
-      final prefs = await SharedPreferences.getInstance();
-      final list = prefs.getStringList(_prefsKey) ?? [];
-      final out = <QueuedReferral>[];
-      for (final s in list) {
-        final q = _decodeRow(s);
-        if (q != null && q.status == 'pending') out.add(q);
-      }
-      return out;
-    }
-    final db = await _openDb();
-    final rows = await db.query(
-      _table,
-      where: 'status = ?',
-      whereArgs: ['pending'],
-      orderBy: 'created_at ASC',
-    );
-    return rows.map(_fromRow).toList();
-  }
+  Future<List<QueuedReferral>> _pendingUnlocked() => _withStatusUnlocked('pending');
 
   Future<void> _persistUnlocked(QueuedReferral queued) async {
     if (kIsWeb) {

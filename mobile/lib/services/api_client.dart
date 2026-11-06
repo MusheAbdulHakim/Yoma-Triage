@@ -5,6 +5,22 @@ import 'package:http/http.dart' as http;
 import '../config.dart';
 import '../models/referral.dart';
 
+/// The refusals this API defines. `src/api/errors.py` is the server's list, and
+/// `tests/test_api_errors.py` fails if the two differ.
+const apiErrorCodes = {
+  'COMPOUND_NOT_FOUND',
+  'FACILITY_NOT_FOUND',
+  'REFERRAL_NOT_FOUND',
+  'DISPATCH_NOT_FOUND',
+  'CHO_NOT_REGISTERED',
+  'CHO_NOT_ACTIVE',
+  'CHO_WRONG_COMPOUND',
+  'INVALID_PHONE',
+  'VALIDATION_ERROR',
+  'REFERRAL_ALREADY_RESOLVED',
+  'DISPATCH_NOT_CANCELLABLE',
+};
+
 class ApiException implements Exception {
   final int statusCode;
   final String body;
@@ -18,6 +34,17 @@ class ApiException implements Exception {
       statusCode < 500 &&
       statusCode != 408 &&
       statusCode != 429;
+
+  /// The defined error code in the body, or null if there isn't a recognised one.
+  String? get code {
+    try {
+      final decoded = jsonDecode(body);
+      final value = decoded is Map ? decoded['code'] : null;
+      return apiErrorCodes.contains(value) ? value as String : null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// The server's explanation in a form a CHO can read.
   String get reason {
@@ -75,6 +102,38 @@ class ApiClient {
       Uri.parse('$baseUrl/api/v1/cho/lookup'),
       headers: _headers(json: true),
       body: jsonEncode({'phone': phone}),
+    );
+    if (res.statusCode >= 400) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  /// The CHO's answer to "Still needs transport?": send_now, already_handled or cancel.
+  Future<Map<String, dynamic>> resolveReferral({
+    required int referralId,
+    required String action,
+    required String choPhone,
+  }) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/v1/referral/$referralId/resolve'),
+      headers: _headers(json: true),
+      body: jsonEncode({'action': action, 'cho_phone': choPhone}),
+    );
+    if (res.statusCode >= 400) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
+  Future<Map<String, dynamic>> cancelDispatch({
+    required int dispatchId,
+    required String choPhone,
+  }) async {
+    final res = await _client.post(
+      Uri.parse('$baseUrl/api/v1/dispatch/$dispatchId/cancel'),
+      headers: _headers(json: true),
+      body: jsonEncode({'cho_phone': choPhone}),
     );
     if (res.statusCode >= 400) {
       throw ApiException(res.statusCode, res.body);

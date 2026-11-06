@@ -51,6 +51,9 @@ CASCADE_TIER_SECONDS = 90
 MIN_FIELD_CASCADE_TIER_SECONDS = 60
 LATE_CLAIM_WINDOW_MINUTES = 45
 PLACEHOLDER_ETA_MINUTES = 30
+# A referral that waited longer than this on the phone isn't dispatched until the CHO says
+# it's still needed. STALE_AFTER_MINUTES can be overridden by an environment variable.
+STALE_AFTER_MINUTES = 20
 # How often the worker looks for overdue cascade steps. WORKER_POLL_SECONDS overrides it.
 WORKER_POLL_SECONDS = 5
 
