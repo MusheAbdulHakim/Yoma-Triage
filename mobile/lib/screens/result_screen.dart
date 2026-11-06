@@ -225,7 +225,8 @@ class ResultScreen extends StatelessWidget {
                   Navigator.of(context).popUntil((route) => route.isFirst),
               child: const Text('Continue Monitoring'),
             ),
-          if (!indicate && result.label == 'INCONCLUSIVE') ...[
+          // Referral is always the CHO's call: no score can remove this option.
+          if (!indicate) ...[
             const SizedBox(height: 12),
             TextButton(
               onPressed: () {

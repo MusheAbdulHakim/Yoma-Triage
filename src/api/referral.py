@@ -8,7 +8,7 @@ import uuid
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -82,7 +82,9 @@ class ReferralCreate(BaseModel):
     facility_id: DbInt
     patient_hash: str = Field(min_length=64, max_length=64)
     emergency_type: EmergencyType
-    vitals: VitalsInput
+    vitals: VitalsInput = Field(default_factory=VitalsInput)
+    # False for "Emergency: skip vitals": dispatch at once, no clinical assessment.
+    vitals_taken: bool = True
     gestational_weeks: int = Field(default=0, ge=0, le=45)
     client_request_id: str | None = Field(default=None, max_length=36)
     ai_screen_result: str | None = Field(default=None, max_length=32)
@@ -95,6 +97,14 @@ class ReferralCreate(BaseModel):
         if not PATIENT_HASH_PATTERN.match(value):
             raise ValueError("patient_hash must be exactly 64 lowercase hex characters")
         return value
+
+    @model_validator(mode="after")
+    def validate_vitals_taken(self) -> ReferralCreate:
+        if not self.vitals_taken and any(
+            value is not None for value in self.vitals.model_dump().values()
+        ):
+            raise ValueError("vitals_taken=false cannot be sent with vitals")
+        return self
 
 
 def _referral_response(referral: Referral) -> dict[str, Any]:
@@ -112,6 +122,7 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "status": referral.status,
         "vitals": referral.vitals_json,
         "missing_vitals": missing_vitals(referral.vitals_json),
+        "vitals_taken": (referral.vitals_json or {}).get("vitals_taken", True),
         "client_request_id": referral.client_request_id,
         "ai_screen_result": referral.ai_screen_result,
         "ai_confidence": referral.ai_confidence,
@@ -168,6 +179,9 @@ async def create_referral(
             "idempotent": True,
         }
 
+    vitals_json = payload.vitals.model_dump()
+    if not payload.vitals_taken:
+        vitals_json["vitals_taken"] = False
     state = {
         "chps_id": str(payload.chps_compound_id),
         "patient_hash": payload.patient_hash,
@@ -176,7 +190,16 @@ async def create_referral(
         "errors": [],
     }
     try:
-        assessed = yoma_graph.invoke(state)
+        if payload.vitals_taken:
+            assessed = yoma_graph.invoke(state)
+        else:
+            # Nothing to assess, and dispatch must not wait for anything.
+            assessed = {
+                "risk_level": "UNKNOWN",
+                "moews_score": None,
+                "clinical_summary": "Vitals not taken: dispatched without MOEWS.",
+                "compressed_sms_payload": None,
+            }
     except Exception:
         # Spec §10: clinical failure must not block referral/dispatch, and it must
         # not hide a critical reading: MOEWS needs no I/O, so it can always be scored.
@@ -208,7 +231,7 @@ async def create_referral(
         risk_level=assessed.get("risk_level") or "UNKNOWN",
         clinical_summary=assessed.get("clinical_summary"),
         compressed_sms_payload=assessed.get("compressed_sms_payload"),
-        vitals_json=payload.vitals.model_dump(),
+        vitals_json=vitals_json,
         status="CONFIRMED",
         client_request_id=client_request_id,
         ai_screen_result=payload.ai_screen_result,

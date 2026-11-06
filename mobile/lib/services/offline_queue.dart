@@ -299,6 +299,7 @@ class OfflineQueue {
               originLon:
                   originLon == null ? null : (originLon as num).toDouble(),
               originSource: queued.payload['origin_source'] as String?,
+              vitalsTaken: queued.payload['vitals_taken'] != false,
             ),
           );
           final dispatchId = parseDispatchIdFromResponse(response);
