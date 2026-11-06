@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import uuid
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
 
@@ -74,12 +74,11 @@ async def test_flag_cannot_be_sent_with_vitals(client, seeded_db):
 
 
 @pytest.mark.asyncio
-async def test_hospital_sms_says_vitals_not_taken():
+async def test_hospital_sms_says_vitals_not_taken(db_session):
     from src.db.models import Referral
     from src.services.hospital_notifier import HospitalNotifier
+    from tests.conftest import queued_sms
 
-    gateway = MagicMock()
-    gateway.send_sms = AsyncMock(return_value={"status": "SENT"})
     referral = Referral(
         patient_hash="a" * 64,
         chps_compound_id=1,
@@ -87,10 +86,12 @@ async def test_hospital_sms_says_vitals_not_taken():
         risk_level="UNKNOWN",
         vitals_json={"systolic_bp": None, "vitals_taken": False},
     )
-    await HospitalNotifier(gateway).notify_pre_arrival(
-        MagicMock(), referral, MagicMock(), MagicMock(phone="+233240000200"), 7
+    HospitalNotifier().notify_pre_arrival(
+        db_session, referral, MagicMock(), MagicMock(phone="+233240000200"), 7
     )
-    body = gateway.send_sms.await_args.args[1]
+    await db_session.flush()
+
+    body = (await queued_sms(db_session))[0].body
     assert "Vitals not taken" in body
     assert "Not measured" not in body
 

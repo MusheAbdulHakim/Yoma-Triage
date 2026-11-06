@@ -20,11 +20,6 @@ async def test_full_flow_accept_confirm_and_divert(
         },
     )
 
-    # Avoid background MoMo/hospital tasks during accept HTTP path.
-    monkeypatch.setattr(
-        "src.api.ussd.DispatchOrchestrator.run_accept_side_effects",
-        AsyncMock(),
-    )
     # Integration uses demo shortcode; ignore sandbox AT_USSD_SERVICE_CODE from .env.
     monkeypatch.setattr("src.api.ussd.settings.AT_USSD_SERVICE_CODE", "")
 
@@ -50,7 +45,7 @@ async def test_full_flow_accept_confirm_and_divert(
 
     status = await client.get(f"/api/v1/dispatch/{dispatch_id}")
     assert status.status_code == 200
-    assert status.json()["status"] == "ACCEPTED"
+    assert status.json()["status"] == "HOSPITAL_NOTIFIED"
     assert status.json()["driver_id"] == 1
 
     confirm = await client.post(
@@ -87,7 +82,7 @@ async def test_full_flow_accept_confirm_and_divert(
         "/api/v1/sms/inbound",
         json={"from": "+233240000200", "text": f"DIVERT {dispatch2_id} 2"},
     )
-    assert divert.status_code == 200
+    assert divert.status_code == 200, divert.text
     assert divert.json()["status"] == "DIVERTED"
     assert divert.json()["facility_id"] == 2
 

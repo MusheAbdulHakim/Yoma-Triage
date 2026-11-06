@@ -302,3 +302,26 @@ def sample_referral_payload():
             "consciousness_level": "V",
         },
     }
+
+
+async def queued_sms(session, purpose=None):
+    """SMS waiting in the outbox, oldest first. Nothing is sent inside a request."""
+    from sqlalchemy import select
+
+    from src.db.models import OutboundMessage
+
+    query = select(OutboundMessage).order_by(OutboundMessage.id)
+    if purpose is not None:
+        query = query.where(OutboundMessage.purpose == purpose)
+    return list(await session.scalars(query))
+
+
+def added_sms(mock_session):
+    """OutboundMessages a mocked session was given."""
+    from src.db.models import OutboundMessage
+
+    return [
+        call.args[0]
+        for call in mock_session.add.call_args_list
+        if isinstance(call.args[0], OutboundMessage)
+    ]

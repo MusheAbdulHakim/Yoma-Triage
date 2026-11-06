@@ -38,6 +38,9 @@ class Settings:
     WORKER_POLL_SECONDS: float = float(
         os.getenv("WORKER_POLL_SECONDS", str(parameters.WORKER_POLL_SECONDS))
     )
+    OUTBOX_POLL_SECONDS: float = float(
+        os.getenv("OUTBOX_POLL_SECONDS", str(parameters.OUTBOX_POLL_SECONDS))
+    )
     # How long after dispatch start a notified driver can still claim a FAILED dispatch.
     LATE_CLAIM_WINDOW_MINUTES: int = int(
         os.getenv("LATE_CLAIM_WINDOW_MINUTES", str(parameters.LATE_CLAIM_WINDOW_MINUTES))

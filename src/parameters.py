@@ -52,5 +52,13 @@ PLACEHOLDER_ETA_MINUTES = 30
 # How often the worker looks for overdue cascade steps. WORKER_POLL_SECONDS overrides it.
 WORKER_POLL_SECONDS = 5
 
+# SMS outbox. OUTBOX_POLL_SECONDS can be overridden by an environment variable of the
+# same name. Retries wait the backoff, doubling each time, up to the attempt limit.
+OUTBOX_POLL_SECONDS = 2
+OUTBOX_MAX_ATTEMPTS = 5
+OUTBOX_BACKOFF_SECONDS = 15
+OUTBOX_SENDING_LEASE_SECONDS = 60
+OUTBOX_BATCH_SIZE = 20
+
 # Payments: mock ledger only. No money moves.
 FUEL_STIPEND_GHS = 22.5

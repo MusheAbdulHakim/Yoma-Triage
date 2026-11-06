@@ -59,6 +59,11 @@ The first matching row applies. Only measured vitals are scored.
 | Shortest tier wait allowed in the field | 60 | seconds | Staging and production refuse to start below this | Engineering placeholder (batch 1) | |
 | Late-claim window | 45 | minutes | How long after dispatch start a notified driver can still claim a failed dispatch. `LATE_CLAIM_WINDOW_MINUTES` overrides it | Product owner (batch 2) | |
 | Cascade worker poll interval | 5 | seconds | How often overdue cascade steps are looked for, so a tier can run up to this much late. `WORKER_POLL_SECONDS` overrides it | Product owner (batch 2, B2) | |
+| SMS outbox poll interval | 2 | seconds | How often waiting SMS are sent, so an SMS can leave up to this much after its commit. `OUTBOX_POLL_SECONDS` overrides it | Engineering placeholder (batch 2, B3) | |
+| SMS send attempts before giving up | 5 | attempts | After this, the message is marked failed. If it was to a driver or hospital, the CHO is alerted | Engineering placeholder (batch 2, B3) | |
+| SMS retry backoff | 15 | seconds | Wait before the first retry, doubling each time (15, 30, 60, 120 s). A failing SMS takes about 4 minutes to reach the CHO alert | Engineering placeholder (batch 2, B3) | |
+| SMS claim lease | 60 | seconds | If the server dies mid-send, the message is retried after this. The SMS may then be sent twice | Engineering placeholder (batch 2, B3) | |
+| SMS batch size | 20 | messages | The most SMS sent in one pass of the outbox | Engineering placeholder (batch 2, B3) | |
 | ETA shown to the CHO | 30 | minutes | Shown once a driver accepts. **Not a real estimate: the same number for every trip** | Hardcoded in the original demo | |
 | Fuel stipend recorded on accept | 22.5 | GHS | Mock ledger entry only; no money moves. 30% of an assumed GHS 75 fare | Spec §7.4 demo figure | |
 | Highest gestational age accepted | 45 | weeks | The API refuses anything above this. Typo guard only | Engineering placeholder (batch 1) | |

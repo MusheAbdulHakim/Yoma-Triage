@@ -20,6 +20,7 @@ from src.api.ussd import router as ussd_router
 from src.config import settings
 from src.db.database import init_db
 from src.services.dispatch_orchestrator import DispatchOrchestrator
+from src.services.outbox import OutboxSender
 from src.services.workers import run_worker_loop
 
 
@@ -30,17 +31,27 @@ async def lifespan(app: FastAPI):
     if settings.is_development:
         await init_db()
     stop_workers = asyncio.Event()
-    cascade_worker = asyncio.create_task(
-        run_worker_loop(
-            "cascade",
-            DispatchOrchestrator().process_due_dispatches,
-            settings.WORKER_POLL_SECONDS,
-            stop_workers,
-        )
-    )
+    workers = [
+        asyncio.create_task(
+            run_worker_loop(
+                "cascade",
+                DispatchOrchestrator().process_due_dispatches,
+                settings.WORKER_POLL_SECONDS,
+                stop_workers,
+            )
+        ),
+        asyncio.create_task(
+            run_worker_loop(
+                "sms-outbox",
+                OutboxSender().run_once,
+                settings.OUTBOX_POLL_SECONDS,
+                stop_workers,
+            )
+        ),
+    ]
     yield
     stop_workers.set()
-    await cascade_worker
+    await asyncio.gather(*workers)
     from src.db.database import engine
 
     if engine is not None:

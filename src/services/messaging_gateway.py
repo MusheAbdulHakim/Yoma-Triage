@@ -42,13 +42,7 @@ class MessagingGateway:
         if not settings.at_configured:
             if not settings.is_development:
                 return self._unconfigured_failure(to, dispatch_id, role)
-            logger.info(
-                "MOCK SMS dispatch=%s role=%s to=%s msg=%s",
-                dispatch_id,
-                role,
-                to,
-                message,
-            )
+            logger.info("MOCK SMS dispatch=%s role=%s", dispatch_id, role)
             return {
                 "status": "MOCKED",
                 "provider": "mock",
@@ -65,7 +59,7 @@ class MessagingGateway:
                 else:
                     parsed = await self._send_sandbox_form(client, to, message)
         except Exception as exc:
-            logger.warning("AT SMS request failed (%s)", exc)
+            logger.warning("AT SMS request failed: %s", type(exc).__name__)
             return {
                 "status": "FAILED",
                 "provider": "africas_talking",
@@ -122,7 +116,7 @@ class MessagingGateway:
 
     def _parse_at_response(self, resp: httpx.Response, *, api: str) -> dict[str, Any]:
         if resp.status_code >= 400:
-            logger.warning("AT SMS HTTP %s (%s): %s", resp.status_code, api, resp.text[:300])
+            logger.warning("AT SMS HTTP %s (%s)", resp.status_code, api)
             return {
                 "status": "FAILED",
                 "provider": "africas_talking",
@@ -204,7 +198,7 @@ class MessagingGateway:
         if not settings.at_configured:
             if not settings.is_development:
                 return self._unconfigured_failure(to, dispatch_id, role)
-            logger.info("MOCK VOICE dispatch=%s to=%s", dispatch_id, to)
+            logger.info("MOCK VOICE dispatch=%s role=%s", dispatch_id, role)
             return {
                 "status": "MOCKED",
                 "provider": "mock",

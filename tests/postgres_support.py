@@ -102,7 +102,7 @@ def postgres_url():
 async def pg_sessions(postgres_url, monkeypatch):  # noqa: F811
     """Session factory bound to a throwaway schema, wired into the app."""
     from main import app
-    from src.services import dispatch_orchestrator
+    from src.services import dispatch_orchestrator, outbox
 
     schema = f"yoma_test_{uuid.uuid4().hex}"
     engine = create_async_engine(
@@ -148,6 +148,7 @@ async def pg_sessions(postgres_url, monkeypatch):  # noqa: F811
 
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(dispatch_orchestrator, "async_session", sessions)
+    monkeypatch.setattr(outbox, "async_session", sessions)
     yield sessions
 
     app.dependency_overrides.clear()

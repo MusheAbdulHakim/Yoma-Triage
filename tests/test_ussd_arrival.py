@@ -1,10 +1,7 @@
 """Driver arrival confirmation via USSD option 3."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
-from fastapi import BackgroundTasks
 from sqlalchemy import select
 
 from src.db.models import Dispatch, DispatchLog, Referral
@@ -47,14 +44,12 @@ async def _seed_arrival_dispatch(
 @pytest.mark.asyncio
 async def test_handle_arrival_completes_hospital_notified_dispatch(db_session, seeded_db):
     dispatch = await _seed_arrival_dispatch(db_session)
-    orch = DispatchOrchestrator(gateway=MagicMock())
+    orch = DispatchOrchestrator()
 
     result = await orch.handle_arrival(db_session, dispatch.id, driver_id=1)
     await db_session.commit()
     await db_session.refresh(dispatch)
-
-    assert result["run_side_effects"] is True
-    assert "Arrival confirmed" in result["ussd"]
+    assert "Arrival confirmed" in result
     assert dispatch.status == "COMPLETED"
     assert dispatch.completed_at is not None
 
@@ -62,52 +57,48 @@ async def test_handle_arrival_completes_hospital_notified_dispatch(db_session, s
 @pytest.mark.asyncio
 async def test_handle_arrival_completes_hospital_confirmed_dispatch(db_session, seeded_db):
     dispatch = await _seed_arrival_dispatch(db_session, status="HOSPITAL_CONFIRMED")
-    orch = DispatchOrchestrator(gateway=MagicMock())
+    orch = DispatchOrchestrator()
 
     result = await orch.handle_arrival(db_session, dispatch.id, driver_id=1)
     await db_session.commit()
     await db_session.refresh(dispatch)
-
-    assert result["run_side_effects"] is True
+    assert "Arrival confirmed" in result
     assert dispatch.status == "COMPLETED"
 
 
 @pytest.mark.asyncio
 async def test_handle_arrival_rejects_wrong_driver(db_session, seeded_db):
     dispatch = await _seed_arrival_dispatch(db_session)
-    orch = DispatchOrchestrator(gateway=MagicMock())
+    orch = DispatchOrchestrator()
 
     result = await orch.handle_arrival(db_session, dispatch.id, driver_id=2)
     await db_session.refresh(dispatch)
-
-    assert result["run_side_effects"] is False
+    assert "not assigned" in result
     assert dispatch.status == "HOSPITAL_NOTIFIED"
 
 
 @pytest.mark.asyncio
 async def test_handle_arrival_rejects_before_hospital_notification(db_session, seeded_db):
     dispatch = await _seed_arrival_dispatch(db_session, status="ACCEPTED")
-    orch = DispatchOrchestrator(gateway=MagicMock())
+    orch = DispatchOrchestrator()
 
     result = await orch.handle_arrival(db_session, dispatch.id, driver_id=1)
     await db_session.refresh(dispatch)
-
-    assert result["run_side_effects"] is False
+    assert "not available" in result
     assert dispatch.status == "ACCEPTED"
 
 
 @pytest.mark.asyncio
 async def test_duplicate_arrival_is_idempotent(db_session, seeded_db):
     dispatch = await _seed_arrival_dispatch(db_session)
-    orch = DispatchOrchestrator(gateway=MagicMock())
+    orch = DispatchOrchestrator()
 
     first = await orch.handle_arrival(db_session, dispatch.id, driver_id=1)
     await db_session.commit()
     second = await orch.handle_arrival(db_session, dispatch.id, driver_id=1)
     await db_session.commit()
 
-    assert first["ussd"] == second["ussd"]
-    assert second["run_side_effects"] is False
+    assert first == second
     logs = await db_session.scalars(
         select(DispatchLog).where(
             DispatchLog.dispatch_id == dispatch.id,
@@ -124,21 +115,13 @@ async def test_ussd_option_three_completes_dispatch(
     from src.api.ussd import process_ussd
 
     dispatch = await _seed_arrival_dispatch(db_session, status="HOSPITAL_CONFIRMED")
-    monkeypatch.setattr(
-        DispatchOrchestrator,
-        "run_arrival_side_effects",
-        AsyncMock(),
-    )
-    background_tasks = BackgroundTasks()
 
-    response = await process_ussd(
-        db_session, background_tasks, "+233240000001", "3"
+    response = await process_ussd(db_session, "+233240000001", "3"
     )
     await db_session.refresh(dispatch)
 
     assert b"Arrival confirmed" in response.body
     assert dispatch.status == "COMPLETED"
-    assert len(background_tasks.tasks) == 1
 
 
 @pytest.mark.asyncio
@@ -148,15 +131,25 @@ async def test_ussd_option_three_rejects_unassigned_driver(
     from src.api.ussd import process_ussd
 
     await _seed_arrival_dispatch(db_session, status="HOSPITAL_CONFIRMED", driver_id=1)
-    monkeypatch.setattr(
-        DispatchOrchestrator,
-        "run_arrival_side_effects",
-        AsyncMock(),
-    )
-    background_tasks = BackgroundTasks()
 
-    response = await process_ussd(
-        db_session, background_tasks, "+233240000002", "3"
+    response = await process_ussd(db_session, "+233240000002", "3"
     )
 
     assert b"not assigned" in response.body.lower() or b"No active dispatch" in response.body
+
+
+@pytest.mark.asyncio
+async def test_arrival_notifies_cho_once_even_if_repeated(db_session, seeded_db):
+    from tests.conftest import queued_sms
+
+    dispatch = await _seed_arrival_dispatch(db_session)
+    orch = DispatchOrchestrator()
+
+    await orch.handle_arrival(db_session, dispatch.id, driver_id=1)
+    await db_session.commit()
+    await orch.handle_arrival(db_session, dispatch.id, driver_id=1)
+    await db_session.commit()
+
+    messages = await queued_sms(db_session, "cho_arrival")
+    assert len(messages) == 1
+    assert "arrived" in messages[0].body

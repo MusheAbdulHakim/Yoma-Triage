@@ -8,6 +8,7 @@ import pytest_asyncio
 
 from src.db.models import Referral
 from src.services.hospital_notifier import HospitalNotifier
+from tests.conftest import queued_sms
 
 VALID_PATIENT_HASH = "a1b2c3d4" * 8
 
@@ -45,22 +46,12 @@ def facility():
 async def test_hospital_sms_omits_patient_name(
     db_session, seeded_referral_with_name, driver, facility
 ):
-    class SpyGateway:
-        def __init__(self) -> None:
-            self.messages: list[str] = []
-
-        async def send_sms(self, to, message, dispatch_id, role):
-            self.messages.append(message)
-            return {"status": "MOCKED"}
-
-    spy = SpyGateway()
-    notifier = HospitalNotifier(spy)
-    await notifier.notify_pre_arrival(
+    HospitalNotifier().notify_pre_arrival(
         db_session, seeded_referral_with_name, driver, facility, dispatch_id=1
     )
+    await db_session.flush()
 
-    assert spy.messages
-    body = spy.messages[0]
+    body = (await queued_sms(db_session))[0].body
     assert seeded_referral_with_name.patient_name not in body
     assert f"Patient token: {VALID_PATIENT_HASH[:12]}" in body
     assert f"Driver phone: {driver.phone}" in body
@@ -72,43 +63,23 @@ async def test_hospital_notify_targets_facility_phone(
     db_session, seeded_referral_with_name, driver, facility
 ):
     """After driver accept, clinic SMS goes to facility.phone (not patient)."""
-
-    class SpyGateway:
-        def __init__(self) -> None:
-            self.calls: list[tuple] = []
-
-        async def send_sms(self, to, message, dispatch_id, role):
-            self.calls.append((to, message, dispatch_id, role))
-            return {"status": "MOCKED"}
-
-    spy = SpyGateway()
-    notifier = HospitalNotifier(spy)
-    await notifier.notify_pre_arrival(
+    HospitalNotifier().notify_pre_arrival(
         db_session, seeded_referral_with_name, driver, facility, dispatch_id=42
     )
+    await db_session.flush()
 
-    assert len(spy.calls) == 1
-    to, message, dispatch_id, role = spy.calls[0]
-    assert to == facility.phone
-    assert role == "hospital"
-    assert dispatch_id == 42
-    assert f"Driver phone: {driver.phone}" in message
-    assert "Reply CONFIRM 42" in message
+    messages = await queued_sms(db_session)
+    assert len(messages) == 1
+    assert messages[0].recipient == facility.phone
+    assert messages[0].purpose == "hospital_pre_arrival"
+    assert messages[0].dispatch_id == 42
+    assert f"Driver phone: {driver.phone}" in messages[0].body
+    assert "Reply CONFIRM 42" in messages[0].body
 
 
 @pytest.mark.asyncio
-async def test_driver_dispatch_sms_omits_patient_name(
-    db_session, seeded_db, monkeypatch
-):
+async def test_driver_dispatch_sms_omits_patient_name(db_session, seeded_db):
     from src.services.dispatch_orchestrator import DispatchOrchestrator
-
-
-    captured: list[str] = []
-
-    class SpyGateway:
-        async def send_sms(self, to, message, dispatch_id, role):
-            captured.append(message)
-            return {"status": "MOCKED"}
 
     referral = Referral(
         chps_compound_id=1,
@@ -124,9 +95,10 @@ async def test_driver_dispatch_sms_omits_patient_name(
     db_session.add(referral)
     await db_session.flush()
 
-    orch = DispatchOrchestrator(gateway=SpyGateway())
-    await orch.initiate_dispatch(db_session, referral.id)
+    await DispatchOrchestrator().initiate_dispatch(db_session, referral.id)
+    await db_session.flush()
 
-    assert captured
-    assert "Ama Mensah" not in captured[0]
-    assert "Patient token" not in captured[0]
+    messages = await queued_sms(db_session, "driver_offer")
+    assert messages
+    assert "Ama Mensah" not in messages[0].body
+    assert "Patient token" not in messages[0].body

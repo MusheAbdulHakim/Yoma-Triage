@@ -8,10 +8,6 @@ import pytest
 
 async def _seed_open_referral(client, monkeypatch, request_id: str):
     monkeypatch.setattr(
-        "src.api.ussd.DispatchOrchestrator.run_accept_side_effects",
-        AsyncMock(),
-    )
-    monkeypatch.setattr(
         "src.api.referral.yoma_graph.invoke",
         lambda state: {
             "risk_level": "RED",

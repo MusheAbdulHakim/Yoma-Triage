@@ -6,10 +6,11 @@ from datetime import UTC, datetime, timedelta
 
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select, update
+from sqlalchemy import update
 
-from src.db.models import Dispatch, DispatchLog, Referral
+from src.db.models import Dispatch, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
+from tests.conftest import queued_sms
 from tests.postgres_support import (
     CHO_PHONE,
     DRIVER_PHONES,
@@ -81,15 +82,6 @@ async def _dispatch(sessions, dispatch_id: int) -> Dispatch:
         return await session.get(Dispatch, dispatch_id)
 
 
-async def _actions(sessions, dispatch_id: int) -> list[DispatchLog]:
-    async with sessions() as session:
-        return list(
-            await session.scalars(
-                select(DispatchLog).where(DispatchLog.dispatch_id == dispatch_id)
-            )
-        )
-
-
 @pytest.mark.asyncio
 async def test_tier_one_driver_can_accept_after_escalation(pg_sessions, no_wait):  # noqa: F811
     dispatch_id = await _open(pg_sessions)
@@ -99,8 +91,8 @@ async def test_tier_one_driver_can_accept_after_escalation(pg_sessions, no_wait)
     assert "Accepted" in await _dial(MOTOR_KING)
 
     assert (await _dispatch(pg_sessions, dispatch_id)).driver_id == 1
-    actions = [log.action for log in await _actions(pg_sessions, dispatch_id)]
-    assert "cho_late_accept_notify" not in actions
+    async with pg_sessions() as session:
+        assert await queued_sms(session, "cho_late_accept") == []
 
 
 @pytest.mark.asyncio
@@ -115,12 +107,13 @@ async def test_driver_claims_after_failed_and_cho_is_told(pg_sessions, no_wait):
     dispatch = await _dispatch(pg_sessions, dispatch_id)
     assert dispatch.driver_id == 1
     assert dispatch.status == "HOSPITAL_NOTIFIED"
-    logs = await _actions(pg_sessions, dispatch_id)
-    late = [log for log in logs if log.action == "cho_late_accept_notify"]
+    async with pg_sessions() as session:
+        late = await queued_sms(session, "cho_late_accept")
+        hospital = await queued_sms(session, "hospital_pre_arrival")
     assert len(late) == 1
-    assert late[0].target_phone == CHO_PHONE
-    assert "accepted LATE" in late[0].metadata_json["message"]
-    assert "hospital_notify" in {log.action for log in logs}
+    assert late[0].recipient == CHO_PHONE
+    assert "accepted LATE" in late[0].body
+    assert len(hospital) == 1
 
 
 @pytest.mark.asyncio
