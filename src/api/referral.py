@@ -2,13 +2,14 @@
 
 from __future__ import annotations
 
+import asyncio
 import logging
 import re
 import uuid
 from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from pydantic import BaseModel, Field, field_validator
+from pydantic import BaseModel, Field, field_validator, model_validator
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -18,7 +19,7 @@ from src.clinical_params import PARAMS
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
-from src.tools.moews_calculator import missing_vitals
+from src.tools.moews_calculator import missing_vitals, score_vitals
 
 logger = logging.getLogger(__name__)
 
@@ -29,6 +30,10 @@ router = APIRouter(
 )
 
 PATIENT_HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+
+# Dispatch never waits on the assessment for longer than this.
+ASSESSMENT_TIMEOUT_SECONDS = PARAMS["dispatch"]["clinical_assessment_timeout_seconds"]
+VITALS_NOT_TAKEN_SUMMARY = "Vitals not taken: emergency dispatched without MOEWS."
 
 
 
@@ -88,7 +93,9 @@ class ReferralCreate(BaseModel):
     facility_id: DbInt
     patient_hash: str = Field(min_length=64, max_length=64)
     emergency_type: EmergencyType
-    vitals: VitalsInput
+    vitals: VitalsInput = Field(default_factory=VitalsInput)
+    # "Emergency: skip vitals": dispatch at once, without any clinical assessment.
+    vitals_not_taken: bool = False
     gestational_weeks: int = Field(
         default=0, ge=0, le=PARAMS["referral_input"]["gestational_weeks_max"]
     )
@@ -103,6 +110,14 @@ class ReferralCreate(BaseModel):
         if not PATIENT_HASH_PATTERN.match(value):
             raise ValueError("patient_hash must be exactly 64 lowercase hex characters")
         return value
+
+    @model_validator(mode="after")
+    def validate_vitals_not_taken(self) -> ReferralCreate:
+        if self.vitals_not_taken and any(
+            value is not None for value in self.vitals.model_dump().values()
+        ):
+            raise ValueError("vitals_not_taken cannot be sent with vitals")
+        return self
 
 
 def _referral_response(referral: Referral) -> dict[str, Any]:
@@ -120,6 +135,7 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "status": referral.status,
         "vitals": referral.vitals_json,
         "missing_vitals": missing_vitals(referral.vitals_json),
+        "vitals_not_taken": bool((referral.vitals_json or {}).get("vitals_not_taken")),
         "client_request_id": referral.client_request_id,
         "ai_screen_result": referral.ai_screen_result,
         "ai_confidence": referral.ai_confidence,
@@ -153,6 +169,45 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
     }
 
 
+def _moews_only_assessment(vitals: VitalsInput) -> dict[str, Any]:
+    """MOEWS with no protocol lookup. It needs no I/O, so a measured critical value
+    survives any failure or delay in the rest of the assessment."""
+    result = score_vitals(
+        vitals.systolic_bp,
+        vitals.diastolic_bp,
+        vitals.heart_rate,
+        vitals.respiratory_rate,
+        vitals.temperature,
+        vitals.spo2,
+        vitals.consciousness_level,
+    )
+    return {
+        **result,
+        "clinical_summary": (
+            f"{result['risk_level']} risk (MOEWS "
+            f"{'n/a' if result['moews_score'] is None else result['moews_score']}). "
+            "Protocol summary unavailable."
+        ),
+        "compressed_sms_payload": None,
+    }
+
+
+async def _assess(state: dict[str, Any], vitals: VitalsInput) -> dict[str, Any]:
+    """Run the assessment off the event loop, so a slow protocol lookup can't stall
+    dispatch, USSD or webhooks for anyone else, and never wait past the timeout."""
+    try:
+        return await asyncio.wait_for(
+            asyncio.to_thread(yoma_graph.invoke, state),
+            timeout=ASSESSMENT_TIMEOUT_SECONDS,
+        )
+    except TimeoutError:
+        logger.warning("Clinical assessment timed out; continuing with MOEWS only")
+    except Exception:
+        # Spec 10: clinical failure must not block referral/dispatch.
+        logger.exception("Clinical assessment failed; continuing with MOEWS only")
+    return _moews_only_assessment(vitals)
+
+
 @router.post("/referral", status_code=status.HTTP_201_CREATED)
 async def create_referral(
     payload: ReferralCreate, session: AsyncSession = Depends(get_db)
@@ -176,25 +231,26 @@ async def create_referral(
             "idempotent": True,
         }
 
-    state = {
-        "chps_id": str(payload.chps_compound_id),
-        "patient_hash": payload.patient_hash,
-        "gestational_weeks": payload.gestational_weeks,
-        "vitals": payload.vitals.model_dump(),
-        "errors": [],
-    }
-    try:
-        assessed = yoma_graph.invoke(state)
-    except Exception:
-        # Spec §10: clinical failure must not block referral/dispatch.
-        logger.exception("Clinical assessment failed; continuing with UNKNOWN risk")
+    vitals_json = payload.vitals.model_dump()
+    if payload.vitals_not_taken:
+        vitals_json["vitals_not_taken"] = True
         assessed = {
             "risk_level": "UNKNOWN",
             "moews_score": None,
-            "clinical_summary": "Clinical assessment unavailable — use clinical judgment",
+            "clinical_summary": VITALS_NOT_TAKEN_SUMMARY,
             "compressed_sms_payload": None,
-            "errors": ["clinical_assessment_failed"],
         }
+    else:
+        assessed = await _assess(
+            {
+                "chps_id": str(payload.chps_compound_id),
+                "patient_hash": payload.patient_hash,
+                "gestational_weeks": payload.gestational_weeks,
+                "vitals": payload.vitals.model_dump(),
+                "errors": [],
+            },
+            payload.vitals,
+        )
 
     referral = Referral(
         chps_compound_id=payload.chps_compound_id,
@@ -207,7 +263,7 @@ async def create_referral(
         risk_level=assessed.get("risk_level") or "UNKNOWN",
         clinical_summary=assessed.get("clinical_summary"),
         compressed_sms_payload=assessed.get("compressed_sms_payload"),
-        vitals_json=payload.vitals.model_dump(),
+        vitals_json=vitals_json,
         status="CONFIRMED",
         client_request_id=client_request_id,
         ai_screen_result=payload.ai_screen_result,

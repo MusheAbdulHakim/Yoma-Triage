@@ -22,12 +22,18 @@ class ReferralScreen extends StatefulWidget {
   final String? aiModelVersion;
   final Map<String, Object?>? initialVitals;
 
+  /// Test seams.
+  final OfflineQueue? queue;
+  final ApiClient? api;
+
   const ReferralScreen({
     super.key,
     this.aiScreenResult,
     this.aiConfidence,
     this.aiModelVersion,
     this.initialVitals,
+    this.queue,
+    this.api,
   });
 
   @override
@@ -45,14 +51,16 @@ class _ReferralScreenState extends State<ReferralScreen> {
   late final VitalInput _spo2;
 
   String? _avpu;
-  String _emergencyType = 'respiratory_distress';
+  String? _emergencyType;
   bool _submitting = false;
   String? _error;
+  String? _skipError;
 
-  final _queue = OfflineQueue.shared;
-  final _api = ApiClient();
+  late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
+  late final ApiClient _api = widget.api ?? ApiClient();
   final _catalogStore = CatalogStore();
 
+  late final Future<void> _catalogReady;
   ReferralGraph? _graph;
   CatalogFacility? _selectedFacility;
   int _chpsCompoundId = FacilityConfig.chpsCompoundId;
@@ -74,7 +82,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
     _temp = VitalInput.fromVitals(vitals, 'temperature');
     _spo2 = VitalInput.fromVitals(vitals, 'spo2');
     _avpu = AvpuField.fromVitals(vitals);
-    unawaitedLoadCatalog();
+    _catalogReady = unawaitedLoadCatalog();
   }
 
   Future<void> unawaitedLoadCatalog() async {
@@ -137,6 +145,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
   }
 
   Future<void> _openPicker() async {
+    // An early tap on a slow phone waits for the catalog instead of doing nothing.
+    await _catalogReady;
+    if (!mounted) return;
     final graph = _graph;
     if (graph == null) return;
     final originLat = _originLat;
@@ -164,8 +175,23 @@ class _ReferralScreenState extends State<ReferralScreen> {
         _selectedFacility = picked;
         _facilityConfirmed = true;
         _error = null;
+        _skipError = null;
       });
     }
+  }
+
+  /// One tap: needs only the emergency type and facility, never vitals or a name.
+  Future<void> _skipVitals() async {
+    final problem = _emergencyType == null
+        ? 'Choose the emergency type first'
+        : !_facilityConfirmed || _selectedFacility == null
+            ? 'Tap above to choose the receiving facility first'
+            : null;
+    if (problem != null) {
+      setState(() => _skipError = problem);
+      return;
+    }
+    await _send(vitalsNotTaken: true);
   }
 
   Future<void> _submit() async {
@@ -177,9 +203,14 @@ class _ReferralScreenState extends State<ReferralScreen> {
       });
       return;
     }
+    await _send(vitalsNotTaken: false);
+  }
+
+  Future<void> _send({required bool vitalsNotTaken}) async {
     setState(() {
       _submitting = true;
       _error = null;
+      _skipError = null;
     });
 
     final clientRequestId = const Uuid().v4();
@@ -193,16 +224,19 @@ class _ReferralScreenState extends State<ReferralScreen> {
         facilityId: _selectedFacility!.id,
         patientHash: token,
         patientName: _patientName.text.trim(),
-        emergencyType: _emergencyType,
-        vitals: {
-          'systolic_bp': _sbp.intValue,
-          'diastolic_bp': _dbp.intValue,
-          'heart_rate': _hr.intValue,
-          'respiratory_rate': _rr.intValue,
-          'temperature': _temp.doubleValue,
-          'spo2': _spo2.intValue,
-          'consciousness_level': AvpuField.apiValue(_avpu),
-        },
+        emergencyType: _emergencyType!,
+        vitalsNotTaken: vitalsNotTaken,
+        vitals: vitalsNotTaken
+            ? const <String, dynamic>{}
+            : {
+                'systolic_bp': _sbp.intValue,
+                'diastolic_bp': _dbp.intValue,
+                'heart_rate': _hr.intValue,
+                'respiratory_rate': _rr.intValue,
+                'temperature': _temp.doubleValue,
+                'spo2': _spo2.intValue,
+                'consciousness_level': AvpuField.apiValue(_avpu),
+              },
         aiScreenResult: widget.aiScreenResult,
         aiConfidence: widget.aiConfidence,
         aiModelVersion: widget.aiModelVersion,
@@ -299,21 +333,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
                   ),
                 ),
               ),
-            TextFormField(
-              controller: _patientName,
-              decoration: const InputDecoration(
-                labelText: 'Patient name (local only)',
-                hintText: 'Name, or type Unknown',
-                helperText: 'Not sent over network — unlinkable token used',
-              ),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Enter the name, or type Unknown'
-                  : null,
-            ),
             DropdownButtonFormField<String>(
               key: ValueKey(_emergencyType),
               initialValue: _emergencyType,
+              isExpanded: true,
               decoration: const InputDecoration(labelText: 'Emergency type'),
+              validator: (v) => v == null ? 'Choose the emergency type' : null,
               items: const [
                 DropdownMenuItem(
                   value: 'respiratory_distress',
@@ -334,8 +359,53 @@ class _ReferralScreenState extends State<ReferralScreen> {
               ],
               onChanged: (v) {
                 if (v == null) return;
-                setState(() => _emergencyType = v);
+                setState(() {
+                  _emergencyType = v;
+                  _skipError = null;
+                });
               },
+            ),
+            const SizedBox(height: 12),
+            FilledButton(
+              key: const Key('referral_skip_vitals'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(56),
+                backgroundColor: YomaColors.danger,
+                textStyle: const TextStyle(fontSize: 18),
+              ),
+              onPressed: _submitting ? null : _skipVitals,
+              child: const Text('Emergency: skip vitals'),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              'Dispatches now. Needs only the emergency type and facility.',
+              textAlign: TextAlign.center,
+              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+            ),
+            if (_skipError != null) ...[
+              const SizedBox(height: 8),
+              Text(
+                _skipError!,
+                key: const Key('referral_skip_error'),
+                textAlign: TextAlign.center,
+                style: const TextStyle(
+                  color: YomaColors.danger,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+            const SizedBox(height: 16),
+            const Divider(),
+            TextFormField(
+              controller: _patientName,
+              decoration: const InputDecoration(
+                labelText: 'Patient name (local only)',
+                hintText: 'Name, or type Unknown',
+                helperText: 'Not sent over network — unlinkable token used',
+              ),
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Enter the name, or type Unknown'
+                  : null,
             ),
             const SizedBox(height: 12),
             const Text(

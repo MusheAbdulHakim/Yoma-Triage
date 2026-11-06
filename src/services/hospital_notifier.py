@@ -18,8 +18,12 @@ class HospitalNotifier:
         dispatch_id: int,
     ) -> None:
         token = referral.patient_hash[:12]
-        missing = missing_vitals(referral.vitals_json) if referral.vitals_json else []
-        not_measured = f"Not measured: {', '.join(missing)}\n" if missing else ""
+        vitals = referral.vitals_json or {}
+        missing = missing_vitals(vitals) if vitals else []
+        if vitals.get("vitals_not_taken"):
+            not_measured = "Vitals: NOT TAKEN\n"
+        else:
+            not_measured = f"Not measured: {', '.join(missing)}\n" if missing else ""
         message = (
             "YOMA TRIAGE EMERGENCY REFERRAL\n"
             f"From compound #{referral.chps_compound_id}\n"

@@ -16,6 +16,9 @@ class ReferralRequest {
   final double? originLon;
   final String? originSource;
 
+  /// "Emergency: skip vitals": dispatch at once with no clinical assessment.
+  final bool vitalsNotTaken;
+
   ReferralRequest({
     required this.clientRequestId,
     required this.chpsCompoundId,
@@ -31,6 +34,7 @@ class ReferralRequest {
     this.originLat,
     this.originLon,
     this.originSource,
+    this.vitalsNotTaken = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -40,6 +44,7 @@ class ReferralRequest {
         'patient_hash': patientHash,
         'emergency_type': emergencyType,
         'vitals': vitals,
+        if (vitalsNotTaken) 'vitals_not_taken': true,
         if (aiScreenResult != null) 'ai_screen_result': aiScreenResult,
         if (aiConfidence != null) 'ai_confidence': aiConfidence,
         if (aiModelVersion != null) 'ai_model_version': aiModelVersion,

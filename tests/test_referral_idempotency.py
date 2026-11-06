@@ -185,6 +185,7 @@ async def test_clinical_graph_failure_still_creates_unknown_referral(
     res = await client.post("/api/v1/referral", json=payload)
     assert res.status_code == 201
     body = res.json()
-    assert body["referral"]["risk_level"] == "UNKNOWN"
+    # Graph down: MOEWS is still calculated, so the critical vitals stay RED.
+    assert body["referral"]["risk_level"] == "RED"
     assert body["dispatch"] is not None
     assert initiate.await_count == 1
