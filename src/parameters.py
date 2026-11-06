@@ -49,6 +49,8 @@ CASCADE_TIER_SECONDS = 90
 MIN_FIELD_CASCADE_TIER_SECONDS = 60
 LATE_CLAIM_WINDOW_MINUTES = 45
 PLACEHOLDER_ETA_MINUTES = 30
+# How often the worker looks for overdue cascade steps. WORKER_POLL_SECONDS overrides it.
+WORKER_POLL_SECONDS = 5
 
 # Payments: mock ledger only. No money moves.
 FUEL_STIPEND_GHS = 22.5

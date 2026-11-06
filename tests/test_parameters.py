@@ -128,6 +128,7 @@ def test_sheet_lists_each_moews_band(vital):
         ("Wait per cascade tier", parameters.CASCADE_TIER_SECONDS),
         ("Shortest tier wait allowed in the field", parameters.MIN_FIELD_CASCADE_TIER_SECONDS),
         ("Late-claim window", parameters.LATE_CLAIM_WINDOW_MINUTES),
+        ("Cascade worker poll interval", parameters.WORKER_POLL_SECONDS),
         ("ETA shown to the CHO", parameters.PLACEHOLDER_ETA_MINUTES),
         ("Fuel stipend recorded on accept", parameters.FUEL_STIPEND_GHS),
         ("Highest gestational age accepted", parameters.GESTATIONAL_WEEKS_MAX),

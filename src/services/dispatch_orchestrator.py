@@ -1,7 +1,6 @@
 """Deterministic cascade dispatch — no LLM."""
 from __future__ import annotations
 
-import asyncio
 import logging
 import uuid
 from datetime import UTC, datetime, timedelta
@@ -23,6 +22,7 @@ CLAIMABLE = {"PENDING", "TIER1_NOTIFIED", "TIER2_NOTIFIED"}
 # A notified driver may still claim after the cascade gives up, within this window.
 ACCEPT_ELIGIBLE = CLAIMABLE | {"FAILED"}
 ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
+NEXT_ACTION_TIER_TIMEOUT = "tier_timeout"
 FUEL_STIPEND_GHS = parameters.FUEL_STIPEND_GHS
 
 
@@ -111,11 +111,19 @@ class DispatchOrchestrator:
         await session.flush()
         await self._notify_tier(session, dispatch, referral, tier=1)
         await session.flush()
-        self.schedule_tier_timeouts(dispatch.id, tier=1)
         return dispatch
 
-    def schedule_tier_timeouts(self, dispatch_id: int, tier: int = 1) -> None:
-        asyncio.create_task(self._tier_timeout(dispatch_id, tier))
+    @staticmethod
+    def _set_next_action(dispatch: Dispatch) -> None:
+        """Stored with the state change, so a restart can't lose the schedule."""
+        if dispatch.status in CLAIMABLE:
+            dispatch.next_action = NEXT_ACTION_TIER_TIMEOUT
+            dispatch.next_action_at = datetime.now(UTC) + timedelta(
+                seconds=settings.CASCADE_TIER_SECONDS
+            )
+        else:
+            dispatch.next_action = None
+            dispatch.next_action_at = None
 
     async def _notify_tier(
         self,
@@ -152,9 +160,11 @@ class DispatchOrchestrator:
                 )
             )
             dispatch.status = "FAILED"
+            self._set_next_action(dispatch)
             return
 
         dispatch.status = f"TIER{tier}_NOTIFIED"
+        self._set_next_action(dispatch)
         for driver in candidates:
             message = build_driver_offer_message(
                 tier=tier,
@@ -218,6 +228,7 @@ class DispatchOrchestrator:
             }
 
         dispatch.status = "ACCEPTED"
+        self._set_next_action(dispatch)
         dispatch.driver_id = driver_id
         dispatch.driver_assigned_at = datetime.now(UTC)
         session.add(
@@ -512,25 +523,47 @@ class DispatchOrchestrator:
             next_tier = tier + 1 if tier >= 1 else 2
             await self._notify_tier(session, dispatch, referral, tier=next_tier)
             await session.commit()
-            if dispatch.status.startswith("TIER"):
-                self.schedule_tier_timeouts(dispatch.id, tier=dispatch.current_tier)
 
-    async def _tier_timeout(self, dispatch_id: int, tier: int) -> None:
-        await asyncio.sleep(settings.CASCADE_TIER_SECONDS)
-        async with async_session() as session:
-            dispatch = await session.scalar(
-                _locked_dispatch(dispatch_id)
-            )
-            if (
-                not dispatch
-                or dispatch.status == "ACCEPTED"
-                or dispatch.current_tier != tier
-                or dispatch.status not in CLAIMABLE
-            ):
-                return
+    async def _perform_next_action(self, session: AsyncSession, dispatch: Dispatch) -> None:
+        """Re-checks the state it holds the lock on, so a repeat run changes nothing."""
+        if dispatch.next_action != NEXT_ACTION_TIER_TIMEOUT or dispatch.status not in CLAIMABLE:
+            dispatch.next_action = None
+            dispatch.next_action_at = None
+            return
+        referral = await session.get(Referral, dispatch.referral_id)
+        await self._notify_tier(session, dispatch, referral, tier=dispatch.current_tier + 1)
 
-            referral = await session.get(Referral, dispatch.referral_id)
-            await self._notify_tier(session, dispatch, referral, tier=tier + 1)
-            await session.commit()
-            if dispatch.status.startswith("TIER"):
-                self.schedule_tier_timeouts(dispatch.id, tier=dispatch.current_tier)
+    async def process_due_dispatches(self, limit: int = 100) -> int:
+        """Advance every overdue dispatch, one transaction each.
+
+        SKIP LOCKED lets several workers run at once without touching the same row. A
+        dispatch that errors is skipped for this pass so it can't block the others.
+        """
+        processed = 0
+        failed_ids: set[int] = set()
+        for _ in range(limit):
+            async with async_session() as session:
+                query = select(Dispatch).where(
+                    Dispatch.next_action_at.is_not(None),
+                    Dispatch.next_action_at <= datetime.now(UTC),
+                )
+                if failed_ids:
+                    query = query.where(Dispatch.id.not_in(failed_ids))
+                dispatch = await session.scalar(
+                    query.order_by(Dispatch.next_action_at)
+                    .limit(1)
+                    .with_for_update(skip_locked=True)
+                    .execution_options(populate_existing=True)
+                )
+                if dispatch is None:
+                    return processed
+                dispatch_id = dispatch.id
+                try:
+                    await self._perform_next_action(session, dispatch)
+                    await session.commit()
+                    processed += 1
+                except Exception:
+                    await session.rollback()
+                    failed_ids.add(dispatch_id)
+                    logger.exception("Cascade step failed for dispatch %s", dispatch_id)
+        return processed

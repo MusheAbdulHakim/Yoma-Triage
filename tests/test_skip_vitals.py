@@ -17,12 +17,6 @@ NORMAL_VITALS = {
 }
 
 
-@pytest.fixture(autouse=True)
-def no_timers(monkeypatch):
-    monkeypatch.setattr(
-        "src.services.dispatch_orchestrator.DispatchOrchestrator.schedule_tier_timeouts",
-        lambda self, *a, **k: None,
-    )
 
 
 def _payload(**overrides):

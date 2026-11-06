@@ -148,11 +148,6 @@ async def pg_sessions(postgres_url, monkeypatch):  # noqa: F811
 
     app.dependency_overrides[get_db] = override_get_db
     monkeypatch.setattr(dispatch_orchestrator, "async_session", sessions)
-    monkeypatch.setattr(
-        dispatch_orchestrator.DispatchOrchestrator,
-        "schedule_tier_timeouts",
-        lambda self, *a, **k: None,
-    )
     yield sessions
 
     app.dependency_overrides.clear()

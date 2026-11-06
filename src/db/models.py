@@ -82,6 +82,11 @@ class Dispatch(Base):
     # PENDING|TIER1_NOTIFIED|TIER2_NOTIFIED|ACCEPTED|HOSPITAL_NOTIFIED|COMPLETED|DIVERTED|FAILED
     current_tier: Mapped[int] = mapped_column(Integer, default=0)
     declined_driver_ids: Mapped[list] = mapped_column(JSON, default=list)
+    # What the worker must do next, and when. Null means nothing is scheduled.
+    next_action: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    next_action_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, index=True
+    )
     initiated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now()
     )

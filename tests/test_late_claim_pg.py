@@ -25,7 +25,6 @@ MOTOR_KING = DRIVER_PHONES[1]
 
 @pytest.fixture
 def no_wait(monkeypatch):
-    monkeypatch.setattr("src.config.settings.CASCADE_TIER_SECONDS", 0)
     monkeypatch.setattr("src.api.ussd.settings.AT_USSD_SERVICE_CODE", "")
 
 
@@ -48,8 +47,15 @@ async def _open(sessions) -> int:
         return dispatch.id
 
 
-async def _escalate(dispatch_id: int, tier: int) -> None:
-    await DispatchOrchestrator()._tier_timeout(dispatch_id, tier)
+async def _escalate(sessions, dispatch_id: int) -> None:
+    async with sessions() as session:
+        await session.execute(
+            update(Dispatch)
+            .where(Dispatch.id == dispatch_id)
+            .values(next_action_at=datetime.now(UTC) - timedelta(seconds=1))
+        )
+        await session.commit()
+    await DispatchOrchestrator().process_due_dispatches()
 
 
 async def _dial(phone: str, text: str = "1") -> str:
@@ -87,7 +93,7 @@ async def _actions(sessions, dispatch_id: int) -> list[DispatchLog]:
 @pytest.mark.asyncio
 async def test_tier_one_driver_can_accept_after_escalation(pg_sessions, no_wait):  # noqa: F811
     dispatch_id = await _open(pg_sessions)
-    await _escalate(dispatch_id, 1)
+    await _escalate(pg_sessions, dispatch_id)
     assert (await _dispatch(pg_sessions, dispatch_id)).current_tier == 2
 
     assert "Accepted" in await _dial(MOTOR_KING)
@@ -100,8 +106,8 @@ async def test_tier_one_driver_can_accept_after_escalation(pg_sessions, no_wait)
 @pytest.mark.asyncio
 async def test_driver_claims_after_failed_and_cho_is_told(pg_sessions, no_wait):  # noqa: F811
     dispatch_id = await _open(pg_sessions)
-    await _escalate(dispatch_id, 1)
-    await _escalate(dispatch_id, 2)
+    await _escalate(pg_sessions, dispatch_id)
+    await _escalate(pg_sessions, dispatch_id)
     assert (await _dispatch(pg_sessions, dispatch_id)).status == "FAILED"
 
     assert "Accepted" in await _dial(MOTOR_KING)
@@ -120,8 +126,8 @@ async def test_driver_claims_after_failed_and_cho_is_told(pg_sessions, no_wait):
 @pytest.mark.asyncio
 async def test_second_late_claim_loses(pg_sessions, no_wait):  # noqa: F811
     dispatch_id = await _open(pg_sessions)
-    await _escalate(dispatch_id, 1)
-    await _escalate(dispatch_id, 2)
+    await _escalate(pg_sessions, dispatch_id)
+    await _escalate(pg_sessions, dispatch_id)
 
     assert "Accepted" in await _dial(MOTOR_KING)
     assert "Accepted" not in await _dial(FALLBACK_DRIVER_PHONE)
@@ -139,8 +145,8 @@ async def test_driver_never_offered_the_dispatch_stays_refused(pg_sessions, no_w
 @pytest.mark.asyncio
 async def test_failed_dispatch_past_the_window_cannot_be_claimed(pg_sessions, no_wait):  # noqa: F811
     dispatch_id = await _open(pg_sessions)
-    await _escalate(dispatch_id, 1)
-    await _escalate(dispatch_id, 2)
+    await _escalate(pg_sessions, dispatch_id)
+    await _escalate(pg_sessions, dispatch_id)
     async with pg_sessions() as session:
         await session.execute(
             update(Dispatch)
@@ -159,8 +165,8 @@ async def test_failed_dispatch_past_the_window_cannot_be_claimed(pg_sessions, no
 @pytest.mark.asyncio
 async def test_decline_after_failed_does_not_restart_the_cascade(pg_sessions, no_wait):  # noqa: F811
     dispatch_id = await _open(pg_sessions)
-    await _escalate(dispatch_id, 1)
-    await _escalate(dispatch_id, 2)
+    await _escalate(pg_sessions, dispatch_id)
+    await _escalate(pg_sessions, dispatch_id)
 
     assert "No active dispatch" in await _dial(MOTOR_KING, "2")
 
@@ -180,8 +186,8 @@ async def test_driver_who_declined_can_still_claim_while_unclaimed(pg_sessions, 
 @pytest.mark.asyncio
 async def test_failed_dispatch_inside_the_window_can_be_claimed(pg_sessions, no_wait):  # noqa: F811
     dispatch_id = await _open(pg_sessions)
-    await _escalate(dispatch_id, 1)
-    await _escalate(dispatch_id, 2)
+    await _escalate(pg_sessions, dispatch_id)
+    await _escalate(pg_sessions, dispatch_id)
     async with pg_sessions() as session:
         await session.execute(
             update(Dispatch)
@@ -197,8 +203,8 @@ async def test_failed_dispatch_inside_the_window_can_be_claimed(pg_sessions, no_
 async def test_late_claim_window_is_configurable(pg_sessions, no_wait, monkeypatch):  # noqa: F811
     monkeypatch.setattr("src.config.settings.LATE_CLAIM_WINDOW_MINUTES", 120)
     dispatch_id = await _open(pg_sessions)
-    await _escalate(dispatch_id, 1)
-    await _escalate(dispatch_id, 2)
+    await _escalate(pg_sessions, dispatch_id)
+    await _escalate(pg_sessions, dispatch_id)
     async with pg_sessions() as session:
         await session.execute(
             update(Dispatch)

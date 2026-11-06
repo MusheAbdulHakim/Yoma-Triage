@@ -2,7 +2,6 @@
 from __future__ import annotations
 
 from types import SimpleNamespace
-from unittest.mock import AsyncMock
 
 import pytest
 import pytest_asyncio
@@ -103,9 +102,6 @@ async def test_driver_dispatch_sms_omits_patient_name(
 ):
     from src.services.dispatch_orchestrator import DispatchOrchestrator
 
-    monkeypatch.setattr(
-        DispatchOrchestrator, "schedule_tier_timeouts", lambda self, *a, **k: None
-    )
 
     captured: list[str] = []
 

@@ -25,10 +25,6 @@ NORMAL_VITALS = {
 
 @pytest.fixture
 def no_side_effects(monkeypatch):
-    monkeypatch.setattr(
-        "src.services.dispatch_orchestrator.DispatchOrchestrator.schedule_tier_timeouts",
-        lambda self, *a, **k: None,
-    )
     monkeypatch.setattr("src.agents.clinical_agent._get_rag_engine", lambda: None)
     monkeypatch.setattr("src.agents.clinical_agent._get_llm", lambda: None)
 

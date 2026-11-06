@@ -8,10 +8,6 @@ import pytest
 
 async def _seed_open_referral(client, monkeypatch, request_id: str):
     monkeypatch.setattr(
-        "src.services.dispatch_orchestrator.DispatchOrchestrator.schedule_tier_timeouts",
-        lambda self, *a, **k: None,
-    )
-    monkeypatch.setattr(
         "src.api.ussd.DispatchOrchestrator.run_accept_side_effects",
         AsyncMock(),
     )

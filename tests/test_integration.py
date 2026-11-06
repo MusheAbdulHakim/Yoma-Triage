@@ -1,7 +1,7 @@
 """End-to-end MVP flow: referral → cascade → accept → hospital CONFIRM/DIVERT."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import AsyncMock
 
 import pytest
 
@@ -10,10 +10,6 @@ import pytest
 async def test_full_flow_accept_confirm_and_divert(
     client, seeded_db, sample_referral_payload, monkeypatch
 ):
-    monkeypatch.setattr(
-        "src.services.dispatch_orchestrator.DispatchOrchestrator.schedule_tier_timeouts",
-        lambda self, *a, **k: None,
-    )
     monkeypatch.setattr(
         "src.api.referral.yoma_graph.invoke",
         lambda state: {

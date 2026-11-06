@@ -69,12 +69,10 @@ async def test_decline_does_not_escalate_when_same_tier_candidates_remain(monkey
     orchestrator = orch_mod.DispatchOrchestrator()
     orchestrator.pool.get_candidates = AsyncMock(return_value=remaining)
     orchestrator._notify_tier = AsyncMock()
-    orchestrator.schedule_tier_timeouts = MagicMock()
 
     await orchestrator.run_decline_side_effects(dispatch.id, driver_id=3)
 
     orchestrator._notify_tier.assert_not_awaited()
-    orchestrator.schedule_tier_timeouts.assert_not_called()
     assert dispatch.current_tier == 1
     actions = [
         call.args[0].action
@@ -110,7 +108,6 @@ async def test_decline_escalates_only_when_tier_exhausted(monkeypatch):
 
     orchestrator = orch_mod.DispatchOrchestrator()
     orchestrator.pool.get_candidates = AsyncMock(return_value=[])
-    orchestrator.schedule_tier_timeouts = MagicMock()
 
     async def _notify(session, dispatch, referral, tier):
         dispatch.current_tier = tier
@@ -122,7 +119,6 @@ async def test_decline_escalates_only_when_tier_exhausted(monkeypatch):
 
     orchestrator._notify_tier.assert_awaited_once()
     assert orchestrator._notify_tier.await_args.kwargs["tier"] == 2
-    orchestrator.schedule_tier_timeouts.assert_called_once()
 
 
 @pytest.mark.asyncio
@@ -207,9 +203,6 @@ async def test_two_drivers_accept_only_one_wins(db_session, seeded_db, monkeypat
     from src.db.models import Referral
     from src.services.dispatch_orchestrator import DispatchOrchestrator
 
-    monkeypatch.setattr(
-        DispatchOrchestrator, "schedule_tier_timeouts", lambda self, *a, **k: None
-    )
     gateway = MagicMock()
     gateway.send_sms = AsyncMock(return_value={"status": "MOCKED", "provider": "mock"})
     orch = DispatchOrchestrator(gateway=gateway)

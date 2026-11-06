@@ -80,9 +80,6 @@ async def test_decline_after_accept_has_no_effect(db_session, seeded_db, monkeyp
     from src.services.dispatch_orchestrator import DispatchOrchestrator
 
     monkeypatch.setattr(
-        DispatchOrchestrator, "schedule_tier_timeouts", lambda self, *a, **k: None
-    )
-    monkeypatch.setattr(
         DispatchOrchestrator, "run_accept_side_effects", AsyncMock()
     )
     monkeypatch.setattr(

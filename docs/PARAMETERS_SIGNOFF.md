@@ -58,6 +58,7 @@ The first matching row applies. Only measured vitals are scored.
 | Wait per cascade tier | 90 | seconds | How long drivers in a tier get before the next tier is alerted. `CASCADE_TIER_SECONDS` overrides it | Spec §7.2.1. Not tested against real driver response times | |
 | Shortest tier wait allowed in the field | 60 | seconds | Staging and production refuse to start below this | Engineering placeholder (batch 1) | |
 | Late-claim window | 45 | minutes | How long after dispatch start a notified driver can still claim a failed dispatch. `LATE_CLAIM_WINDOW_MINUTES` overrides it | Product owner (batch 2) | |
+| Cascade worker poll interval | 5 | seconds | How often overdue cascade steps are looked for, so a tier can run up to this much late. `WORKER_POLL_SECONDS` overrides it | Product owner (batch 2, B2) | |
 | ETA shown to the CHO | 30 | minutes | Shown once a driver accepts. **Not a real estimate: the same number for every trip** | Hardcoded in the original demo | |
 | Fuel stipend recorded on accept | 22.5 | GHS | Mock ledger entry only; no money moves. 30% of an assumed GHS 75 fare | Spec §7.4 demo figure | |
 | Highest gestational age accepted | 45 | weeks | The API refuses anything above this. Typo guard only | Engineering placeholder (batch 1) | |
