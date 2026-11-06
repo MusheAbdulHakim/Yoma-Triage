@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:yoma_triage/main.dart';
+import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:yoma_triage/screens/result_screen.dart';
 import 'package:yoma_triage/services/screening_result.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+
+import 'helpers/vitals_helper.dart';
 
 Future<void> pumpUntilFound(
   WidgetTester tester,
@@ -25,9 +27,12 @@ void main() {
     SharedPreferences.setMockInitialValues({});
   });
 
-  testWidgets('screening early-stop GREEN shows Continue Monitoring primary',
+  testWidgets('screening early-stop is never GREEN; offers clinical judgment',
       (tester) async {
-    await tester.pumpWidget(const YomaApp());
+    useTallScreen(tester);
+    await tester.pumpWidget(
+      const MaterialApp(home: HomeScreen(acousticEnabled: true)),
+    );
     await tester.tap(find.text('Screen Breathing'));
     // Screening starts recording + breath pulse (infinite animation).
     await pumpUntilFound(tester, find.text('Stop & Analyze Early'));
@@ -39,11 +44,12 @@ void main() {
     expect(find.byKey(const Key('breathing_pulse')), findsOneWidget);
     await pumpUntilFound(tester, find.text('Continue to Result'));
     expect(find.text('Record Vitals'), findsOneWidget);
+    await fillVitals(tester);
     await tester.tap(find.text('Continue to Result'));
     await tester.pumpAndSettle();
     await pumpUntilFound(tester, find.text('Continue Monitoring'));
     expect(find.text('Continue Monitoring'), findsWidgets);
-    // GREEN path: Confirm Referral must not be the only/primary path.
+    expect(find.text('Refer with clinical judgment'), findsOneWidget);
     expect(find.text('Confirm Referral'), findsNothing);
   });
 

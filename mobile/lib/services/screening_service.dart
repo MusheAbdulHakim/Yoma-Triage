@@ -27,33 +27,26 @@ class ScreeningService {
     await _recorder!.start();
   }
 
-  Future<ScreeningResult> stopAndClassify({bool forceRed = false}) async {
+  Future<ScreeningResult> stopAndClassify() async {
     lastDualRunSecondary = null;
     if (kIsWeb) {
-      return simulatorClassify(forceRed: forceRed);
+      return simulatorClassify(forceRed: false);
     }
 
     if (ScreeningConfig.moewsOnly) {
-      return ScreeningResult(
-        label: 'INCONCLUSIVE',
-        confidence: 0.0,
-        reason:
-            'Acoustic screening disabled (MOEWS_ONLY) — use vitals and judgment',
-        source: 'moews_only',
-        modelVersion: 'moews-only-v0',
-      );
+      return moewsOnlyResult();
     }
 
     try {
       final pcm = await (_recorder ?? createAudioRecorder()).stop();
-      _classifier ??= await createConfiguredClassifier(forceRed: forceRed);
+      _classifier ??= await createConfiguredClassifier();
       final primary = await _classifier!.classifyPcm16kHzMono(pcm);
 
       if (ScreeningConfig.dualRunYamnet &&
           ScreeningConfig.model != 'yamnet' &&
           ScreeningConfig.model != 'stub') {
         try {
-          final yamnet = await createYamnetClassifier(forceRed: forceRed);
+          final yamnet = await createYamnetClassifier();
           lastDualRunSecondary = await yamnet.classifyPcm16kHzMono(pcm);
           await yamnet.dispose();
         } catch (_) {
@@ -63,21 +56,11 @@ class ScreeningService {
       return primary;
     } catch (e) {
       if (e.toString().contains('permission')) {
-        return ScreeningResult(
-          label: 'INCONCLUSIVE',
-          confidence: 0.0,
+        return unavailableResult(
           reason: 'Mic permission denied — use Emergency Referral bypass',
-          source: 'stub',
-          modelVersion: 'stub-v0',
         );
       }
-      return ScreeningResult(
-        label: 'INCONCLUSIVE',
-        confidence: 0.0,
-        reason: 'Screening unavailable — use clinical judgment',
-        source: 'stub',
-        modelVersion: 'stub-v0',
-      );
+      return unavailableResult();
     }
   }
 

@@ -1,16 +1,24 @@
 """Shared test fixtures for Yoma Triage backend tests."""
 from __future__ import annotations
 
-from typing import AsyncGenerator
+import os
+from collections.abc import AsyncGenerator
 
-import pytest
-import pytest_asyncio
-from httpx import ASGITransport, AsyncClient
-from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_async_engine
+# Before anything imports src.config. The default is production behaviour, so the
+# suite opts in to development explicitly; tests that need otherwise patch settings.
+os.environ["ENVIRONMENT"] = "development"
 
-from src.db.database import Base, get_db
-from src.db.models import CHPSCompound, Driver, Facility
+import pytest  # noqa: E402
+import pytest_asyncio  # noqa: E402
+from httpx import ASGITransport, AsyncClient  # noqa: E402
+from sqlalchemy.ext.asyncio import (  # noqa: E402
+    AsyncSession,
+    async_sessionmaker,
+    create_async_engine,
+)
 
+from src.db.database import Base, get_db  # noqa: E402
+from src.db.models import CHPSCompound, Driver, Facility  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Database fixtures (in-memory SQLite for tests)
@@ -279,7 +287,7 @@ def sample_referral_payload():
         "chps_compound_id": 1,
         "facility_id": 1,
         "patient_hash": VALID_PATIENT_HASH,
-        "emergency_type": "Obstetric haemorrhage",
+        "emergency_type": "pph",
         "gestational_weeks": 38,
         "client_request_id": "11111111-1111-1111-1111-111111111111",
         "vitals": {

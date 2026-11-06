@@ -118,6 +118,8 @@ Create `.env` with a reachable async SQLAlchemy Postgres URL. The local seeded d
 
 ```dotenv
 DATABASE_URL=postgresql+asyncpg://postgres:postgres@127.0.0.1:5433/yoma_triage
+# Local demo only. Without this the API refuses to start unless all production secrets are set.
+ENVIRONMENT=development
 ```
 
 Seed the demo data, then start the API in one terminal:

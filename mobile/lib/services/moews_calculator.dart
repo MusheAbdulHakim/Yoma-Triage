@@ -81,9 +81,10 @@ MoewsResult calculateMoews({
   required int? rr,
   required double? temp,
   int? spo2,
-  String consciousness = 'A',
+  String? consciousness = 'A',
 }) {
-  final required = [sbp, dbp, hr, rr, temp];
+  // Consciousness scores 3 when impaired, so unmeasured must not read as Alert.
+  final required = [sbp, dbp, hr, rr, temp, consciousness];
   if (required.any((v) => v == null)) {
     return const MoewsResult(score: null, riskLevel: 'UNKNOWN');
   }
@@ -93,7 +94,7 @@ MoewsResult calculateMoews({
   final hrScore = _scoreHr(hr!);
   final rrScore = _scoreRr(rr!);
   final tempScore = _scoreTemp(temp!);
-  final consciousnessScore = _scoreConsciousness(consciousness);
+  final consciousnessScore = _scoreConsciousness(consciousness!);
   final spo2Score = spo2 == null ? 0 : _scoreSpo2(spo2);
 
   final scores = <int>[

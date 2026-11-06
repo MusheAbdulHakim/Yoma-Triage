@@ -27,14 +27,10 @@ class PackPendingClassifier implements YamnetClassifier {
   Future<void> dispose() async {}
 }
 
-class _ForceStubClassifier implements YamnetClassifier {
-  _ForceStubClassifier({required this.forceRed});
-
-  final bool forceRed;
-
+class _StubClassifier implements YamnetClassifier {
   @override
   Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async {
-    return stubClassify(forceRed: forceRed);
+    return demoClassifiersEnabled ? stubClassify() : unavailableResult();
   }
 
   @override
@@ -44,14 +40,7 @@ class _ForceStubClassifier implements YamnetClassifier {
 class _MoewsOnlyClassifier implements YamnetClassifier {
   @override
   Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async {
-    return ScreeningResult(
-      label: 'INCONCLUSIVE',
-      confidence: 0.0,
-      reason:
-          'Acoustic screening disabled (MOEWS_ONLY) — use vitals and judgment',
-      source: 'moews_only',
-      modelVersion: 'moews-only-v0',
-    );
+    return moewsOnlyResult();
   }
 
   @override
@@ -59,21 +48,19 @@ class _MoewsOnlyClassifier implements YamnetClassifier {
 }
 
 /// Factory: respects [ScreeningConfig.moewsOnly] and [ScreeningConfig.model].
-Future<YamnetClassifier> createConfiguredClassifier({
-  bool forceRed = false,
-}) async {
+Future<YamnetClassifier> createConfiguredClassifier() async {
   if (ScreeningConfig.moewsOnly) {
     return _MoewsOnlyClassifier();
   }
   switch (ScreeningConfig.model) {
     case 'stub':
-      return _ForceStubClassifier(forceRed: forceRed);
+      return _StubClassifier();
     case 'hear_event':
       return PackPendingClassifier('hear_event');
     case 'opera_ce':
       return createOperaCeClassifier();
     case 'yamnet':
     default:
-      return createYamnetClassifier(forceRed: forceRed);
+      return createYamnetClassifier();
   }
 }

@@ -9,7 +9,9 @@ import '../services/catalog_store.dart';
 import '../services/geo.dart';
 import '../services/offline_queue.dart';
 import '../services/patient_token.dart';
+import '../services/vital_limits.dart';
 import '../theme/yoma_theme.dart';
+import '../widgets/vital_field.dart';
 import 'dispatch_status_screen.dart';
 import 'facility_picker_screen.dart';
 import 'queued_referral_screen.dart';
@@ -18,7 +20,7 @@ class ReferralScreen extends StatefulWidget {
   final String? aiScreenResult;
   final double? aiConfidence;
   final String? aiModelVersion;
-  final Map<String, Object>? initialVitals;
+  final Map<String, Object?>? initialVitals;
 
   const ReferralScreen({
     super.key,
@@ -34,15 +36,15 @@ class ReferralScreen extends StatefulWidget {
 
 class _ReferralScreenState extends State<ReferralScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _patientName = TextEditingController(text: 'Ama Mensah');
-  late final TextEditingController _sbp;
-  late final TextEditingController _dbp;
-  late final TextEditingController _hr;
-  late final TextEditingController _rr;
-  late final TextEditingController _temp;
-  late final TextEditingController _spo2;
+  final _patientName = TextEditingController();
+  late final VitalInput _sbp;
+  late final VitalInput _dbp;
+  late final VitalInput _hr;
+  late final VitalInput _rr;
+  late final VitalInput _temp;
+  late final VitalInput _spo2;
 
-  late String _avpu;
+  String? _avpu;
   String _emergencyType = 'respiratory_distress';
   bool _submitting = false;
   String? _error;
@@ -65,25 +67,13 @@ class _ReferralScreenState extends State<ReferralScreen> {
   void initState() {
     super.initState();
     final vitals = widget.initialVitals;
-    _sbp = TextEditingController(
-      text: (vitals?['systolic_bp'] ?? 70).toString(),
-    );
-    _dbp = TextEditingController(
-      text: (vitals?['diastolic_bp'] ?? 50).toString(),
-    );
-    _hr = TextEditingController(
-      text: (vitals?['heart_rate'] ?? 140).toString(),
-    );
-    _rr = TextEditingController(
-      text: (vitals?['respiratory_rate'] ?? 35).toString(),
-    );
-    _temp = TextEditingController(
-      text: (vitals?['temperature'] ?? 39.5).toString(),
-    );
-    _spo2 = TextEditingController(
-      text: (vitals?['spo2'] ?? 85).toString(),
-    );
-    _avpu = (vitals?['consciousness_level'] ?? 'V').toString();
+    _sbp = VitalInput.fromVitals(vitals, 'systolic_bp');
+    _dbp = VitalInput.fromVitals(vitals, 'diastolic_bp');
+    _hr = VitalInput.fromVitals(vitals, 'heart_rate');
+    _rr = VitalInput.fromVitals(vitals, 'respiratory_rate');
+    _temp = VitalInput.fromVitals(vitals, 'temperature');
+    _spo2 = VitalInput.fromVitals(vitals, 'spo2');
+    _avpu = AvpuField.fromVitals(vitals);
     unawaitedLoadCatalog();
   }
 
@@ -146,9 +136,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
     super.dispose();
   }
 
-  int? _parseInt(String raw) => int.tryParse(raw.trim());
-  double? _parseDouble(String raw) => double.tryParse(raw.trim());
-
   Future<void> _openPicker() async {
     final graph = _graph;
     if (graph == null) return;
@@ -200,21 +187,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
     int? dispatchId;
 
     try {
-      final sbp = _parseInt(_sbp.text);
-      final dbp = _parseInt(_dbp.text);
-      final hr = _parseInt(_hr.text);
-      final rr = _parseInt(_rr.text);
-      final temp = _parseDouble(_temp.text);
-      final spo2 = _parseInt(_spo2.text);
-      if (sbp == null ||
-          dbp == null ||
-          hr == null ||
-          rr == null ||
-          temp == null ||
-          spo2 == null) {
-        throw const FormatException('Invalid vitals');
-      }
-
       final req = ReferralRequest(
         clientRequestId: clientRequestId,
         chpsCompoundId: _chpsCompoundId,
@@ -223,13 +195,13 @@ class _ReferralScreenState extends State<ReferralScreen> {
         patientName: _patientName.text.trim(),
         emergencyType: _emergencyType,
         vitals: {
-          'systolic_bp': sbp,
-          'diastolic_bp': dbp,
-          'heart_rate': hr,
-          'respiratory_rate': rr,
-          'temperature': temp,
-          'spo2': spo2,
-          'consciousness_level': _avpu,
+          'systolic_bp': _sbp.intValue,
+          'diastolic_bp': _dbp.intValue,
+          'heart_rate': _hr.intValue,
+          'respiratory_rate': _rr.intValue,
+          'temperature': _temp.doubleValue,
+          'spo2': _spo2.intValue,
+          'consciousness_level': AvpuField.apiValue(_avpu),
         },
         aiScreenResult: widget.aiScreenResult,
         aiConfidence: widget.aiConfidence,
@@ -331,10 +303,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
               controller: _patientName,
               decoration: const InputDecoration(
                 labelText: 'Patient name (local only)',
+                hintText: 'Name, or type Unknown',
                 helperText: 'Not sent over network — unlinkable token used',
               ),
-              validator: (v) =>
-                  (v == null || v.trim().isEmpty) ? 'Required' : null,
+              validator: (v) => (v == null || v.trim().isEmpty)
+                  ? 'Enter the name, or type Unknown'
+                  : null,
             ),
             DropdownButtonFormField<String>(
               key: ValueKey(_emergencyType),
@@ -368,31 +342,47 @@ class _ReferralScreenState extends State<ReferralScreen> {
               'Vitals',
               style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
             ),
-            _numField(_sbp, 'Systolic BP', key: const Key('referral_sbp')),
-            _numField(_dbp, 'Diastolic BP', key: const Key('referral_dbp')),
-            _numField(_hr, 'Heart rate', key: const Key('referral_hr')),
-            _numField(_rr, 'Respiratory rate', key: const Key('referral_rr')),
-            _numField(
-              _temp,
-              'Temperature',
-              key: const Key('referral_temp'),
+            VitalField(
+              input: _sbp,
+              limits: VitalLimits.systolicBp,
+              label: 'Systolic BP',
+              fieldKey: 'referral_sbp',
+            ),
+            VitalField(
+              input: _dbp,
+              limits: VitalLimits.diastolicBp,
+              label: 'Diastolic BP',
+              fieldKey: 'referral_dbp',
+            ),
+            VitalField(
+              input: _hr,
+              limits: VitalLimits.heartRate,
+              label: 'Heart rate',
+              fieldKey: 'referral_hr',
+            ),
+            VitalField(
+              input: _rr,
+              limits: VitalLimits.respiratoryRate,
+              label: 'Respiratory rate',
+              fieldKey: 'referral_rr',
+            ),
+            VitalField(
+              input: _temp,
+              limits: VitalLimits.temperature,
+              label: 'Temperature',
+              fieldKey: 'referral_temp',
               decimal: true,
             ),
-            _numField(_spo2, 'SpO2', key: const Key('referral_spo2')),
-            DropdownButtonFormField<String>(
-              key: ValueKey(_avpu),
-              initialValue: _avpu,
-              decoration: const InputDecoration(labelText: 'AVPU'),
-              items: const [
-                DropdownMenuItem(value: 'A', child: Text('A — Alert')),
-                DropdownMenuItem(value: 'V', child: Text('V — Voice')),
-                DropdownMenuItem(value: 'P', child: Text('P — Pain')),
-                DropdownMenuItem(value: 'U', child: Text('U — Unresponsive')),
-              ],
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() => _avpu = v);
-              },
+            VitalField(
+              input: _spo2,
+              limits: VitalLimits.spo2,
+              label: 'SpO2',
+              fieldKey: 'referral_spo2',
+            ),
+            AvpuField(
+              key: const Key('referral_avpu'),
+              value: _avpu,
+              onChanged: (value) => setState(() => _avpu = value),
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
@@ -410,29 +400,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
           ],
         ),
       ),
-    );
-  }
-
-  Widget _numField(
-    TextEditingController c,
-    String label, {
-    Key? key,
-    bool decimal = false,
-  }) {
-    return TextFormField(
-      key: key,
-      controller: c,
-      keyboardType: TextInputType.numberWithOptions(decimal: decimal),
-      decoration: InputDecoration(labelText: label),
-      validator: (v) {
-        if (v == null || v.trim().isEmpty) return 'Required';
-        if (decimal) {
-          if (double.tryParse(v.trim()) == null) return 'Invalid number';
-        } else if (int.tryParse(v.trim()) == null) {
-          return 'Invalid integer';
-        }
-        return null;
-      },
     );
   }
 }

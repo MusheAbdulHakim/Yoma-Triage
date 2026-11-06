@@ -13,7 +13,7 @@
 --dart-define=API_BASE_URL=https://api.example.org
 --dart-define=SCREENING_DURATION_SEC=15
 --dart-define=SCREENING_MODEL=yamnet   # yamnet | hear_event | opera_ce | stub
---dart-define=MOEWS_ONLY=false         # true = kill acoustic path
+--dart-define=MOEWS_ONLY=true          # default; false = enable acoustic path
 --dart-define=SCREENING_DUAL_RUN=false # ops compare vs YAMNet
 ```
 

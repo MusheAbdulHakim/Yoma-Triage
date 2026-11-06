@@ -5,8 +5,13 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+DEFAULT_CASCADE_TIER_SECONDS = 90
+MIN_FIELD_CASCADE_TIER_SECONDS = 60
+
+
 class Settings:
-    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "development")
+    # Anything other than exactly "development" gets production behaviour.
+    ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     DEFAULT_GEMINI_MODEL: str = "gemini-2.0-flash"
@@ -30,10 +35,12 @@ class Settings:
     PUBLIC_BASE_URL: str = os.getenv("PUBLIC_BASE_URL", "")
     # Local/demo API client base (scripts/demo_flow.py). Defaults to loopback.
     DEMO_API_BASE_URL: str = os.getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000")
-    # Demo default is 5s; field/pilot should use minutes (e.g. 60–180) via env.
-    CASCADE_TIER_SECONDS: int = int(os.getenv("CASCADE_TIER_SECONDS", "5"))
+    # Spec 7.2.1: 90 s per tier. Staging/production refuse to start below 60 s.
+    CASCADE_TIER_SECONDS: int = int(
+        os.getenv("CASCADE_TIER_SECONDS", str(DEFAULT_CASCADE_TIER_SECONDS))
+    )
     # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
-    # Staging/production refuse requests until set (fail closed).
+    # Every other environment refuses to start without it.
     API_KEY: str = os.getenv("API_KEY", "")
     # Africa's Talking webhook shared secret (query ?secret= or X-Webhook-Secret).
     AT_WEBHOOK_SECRET: str = os.getenv("AT_WEBHOOK_SECRET", "")
@@ -43,6 +50,44 @@ class Settings:
         "http://localhost:5000,http://127.0.0.1:5000,"
         "http://localhost:7357,http://127.0.0.1:7357",
     )
+
+    @property
+    def is_development(self) -> bool:
+        """The only insecure mode, and it has to be asked for by name."""
+        return self.ENVIRONMENT.strip().lower() == "development"
+
+    def startup_errors(self) -> list[str]:
+        """Configuration that makes this environment unsafe to serve."""
+        if self.is_development:
+            return []
+        errors = [
+            f"{name} must be set"
+            for name, value in (
+                ("API_KEY", self.API_KEY),
+                ("AT_WEBHOOK_SECRET", self.AT_WEBHOOK_SECRET),
+                ("AT_API_KEY", self.AT_API_KEY),
+                ("AT_USERNAME", self.AT_USERNAME),
+                # Without it the USSD callback rejects every driver.
+                ("AT_USSD_SERVICE_CODE", self.AT_USSD_SERVICE_CODE),
+            )
+            if not value.strip()
+        ]
+        # The sandbox accepts sends but never reaches real phones.
+        if (
+            self.AT_USERNAME.strip().lower() == "sandbox"
+            and self.ENVIRONMENT.strip().lower() != "staging"
+        ):
+            errors.append("AT_USERNAME must not be sandbox")
+        if self.CASCADE_TIER_SECONDS < MIN_FIELD_CASCADE_TIER_SECONDS:
+            errors.append(
+                f"CASCADE_TIER_SECONDS must be at least {MIN_FIELD_CASCADE_TIER_SECONDS}"
+            )
+        return errors
+
+    def validate_for_startup(self) -> None:
+        errors = self.startup_errors()
+        if errors:
+            raise RuntimeError("Refusing to start: " + "; ".join(errors))
 
     @property
     def public_base_url(self) -> str:

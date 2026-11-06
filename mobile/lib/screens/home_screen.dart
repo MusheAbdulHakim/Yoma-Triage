@@ -3,12 +3,17 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../services/api_client.dart';
 import '../services/catalog_store.dart';
+import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
 import 'referral_screen.dart';
 import 'screening_screen.dart';
+import 'vitals_screen.dart';
 
 class HomeScreen extends StatefulWidget {
-  const HomeScreen({super.key});
+  /// Overrides [ScreeningConfig.moewsOnly] so tests can exercise both modes.
+  final bool? acousticEnabled;
+
+  const HomeScreen({super.key, this.acousticEnabled});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -19,6 +24,9 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _catalogStale = false;
   String? _catalogVersion;
   bool _syncing = false;
+
+  bool get _acousticEnabled =>
+      widget.acousticEnabled ?? !ScreeningConfig.moewsOnly;
 
   @override
   void initState() {
@@ -95,14 +103,16 @@ class _HomeScreenState extends State<HomeScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'Screen breathing or start an emergency referral.',
+              _acousticEnabled
+                  ? 'Screen breathing or start an emergency referral.'
+                  : 'Record vitals or start an emergency referral.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade700),
             ),
             const Spacer(),
             Semantics(
               button: true,
-              label: 'Screen Breathing',
+              label: _acousticEnabled ? 'Screen Breathing' : 'Record Vitals',
               child: FilledButton(
                 style: FilledButton.styleFrom(
                   minimumSize: const Size.fromHeight(72),
@@ -110,10 +120,15 @@ class _HomeScreenState extends State<HomeScreen> {
                 ),
                 onPressed: () {
                   Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const ScreeningScreen()),
+                    MaterialPageRoute(
+                      builder: (_) => _acousticEnabled
+                          ? const ScreeningScreen()
+                          : VitalsScreen(result: moewsOnlyResult()),
+                    ),
                   );
                 },
-                child: const Text('Screen Breathing'),
+                child:
+                    Text(_acousticEnabled ? 'Screen Breathing' : 'Record Vitals'),
               ),
             ),
             const SizedBox(height: 16),

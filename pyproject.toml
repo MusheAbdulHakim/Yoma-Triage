@@ -75,6 +75,9 @@ addopts = [
     "--strict-markers",
     "--disable-warnings",
 ]
+markers = [
+    "postgres: needs a real Postgres server for row-lock behaviour",
+]
 
 [tool.mypy]
 python_version = "3.11"

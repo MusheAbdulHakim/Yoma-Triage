@@ -61,8 +61,11 @@ def _get_llm() -> Any:
     return llm
 
 
-def _consciousness_code(value: Any) -> str:
-    return "A" if str(value or "A").strip().upper() in {"A", "ALERT"} else str(value)
+def _consciousness_code(value: Any) -> str | None:
+    """Normalize AVPU. None means not measured and must stay None, never Alert."""
+    if value is None or not str(value).strip():
+        return None
+    return "A" if str(value).strip().upper() in {"A", "ALERT"} else str(value)
 
 
 def _structured_summary(

@@ -1,0 +1,233 @@
+"""Referral input validation and USSD exact matching (audit BUG-10, BUG-11)."""
+from __future__ import annotations
+
+import re
+import uuid
+from pathlib import Path
+
+import pytest
+
+from src.agents.coordinator import prepare_dispatch_node
+from src.api.referral import VitalsInput
+from src.api.ussd import _menu_choice
+
+REPO = Path(__file__).resolve().parents[1]
+NORMAL_VITALS = {
+    "systolic_bp": 120,
+    "diastolic_bp": 80,
+    "heart_rate": 80,
+    "respiratory_rate": 18,
+    "temperature": 37.0,
+    "spo2": 98,
+    "consciousness_level": "A",
+}
+
+
+@pytest.fixture
+def no_side_effects(monkeypatch):
+    monkeypatch.setattr(
+        "src.services.dispatch_orchestrator.DispatchOrchestrator.schedule_tier_timeouts",
+        lambda self, *a, **k: None,
+    )
+    monkeypatch.setattr("src.agents.clinical_agent._get_rag_engine", lambda: None)
+    monkeypatch.setattr("src.agents.clinical_agent._get_llm", lambda: None)
+
+
+def _payload(**overrides):
+    return {
+        "chps_compound_id": 1,
+        "facility_id": 1,
+        "patient_hash": "0123456789abcdef" * 4,
+        "emergency_type": "pph",
+        "client_request_id": str(uuid.uuid4()),
+        "vitals": NORMAL_VITALS,
+        **overrides,
+    }
+
+
+def _vitals(**overrides):
+    return _payload(vitals={**NORMAL_VITALS, **overrides})
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "payload",
+    [
+        _vitals(systolic_bp=301),
+        _vitals(systolic_bp=1200),
+        _vitals(systolic_bp=-1),
+        _vitals(diastolic_bp=201),
+        _vitals(diastolic_bp=-1),
+        _vitals(heart_rate=301),
+        _vitals(heart_rate=-5),
+        _vitals(respiratory_rate=121),
+        _vitals(respiratory_rate=-1),
+        _vitals(temperature=45.1),
+        _vitals(temperature=19.9),
+        _vitals(temperature="NaN"),
+        _vitals(temperature="Infinity"),
+        _vitals(spo2=101),
+        _vitals(spo2=-1),
+        _vitals(heart_rate="fast"),
+        _vitals(heart_rate=10**30),
+        _vitals(consciousness_level="X"),
+        _vitals(consciousness_level="1"),
+        _payload(emergency_type="x" * 100),
+        _payload(emergency_type="Obstetric haemorrhage"),
+        _payload(emergency_type=""),
+        _payload(ai_screen_result="y" * 40),
+        _payload(ai_confidence=5.0),
+        _payload(ai_confidence=-0.1),
+        _payload(gestational_weeks=-3),
+        _payload(gestational_weeks=60),
+        _payload(chps_compound_id=2**40),
+        _payload(facility_id=0),
+    ],
+)
+async def test_bad_input_is_422_never_500(client, seeded_db, no_side_effects, payload):
+    response = await client.post("/api/v1/referral", json=payload)
+    assert response.status_code == 422, response.text
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize(
+    "emergency_type",
+    [
+        "respiratory_distress",
+        "pph",
+        "neonatal_asphyxia",
+        "eclampsia",
+        "maternal_hemorrhage",
+        "neonatal_sepsis",
+        "severe_malaria",
+        "other",
+    ],
+)
+async def test_known_emergency_types_accepted(
+    client, seeded_db, no_side_effects, emergency_type
+):
+    response = await client.post(
+        "/api/v1/referral", json=_payload(emergency_type=emergency_type)
+    )
+    assert response.status_code == 201, response.text
+
+
+@pytest.mark.parametrize(
+    ("given", "stored"),
+    [("a", "A"), ("Alert", "A"), ("v", "V"), ("PAIN", "P"), (" U ", "U"), (None, None)],
+)
+def test_consciousness_is_normalized(given, stored):
+    assert VitalsInput(consciousness_level=given).consciousness_level == stored
+
+
+@pytest.mark.asyncio
+async def test_top_of_range_vitals_keep_moews_when_codec_cannot_encode(
+    client, seeded_db, no_side_effects
+):
+    # In range for the API, too large for the codec's one-byte fields.
+    response = await client.post(
+        "/api/v1/referral", json=_vitals(systolic_bp=300, heart_rate=280)
+    )
+    assert response.status_code == 201, response.text
+    referral = response.json()["referral"]
+    assert referral["risk_level"] == "RED"
+    assert referral["moews_score"] == 6
+    assert referral["severity"] == "RED"
+    assert referral["compressed_sms_payload"] is None
+
+
+def test_codec_failure_keeps_state_and_records_error():
+    state = {
+        "chps_id": "1",
+        "moews_score": 3,
+        "risk_level": "RED",
+        "vitals": {"heart_rate": 80, "systolic_bp": 999},
+        "errors": ["earlier"],
+    }
+    result = prepare_dispatch_node(state)
+    assert result["moews_score"] == 3
+    assert result["risk_level"] == "RED"
+    assert result["compressed_sms_payload"] is None
+    assert result["errors"] == ["earlier", "sms_payload_encode_failed"]
+
+
+def test_codec_success_still_encodes():
+    result = prepare_dispatch_node(
+        {
+            "chps_id": "1",
+            "moews_score": 0,
+            "risk_level": "GREEN",
+            "vitals": {"heart_rate": 80, "systolic_bp": 120},
+        }
+    )
+    assert result["compressed_sms_payload"]
+
+
+@pytest.mark.parametrize("text", ["1", "2", "3"])
+def test_ussd_exact_choices(text):
+    assert _menu_choice(text) == text
+
+
+@pytest.mark.parametrize(
+    "text", ["21", "13", "11", "31", "1*2", "99*1", "3*2", "*1", "1*", "4", "0", "a1", "1a"]
+)
+def test_ussd_rejects_anything_else(text):
+    assert _menu_choice(text) is None
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("text", ["21", "13", "1*1", "99*1"])
+async def test_ussd_typo_does_not_claim_dispatch(
+    client, seeded_db, no_side_effects, monkeypatch, text
+):
+    monkeypatch.setattr("src.api.ussd.settings.AT_USSD_SERVICE_CODE", "")
+    created = await client.post("/api/v1/referral", json=_payload())
+    dispatch_id = created.json()["dispatch"]["id"]
+
+    reply = await client.post(
+        "/ussd/callback",
+        data={"phoneNumber": "+233240000001", "serviceCode": "*1#", "text": text},
+    )
+
+    assert reply.text == "END Invalid option selected."
+    dispatch = (await client.get(f"/api/v1/dispatch/{dispatch_id}")).json()
+    assert dispatch["driver_id"] is None
+
+
+def _dart_limits() -> dict[str, tuple[float, float]]:
+    source = (REPO / "mobile/lib/services/vital_limits.dart").read_text()
+    pairs = re.findall(r"static const (\w+) = VitalLimits\((\d+), (\d+)\);", source)
+    return {name: (float(low), float(high)) for name, low, high in pairs}
+
+
+def test_app_and_api_limits_match():
+    """The app must reject what the API rejects, or referrals get stuck in the outbox."""
+    fields = {
+        "systolicBp": "systolic_bp",
+        "diastolicBp": "diastolic_bp",
+        "heartRate": "heart_rate",
+        "respiratoryRate": "respiratory_rate",
+        "temperature": "temperature",
+        "spo2": "spo2",
+    }
+    limits = _dart_limits()
+    assert set(limits) == set(fields)
+    for dart_name, api_name in fields.items():
+        low, high = limits[dart_name]
+        VitalsInput(**{api_name: low})
+        VitalsInput(**{api_name: high})
+        for outside in (low - 1, high + 1):
+            with pytest.raises(ValueError):
+                VitalsInput(**{api_name: outside})
+
+
+def test_every_emergency_type_in_the_app_is_accepted():
+    source = (REPO / "mobile/lib/screens/referral_screen.dart").read_text()
+    block = source[source.index("labelText: 'Emergency type'") :]
+    values = re.findall(r"value: '(\w+)'", block[: block.index("onChanged")])
+    assert values
+    from typing import get_args
+
+    from src.api.referral import EmergencyType
+
+    assert set(values) <= set(get_args(EmergencyType))

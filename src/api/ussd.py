@@ -21,6 +21,7 @@ from src.config import settings
 from src.db.database import get_db
 from src.db.models import Dispatch, Driver, Referral
 from src.services.dispatch_orchestrator import (
+    ACCEPT_ELIGIBLE,
     ARRIVAL_ELIGIBLE,
     CLAIMABLE,
     DispatchOrchestrator,
@@ -63,23 +64,20 @@ def _configured_service_code() -> str:
 
 
 def _service_code_allowed(incoming: str | None) -> bool:
-    """Require configured shortcode in staging/production; match when set."""
+    """Require a configured shortcode outside development; match when set."""
     expected = _configured_service_code()
     if not expected:
         # Fail closed outside local/demo — empty allow-all is unsafe.
-        return settings.ENVIRONMENT.strip().lower() not in {"production", "staging"}
+        return settings.is_development
     if not incoming:
         return False
     return _normalize_service_code(incoming) == expected
 
 
 def _menu_choice(user_input: str) -> str | None:
-    """Map AT accumulated text (e.g. '1' or '1*2') to a leaf menu digit."""
-    if user_input in {"1", "2", "3"}:
-        return user_input
-    if user_input and user_input[-1] in {"1", "2", "3"}:
-        return user_input[-1]
-    return None
+    """Exact match on the whole input. The menu has one level, so AT never sends
+    accumulated text here, and "21" or "1*2" must not be read as a choice."""
+    return user_input if user_input in {"1", "2", "3"} else None
 
 
 async def _find_driver(session: AsyncSession, phone_number: str) -> Driver | None:
@@ -145,7 +143,7 @@ async def process_ussd(
         .where(
             Referral.chps_compound_id == driver.chps_compound_id,
             or_(
-                Dispatch.status.in_(CLAIMABLE),
+                Dispatch.status.in_(ACCEPT_ELIGIBLE if choice == "1" else CLAIMABLE),
                 (Dispatch.status == "ACCEPTED") & (Dispatch.driver_id == driver.id),
             ),
         )

@@ -9,10 +9,10 @@
 | **Out of scope** | Obstetric diagnosis; pneumonia/bronchiolitis claims; population screening without study |
 | **Input** | ~0.975 s windows @ 16 kHz mono PCM |
 | **“Abnormal” mapping** | Max score over AudioSet indices `{36,37,39,40,41,42}` (Breathing, Wheeze, Gasp, Pant, Snort, Cough) |
-| **Thresholds (app)** | `>0.7` → RED; `<0.5` → GREEN (low event score, advisory); mid-band → **INCONCLUSIVE** (never “normal”) |
+| **Thresholds (app)** | `>0.7` → RED; everything else → **INCONCLUSIVE** (never GREEN or “normal”) |
 | **Human oversight** | CHO confirmation required; MOEWS is clinical spine; acoustic GREEN never downgrades MOEWS RED/YELLOW |
 | **Failure mode** | Load/infer failure → INCONCLUSIVE; missing respiratory-class evidence → INCONCLUSIVE (no top-5 AudioSet fallback) |
-| **Kill switch** | `--dart-define=MOEWS_ONLY=true` skips acoustic path |
+| **Kill switch** | Acoustic path is off by default; `--dart-define=MOEWS_ONLY=false` enables it |
 | **Telemetry** | Scores-only: label, confidence, `model_version` (`yamnet-audioset-v0`) — no audio/embeddings |
 | **Validation** | Not Ghana-validated; lab/demo only until ethics + clinical protocol |
 | **Contact** | Yoma Triage engineering / clinical lead |

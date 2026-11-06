@@ -58,7 +58,7 @@ def critical_referral(patient_hash: str) -> dict[str, Any]:
         "facility_id": 1,
         "patient_hash": patient_hash,
         "client_request_id": str(uuid.uuid4()),
-        "emergency_type": "Obstetric haemorrhage",
+        "emergency_type": "pph",
         "gestational_weeks": 38,
         "vitals": {
             "systolic_bp": 70,

@@ -5,7 +5,7 @@ from __future__ import annotations
 import logging
 import re
 import uuid
-from typing import Any
+from typing import Annotated, Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from pydantic import BaseModel, Field, field_validator
@@ -29,26 +29,63 @@ router = APIRouter(
 PATIENT_HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 
 
+# Keep in sync with mobile/lib/services/vital_limits.dart: the app must reject what
+# the API rejects, or a referral sits in the outbox retrying a 422 forever.
+# These catch typos and impossible readings; they are not clinical thresholds.
+SYSTOLIC_BP = Field(ge=0, le=300)
+DIASTOLIC_BP = Field(ge=0, le=200)
+HEART_RATE = Field(ge=0, le=300)
+RESPIRATORY_RATE = Field(ge=0, le=120)
+TEMPERATURE = Field(ge=20, le=45)
+SPO2 = Field(ge=0, le=100)
+
+EmergencyType = Literal[
+    # Offered by the CHO app today.
+    "respiratory_distress",
+    "pph",
+    "neonatal_asphyxia",
+    "eclampsia",
+    # Listed in spec 7.1.2.
+    "maternal_hemorrhage",
+    "neonatal_sepsis",
+    "severe_malaria",
+    "other",
+]
+DbInt = Annotated[int, Field(ge=1, le=2_147_483_647)]
+AVPU = {"A": "A", "ALERT": "A", "V": "V", "VOICE": "V", "P": "P", "PAIN": "P",
+        "U": "U", "UNRESPONSIVE": "U"}
+
+
 class VitalsInput(BaseModel):
-    systolic_bp: int | None = None
-    diastolic_bp: int | None = None
-    heart_rate: int | None = None
-    respiratory_rate: int | None = None
-    temperature: float | None = None
-    spo2: int | None = None
+    systolic_bp: Annotated[int, SYSTOLIC_BP] | None = None
+    diastolic_bp: Annotated[int, DIASTOLIC_BP] | None = None
+    heart_rate: Annotated[int, HEART_RATE] | None = None
+    respiratory_rate: Annotated[int, RESPIRATORY_RATE] | None = None
+    temperature: Annotated[float, TEMPERATURE] | None = None
+    spo2: Annotated[int, SPO2] | None = None
     consciousness_level: str | None = None
+
+    @field_validator("consciousness_level")
+    @classmethod
+    def validate_consciousness(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        normalized = AVPU.get(value.strip().upper())
+        if normalized is None:
+            raise ValueError("consciousness_level must be one of A, V, P, U")
+        return normalized
 
 
 class ReferralCreate(BaseModel):
-    chps_compound_id: int
-    facility_id: int
+    chps_compound_id: DbInt
+    facility_id: DbInt
     patient_hash: str = Field(min_length=64, max_length=64)
-    emergency_type: str
+    emergency_type: EmergencyType
     vitals: VitalsInput
-    gestational_weeks: int = 0
+    gestational_weeks: int = Field(default=0, ge=0, le=45)
     client_request_id: str | None = Field(default=None, max_length=36)
-    ai_screen_result: str | None = None
-    ai_confidence: float | None = None
+    ai_screen_result: str | None = Field(default=None, max_length=32)
+    ai_confidence: float | None = Field(default=None, ge=0, le=1)
     ai_model_version: str | None = Field(default=None, max_length=64)
 
     @field_validator("patient_hash")

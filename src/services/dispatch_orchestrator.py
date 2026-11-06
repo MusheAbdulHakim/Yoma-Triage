@@ -4,7 +4,7 @@ from __future__ import annotations
 import asyncio
 import logging
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -19,8 +19,25 @@ from src.services.messaging_gateway import MessagingGateway
 logger = logging.getLogger(__name__)
 
 CLAIMABLE = {"PENDING", "TIER1_NOTIFIED", "TIER2_NOTIFIED"}
+# A notified driver may still claim after the cascade gives up, within this window.
+ACCEPT_ELIGIBLE = CLAIMABLE | {"FAILED"}
+LATE_CLAIM_WINDOW = timedelta(hours=2)
 ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
 FUEL_STIPEND_GHS = 22.5
+
+
+def _locked_dispatch(dispatch_id: int):
+    """SELECT ... FOR UPDATE that returns the row as committed once the lock is held.
+
+    Without populate_existing, a Dispatch already loaded in the session keeps its
+    stale attributes after the lock wait, and two drivers can both claim it.
+    """
+    return (
+        select(Dispatch)
+        .where(Dispatch.id == dispatch_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
 
 
 def build_driver_offer_message(
@@ -52,6 +69,23 @@ def build_cho_escalation_message(*, referral_id: int, compound_id: int) -> str:
         f"Yoma: Tier3 — no transport for Ref #{referral_id} (CHPS #{compound_id}). "
         f"Escalate NAS / coordinate ambulance manually."
     )
+
+
+def build_cho_late_accept_message(
+    *, referral_id: int, compound_id: int, driver_name: str, driver_phone: str
+) -> str:
+    """Sent when a driver claims after the CHO was told to coordinate manually."""
+    return (
+        f"Yoma: Driver {driver_name} ({driver_phone}) accepted LATE for Ref #{referral_id} "
+        f"(CHPS #{compound_id}). Stand down manual transport if no longer needed."
+    )
+
+
+def _late_claim_open(dispatch: Dispatch) -> bool:
+    initiated_at = dispatch.initiated_at
+    if initiated_at.tzinfo is None:
+        initiated_at = initiated_at.replace(tzinfo=UTC)
+    return datetime.now(UTC) - initiated_at <= LATE_CLAIM_WINDOW
 
 
 class DispatchOrchestrator:
@@ -146,7 +180,7 @@ class DispatchOrchestrator:
         self, session: AsyncSession, dispatch_id: int, driver_id: int
     ) -> dict:
         dispatch = await session.scalar(
-            select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+            _locked_dispatch(dispatch_id)
         )
         if not dispatch:
             return {"ussd": "END No active dispatch.", "run_side_effects": False}
@@ -160,7 +194,10 @@ class DispatchOrchestrator:
             }
         if dispatch.status == "ACCEPTED" and dispatch.driver_id != driver_id:
             return {"ussd": "END Already assigned.", "run_side_effects": False}
-        if dispatch.status not in CLAIMABLE:
+        if dispatch.status not in ACCEPT_ELIGIBLE:
+            return {"ussd": "END Dispatch not available.", "run_side_effects": False}
+        late = dispatch.status == "FAILED"
+        if late and not _late_claim_open(dispatch):
             return {"ussd": "END Dispatch not available.", "run_side_effects": False}
 
         referral = await session.get(Referral, dispatch.referral_id)
@@ -170,7 +207,10 @@ class DispatchOrchestrator:
             dispatch.current_tier,
             list(dispatch.declined_driver_ids or []),
         )
-        if driver_id not in {candidate.id for candidate in candidates}:
+        eligible = (
+            not late and driver_id in {candidate.id for candidate in candidates}
+        ) or await self._was_notified(session, dispatch.id, driver_id)
+        if not eligible:
             return {
                 "ussd": "END You are not eligible for this dispatch.",
                 "run_side_effects": False,
@@ -185,7 +225,7 @@ class DispatchOrchestrator:
                 action="ussd_accept",
                 target_role="driver",
                 response="ACCEPTED",
-                metadata_json={"driver_id": driver_id},
+                metadata_json={"driver_id": driver_id, "late": late},
             )
         )
         return {
@@ -196,12 +236,29 @@ class DispatchOrchestrator:
             "run_side_effects": True,
         }
 
+    async def _was_notified(
+        self, session: AsyncSession, dispatch_id: int, driver_id: int
+    ) -> bool:
+        """True if this dispatch offer was sent to the driver, at any tier."""
+        log_id = await session.scalar(
+            select(DispatchLog.id)
+            .join(Driver, Driver.phone == DispatchLog.target_phone)
+            .where(
+                Driver.id == driver_id,
+                DispatchLog.dispatch_id == dispatch_id,
+                DispatchLog.action == "sms_send",
+                DispatchLog.target_role == "driver",
+            )
+            .limit(1)
+        )
+        return log_id is not None
+
     async def handle_decline(
         self, session: AsyncSession, dispatch_id: int, driver_id: int
     ) -> dict:
         """Record a decline and indicate whether escalation should run after commit."""
         dispatch = await session.scalar(
-            select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+            _locked_dispatch(dispatch_id)
         )
         if not dispatch:
             return {"ussd": "END No active dispatch.", "run_side_effects": False}
@@ -233,7 +290,7 @@ class DispatchOrchestrator:
     ) -> dict:
         """Confirm patient arrival at hospital and mark dispatch complete."""
         dispatch = await session.scalar(
-            select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+            _locked_dispatch(dispatch_id)
         )
         if not dispatch:
             return {"ussd": "END No active dispatch.", "run_side_effects": False}
@@ -276,7 +333,7 @@ class DispatchOrchestrator:
         """Notify CHO once after a successful arrival confirmation."""
         async with async_session() as session:
             dispatch = await session.scalar(
-                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+                _locked_dispatch(dispatch_id)
             )
             if (
                 not dispatch
@@ -318,7 +375,7 @@ class DispatchOrchestrator:
         """Run payment and hospital notification once after a successful claim."""
         async with async_session() as session:
             dispatch = await session.scalar(
-                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+                _locked_dispatch(dispatch_id)
             )
             if (
                 not dispatch
@@ -369,14 +426,53 @@ class DispatchOrchestrator:
             await self.hospital.notify_pre_arrival(
                 session, referral, driver, facility, dispatch_id
             )
+            await self._notify_cho_if_late(session, referral, driver, dispatch_id)
             dispatch.status = "HOSPITAL_NOTIFIED"
             await session.commit()
+
+    async def _notify_cho_if_late(
+        self,
+        session: AsyncSession,
+        referral: Referral,
+        driver: Driver,
+        dispatch_id: int,
+    ) -> None:
+        gave_up = await session.scalar(
+            select(DispatchLog.id)
+            .where(
+                DispatchLog.dispatch_id == dispatch_id,
+                DispatchLog.action == "cho_give_up",
+            )
+            .limit(1)
+        )
+        if gave_up is None:
+            return
+        compound = await session.get(CHPSCompound, referral.chps_compound_id)
+        message = build_cho_late_accept_message(
+            referral_id=referral.id,
+            compound_id=referral.chps_compound_id,
+            driver_name=driver.name,
+            driver_phone=driver.phone,
+        )
+        result = await self.gateway.send_sms(
+            compound.cho_phone, message, dispatch_id, "cho"
+        )
+        session.add(
+            DispatchLog(
+                dispatch_id=dispatch_id,
+                action="cho_late_accept_notify",
+                target_phone=compound.cho_phone,
+                target_role="cho",
+                response=result["status"],
+                metadata_json=result,
+            )
+        )
 
     async def run_decline_side_effects(self, dispatch_id: int, driver_id: int) -> None:
         """Escalate an eligible decline after its USSD response has returned."""
         async with async_session() as session:
             dispatch = await session.scalar(
-                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+                _locked_dispatch(dispatch_id)
             )
             if (
                 not dispatch
@@ -422,7 +518,7 @@ class DispatchOrchestrator:
         await asyncio.sleep(settings.CASCADE_TIER_SECONDS)
         async with async_session() as session:
             dispatch = await session.scalar(
-                select(Dispatch).where(Dispatch.id == dispatch_id).with_for_update()
+                _locked_dispatch(dispatch_id)
             )
             if (
                 not dispatch

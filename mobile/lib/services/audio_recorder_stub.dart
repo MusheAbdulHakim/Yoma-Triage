@@ -15,3 +15,6 @@ class AudioRecorderStub implements AudioRecorderService {
 }
 
 AudioRecorderService createAudioRecorder() => AudioRecorderStub();
+
+/// No files are written on these platforms, so there is nothing to purge.
+Future<int> purgeStaleRecordings() async => 0;

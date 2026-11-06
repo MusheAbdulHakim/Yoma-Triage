@@ -9,7 +9,7 @@ import 'referral_screen.dart';
 class ResultScreen extends StatelessWidget {
   final ScreeningResult result;
   final MoewsResult? moews;
-  final Map<String, Object>? vitals;
+  final Map<String, Object?>? vitals;
 
   const ResultScreen({
     super.key,
@@ -28,6 +28,8 @@ class ResultScreen extends StatelessWidget {
         return YomaColors.caution;
     }
   }
+
+  bool get _acousticDisabled => result.source == 'moews_only';
 
   bool get _isDemoSource =>
       result.source == 'stub' || result.source == 'simulator';
@@ -124,7 +126,7 @@ class ResultScreen extends StatelessWidget {
               ],
             ),
           ),
-          if (moews != null) ...[
+          if (moews != null && !_acousticDisabled) ...[
             const SizedBox(height: 16),
             Card(
               color: _acousticColor(result.label).withValues(alpha: 0.08),
@@ -163,7 +165,7 @@ class ResultScreen extends StatelessWidget {
                 ),
               ),
             ),
-          ] else ...[
+          ] else if (moews == null) ...[
             const SizedBox(height: 8),
             Text(
               'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%'

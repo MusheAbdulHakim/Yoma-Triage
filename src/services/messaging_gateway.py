@@ -1,4 +1,4 @@
-"""Africa's Talking SMS / Voice with auto-mock fallback.
+"""Africa's Talking SMS / Voice. Mock sends exist only in development.
 
 Sandbox apps: form POST `/version1/messaging` (bulk path is not available yet).
 Live apps: JSON POST `/version1/messaging/bulk`
@@ -26,8 +26,22 @@ class MessagingGateway:
         base = settings.at_api_base_url.lower()
         return "sandbox" not in base
 
+    def _unconfigured_failure(self, to: str, dispatch_id: int, role: str) -> dict:
+        """Outside development an unconfigured gateway fails loudly, never mocks."""
+        logger.error("Africa's Talking is not configured; message not sent")
+        return {
+            "status": "FAILED",
+            "provider": "none",
+            "error": "Africa's Talking is not configured",
+            "to": to,
+            "dispatch_id": dispatch_id,
+            "role": role,
+        }
+
     async def send_sms(self, to: str, message: str, dispatch_id: int, role: str) -> dict:
         if not settings.at_configured:
+            if not settings.is_development:
+                return self._unconfigured_failure(to, dispatch_id, role)
             logger.info(
                 "MOCK SMS dispatch=%s role=%s to=%s msg=%s",
                 dispatch_id,
@@ -188,6 +202,8 @@ class MessagingGateway:
 
     async def initiate_voice(self, to: str, message: str, dispatch_id: int, role: str) -> dict:
         if not settings.at_configured:
+            if not settings.is_development:
+                return self._unconfigured_failure(to, dispatch_id, role)
             logger.info("MOCK VOICE dispatch=%s to=%s", dispatch_id, to)
             return {
                 "status": "MOCKED",

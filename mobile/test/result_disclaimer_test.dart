@@ -21,7 +21,7 @@ void main() {
   });
 
   testWidgets('stub source shows demo screening mode', (tester) async {
-    final result = stubClassify(forceRed: false);
+    final result = stubClassify();
     await tester.pumpWidget(
       MaterialApp(home: ResultScreen(result: result)),
     );

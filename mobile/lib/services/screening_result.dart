@@ -1,3 +1,9 @@
+import 'package:flutter/foundation.dart' show kReleaseMode;
+
+/// Demo classifiers (web simulator buttons, `SCREENING_MODEL=stub`) exist only
+/// outside release builds. This is a const so release builds tree-shake them.
+const bool demoClassifiersEnabled = !kReleaseMode;
+
 class ScreeningResult {
   final String label; // GREEN | RED | INCONCLUSIVE
   final double confidence;
@@ -26,12 +32,13 @@ ScreeningResult mapYamnetToResult({required double abnormalScore}) {
       modelVersion: 'yamnet-audioset-v0',
     );
   }
+  // Spec §7.1.1: below 0.5 is inconclusive. A low respiratory-event score only
+  // means nothing was detected, so it must never read as a clinical all-clear.
   if (abnormalScore < 0.5) {
     return ScreeningResult(
-      label: 'GREEN',
+      label: 'INCONCLUSIVE',
       confidence: abnormalScore,
-      reason:
-          'Low respiratory-event score — advisory only, not a clinical clear',
+      reason: 'Inconclusive — use clinical judgment',
       source: 'yamnet',
       modelVersion: 'yamnet-audioset-v0',
     );
@@ -46,15 +53,45 @@ ScreeningResult mapYamnetToResult({required double abnormalScore}) {
   );
 }
 
-ScreeningResult stubClassify({required bool forceRed}) => ScreeningResult(
-      label: forceRed ? 'RED' : 'GREEN',
-      confidence: forceRed ? 0.85 : 0.9,
-      reason: forceRed ? 'Stub: Code Red (demo)' : 'Stub: Normal (demo)',
+/// Every load, inference and microphone failure ends here: never GREEN or RED.
+ScreeningResult unavailableResult({
+  String reason = 'Screening unavailable — use clinical judgment',
+}) =>
+    ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: reason,
+      source: 'unavailable',
+      modelVersion: 'unavailable-v0',
+    );
+
+/// Acoustic screening switched off (`MOEWS_ONLY`): vitals decide alone.
+ScreeningResult moewsOnlyResult() => ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason:
+          'Acoustic screening disabled (MOEWS_ONLY) — use vitals and judgment',
+      source: 'moews_only',
+      modelVersion: 'moews-only-v0',
+    );
+
+/// `SCREENING_MODEL=stub`: labelled demo output, and still never reassuring.
+ScreeningResult stubClassify() => ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: 'Stub classifier (demo) — use clinical judgment',
       source: 'stub',
       modelVersion: 'stub-v0',
     );
 
-ScreeningResult simulatorClassify({required bool forceRed}) => ScreeningResult(
+/// Web demo buttons. Outside debug/profile builds this is [unavailableResult].
+ScreeningResult simulatorClassify({required bool forceRed}) {
+  if (!demoClassifiersEnabled) return unavailableResult();
+  return _demoSimulatorResult(forceRed: forceRed);
+}
+
+ScreeningResult _demoSimulatorResult({required bool forceRed}) =>
+    ScreeningResult(
       label: forceRed ? 'RED' : 'GREEN',
       confidence: forceRed ? 0.82 : 0.91,
       reason: forceRed

@@ -109,7 +109,7 @@ start_api() {
     ./venv/bin/python -m src.db.seed 2>/dev/null || true
 
     log "Starting FastAPI backend on port $API_PORT..."
-    ./venv/bin/python -c "import uvicorn; uvicorn.run('main:app', host='0.0.0.0', port=$API_PORT, reload=False)" &
+    ENVIRONMENT="${ENVIRONMENT:-development}" ./venv/bin/python -c "import uvicorn; uvicorn.run('main:app', host='0.0.0.0', port=$API_PORT, reload=False)" &
     API_PID=$!
     echo "$API_PID" > /tmp/yoma_api.pid
 

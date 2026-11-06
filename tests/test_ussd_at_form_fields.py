@@ -30,7 +30,7 @@ async def _seed_open_referral(client, monkeypatch, request_id: str):
             "chps_compound_id": 1,
             "facility_id": 1,
             "patient_hash": "0123456789abcdef" * 4,
-            "emergency_type": "Obstetric haemorrhage",
+            "emergency_type": "pph",
             "gestational_weeks": 38,
             "client_request_id": request_id,
             "vitals": {
