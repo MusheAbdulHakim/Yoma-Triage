@@ -180,5 +180,10 @@ def test_every_table_row_has_a_blank_sign_off_column():
         assert row.rstrip().endswith("| |"), row
 
 
+def test_sheet_asks_about_green_without_spo2():
+    questions = SHEET[SHEET.index("## Questions for the clinical lead") : SHEET.index("## Vital sign")]
+    assert "every vital measured except SpO₂ can still be GREEN" in questions
+
+
 def test_sheet_says_nothing_is_approved():
     assert "None of these values has been clinically approved" in SHEET
