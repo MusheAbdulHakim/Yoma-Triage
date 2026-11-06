@@ -588,23 +588,26 @@ When any component fails — network, AI, dispatch — the system degrades grace
 4. App records 60 seconds of audio
 5. On-device AI (YAMNet or HeAR event detector) analyzes the audio
 6. App displays result:
-   - **GREEN: Normal** — Breathing sounds within normal range. Continue monitoring.
-   - **RED: Code Red** — Abnormal breathing pattern detected. Consider referral.
-7. CHO reviews the AI's reasoning: "Faster than normal rate detected" / "Wheezing sounds detected"
+   - **RED: Code Red** — Respiratory sounds detected (score above 0.7). Consider referral.
+   - **INCONCLUSIVE** — Anything else: "Inconclusive — use clinical judgment".
+   - YAMNet never reports GREEN or "Normal". Its score measures whether a respiratory sound event was detected, not whether breathing is normal, so a low score means only that nothing was detected. A GREEN would require a separately validated model that actually measures normal breathing.
+7. CHO reviews the AI's reasoning
 8. CHO decides: Refer or Continue Monitoring
 9. If Refer: CHO confirms referral, triggering dispatch
 
 **Technical details:**
 - Audio recorded at 16kHz, mono, PCM format
 - YAMNet processes 0.975-second windows continuously
-- Classification: normal breathing, wheeze, crackle, stridor
-- Confidence threshold: >0.7 for Code Red
+- Detection: AudioSet sound classes only (breathing, wheeze, gasp, pant, snort, cough). YAMNet has no "normal breathing" or stridor class, and its "Crackle" class is a general sound, not a lung sound
+- Thresholds: above 0.7 is Code Red; everything else is Inconclusive
+- Acoustic screening is off by default (`MOEWS_ONLY=true`) until a model is clinically validated
 - Entire process runs on-device — no internet required
 - Model size: 4.13 MB (YAMNet) or 5-10 MB (HeAR event detector)
 
 **Safety guardrails:**
 - AI output is advisory only — CHO makes the referral decision
-- If AI confidence is below 0.5, app displays "Inconclusive — use clinical judgment"
+- If the score is below 0.5, app displays "Inconclusive — use clinical judgment"
+- Any load, inference or microphone failure also returns Inconclusive, never GREEN
 - App never overrides CHO decision
 - If app crashes during recording, CHO can restart — no data loss
 
