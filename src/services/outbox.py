@@ -229,7 +229,7 @@ class OutboxSender:
         compound = (
             await session.get(CHPSCompound, referral.chps_compound_id) if referral else None
         )
-        if compound is None:
+        if referral is None or compound is None:
             return
         enqueue_sms(
             session,

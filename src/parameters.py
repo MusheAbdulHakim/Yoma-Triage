@@ -6,6 +6,8 @@ clinical review. All of these are unapproved placeholders until that sheet is si
 """
 from __future__ import annotations
 
+from typing import Any
+
 # Entry limits: these catch typos and impossible readings. They do not judge risk.
 VITAL_RANGES = {
     "systolic_bp": (0, 300),
@@ -19,7 +21,7 @@ GESTATIONAL_WEEKS_MAX = 45
 
 # MOEWS bands (spec 9.3). Below red_below or above red_above scores 3. Inside a yellow
 # range scores 1. Anything else scores 0. A boundary value takes the higher score.
-MOEWS_BANDS = {
+MOEWS_BANDS: dict[str, dict[str, Any]] = {
     "systolic_bp": {
         "red_below": 80, "yellow_low": (80, 90), "yellow_high": (140, 150), "red_above": 150,
     },
