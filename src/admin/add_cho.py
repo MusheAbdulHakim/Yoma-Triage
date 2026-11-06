@@ -24,6 +24,16 @@ class AddChoError(Exception):
     """A problem the operator can fix, reported without a traceback."""
 
 
+async def find_registered(session: AsyncSession, phone: str) -> Cho:
+    normalized = normalize_ghana_phone(phone)
+    if not is_valid_ghana_phone(normalized):
+        raise AddChoError(f"Not a valid Ghana phone number: {phone}")
+    cho = await session.scalar(select(Cho).where(Cho.phone == normalized))
+    if cho is None:
+        raise AddChoError(f"No CHO is registered with phone {normalized}")
+    return cho
+
+
 async def add_cho(
     session: AsyncSession, *, name: str, phone: str, compound_id: int, actor: str
 ) -> Cho:

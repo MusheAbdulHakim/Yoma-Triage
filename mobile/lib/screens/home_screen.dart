@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../services/api_client.dart';
 import '../services/catalog_store.dart';
+import '../services/cho_store.dart';
 import '../services/contacts_store.dart';
 import '../services/offline_queue.dart';
 import '../services/screening_result.dart';
@@ -88,6 +89,7 @@ class _HomeScreenState extends State<HomeScreen> {
     setState(() => _syncing = true);
     final api = widget.api ?? ApiClient();
     await _catalog.trySyncOnConnect(api);
+    await ChoStore().recheck(api);
     await ContactsStore().refreshForThisPhone(api);
     if (!mounted) return;
     setState(() => _syncing = false);

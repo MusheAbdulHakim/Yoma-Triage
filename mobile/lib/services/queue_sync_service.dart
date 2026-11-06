@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'api_client.dart';
+import 'cho_store.dart';
 import 'contacts_store.dart';
 import 'offline_queue.dart';
 
@@ -30,8 +31,7 @@ class QueueSyncService {
       // Tests / unsupported platforms: skip live listener.
     }
     // Also try once at startup in case items were left pending.
-    unawaited(flushNow());
-    unawaited(ContactsStore().refreshForThisPhone(_api));
+    unawaited(_syncAll());
   }
 
   void dispose() {
@@ -41,10 +41,15 @@ class QueueSyncService {
 
   Future<void> _onChange(List<ConnectivityResult> results) async {
     final online = results.any((r) => r != ConnectivityResult.none);
-    if (online) {
-      await flushNow();
-      await ContactsStore().refreshForThisPhone(_api);
-    }
+    if (online) await _syncAll();
+  }
+
+  /// Sends first, so a CHO who has just been deactivated gets a clear refusal on each
+  /// waiting referral. Contacts come last, so they're never fetched for an old compound.
+  Future<void> _syncAll() async {
+    await flushNow();
+    await ChoStore().recheck(_api);
+    await ContactsStore().refreshForThisPhone(_api);
   }
 
   Future<int> flushNow() async {

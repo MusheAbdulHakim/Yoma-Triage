@@ -26,12 +26,27 @@ class YomaApp extends StatefulWidget {
 }
 
 class _YomaAppState extends State<YomaApp> {
+  final _navigator = GlobalKey<NavigatorState>();
   bool _loaded = false;
   ChoIdentity? _identity;
 
   @override
   void initState() {
     super.initState();
+    ChoStore.removals.addListener(_onRemoved);
+    unawaited(_loadIdentity());
+  }
+
+  @override
+  void dispose() {
+    ChoStore.removals.removeListener(_onRemoved);
+    super.dispose();
+  }
+
+  /// A sync found this CHO deactivated or moved. Leave whatever screen is open: the
+  /// identity it was using is gone. Setup explains why and keeps unsent referrals visible.
+  void _onRemoved() {
+    _navigator.currentState?.popUntil((route) => route.isFirst);
     unawaited(_loadIdentity());
   }
 
@@ -58,6 +73,7 @@ class _YomaAppState extends State<YomaApp> {
     }
     return MaterialApp(
       title: 'Yoma Triage',
+      navigatorKey: _navigator,
       debugShowCheckedModeBanner: false,
       theme: buildYomaTheme(),
       home: home,

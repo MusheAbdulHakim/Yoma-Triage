@@ -445,6 +445,13 @@ class _FakeConnectivity implements Connectivity {
   dynamic noSuchMethod(Invocation invocation) => super.noSuchMethod(invocation);
 }
 
+/// The sync does real database work first, so a fixed delay would be flaky.
+Future<void> _waitFor(bool Function() condition) async {
+  for (var i = 0; i < 200 && !condition(); i++) {
+    await Future<void>.delayed(const Duration(milliseconds: 25));
+  }
+}
+
 void _refreshTriggerTests() {
   group('when the saved list is refreshed', () {
     late Directory dbDir;
@@ -506,7 +513,7 @@ void _refreshTriggerTests() {
       addTearDown(service.dispose);
 
       service.start();
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await _waitFor(() => api.contactCalls > 0);
 
       expect(api.contactCalls, 1);
     });
@@ -522,7 +529,7 @@ void _refreshTriggerTests() {
       );
       addTearDown(service.dispose);
       service.start();
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await _waitFor(() => api.contactCalls > 0);
       api.contactCalls = 0;
 
       connectivity.controller.add([ConnectivityResult.none]);
@@ -530,7 +537,7 @@ void _refreshTriggerTests() {
       expect(api.contactCalls, 0);
 
       connectivity.controller.add([ConnectivityResult.mobile]);
-      await Future<void>.delayed(const Duration(milliseconds: 200));
+      await _waitFor(() => api.contactCalls > 0);
       expect(api.contactCalls, 1);
     });
   });

@@ -2,9 +2,13 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../theme/yoma_theme.dart';
 import '../services/api_client.dart';
 import '../services/cho_store.dart';
 import '../services/contacts_store.dart';
+import '../services/offline_queue.dart';
+import '../widgets/manual_contacts_panel.dart';
+import 'unsent_referrals_screen.dart';
 
 /// First run: the server confirms this CHO and says which compound they belong to.
 /// There is no compound picker, so a phone can't be set up against the wrong one.
@@ -14,11 +18,15 @@ class SetupScreen extends StatefulWidget {
     required this.onComplete,
     this.api,
     this.store,
+    this.queue,
+    this.launcher = launchWithPhone,
   });
 
   final ValueChanged<ChoIdentity> onComplete;
   final ApiClient? api;
   final ChoStore? store;
+  final OfflineQueue? queue;
+  final ContactLauncher launcher;
 
   @override
   State<SetupScreen> createState() => _SetupScreenState();
@@ -28,8 +36,33 @@ class _SetupScreenState extends State<SetupScreen> {
   final _phone = TextEditingController();
   late final ApiClient _api = widget.api ?? ApiClient();
   late final ChoStore _store = widget.store ?? ChoStore();
+  late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
+  String? _notice;
+  int _unsentCount = 0;
   bool _submitting = false;
   String? _error;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadReturnState();
+  }
+
+  /// A phone sent back here may still hold referrals the CHO must not lose sight of.
+  Future<void> _loadReturnState() async {
+    final notice = await _store.loadNotice();
+    var unsent = 0;
+    try {
+      unsent = (await _queue.unsent()).length;
+    } catch (_) {
+      // Setup must still work if the local queue can't be read.
+    }
+    if (!mounted) return;
+    setState(() {
+      _notice = notice;
+      _unsentCount = unsent;
+    });
+  }
 
   @override
   void dispose() {
@@ -77,6 +110,49 @@ class _SetupScreenState extends State<SetupScreen> {
       body: ListView(
         padding: const EdgeInsets.all(24),
         children: [
+          if (_notice != null) ...[
+            Card(
+              color: YomaColors.caution.withValues(alpha: 0.15),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
+                child: Text(
+                  _notice!,
+                  key: const Key('setup_notice'),
+                  style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
+          if (_unsentCount > 0) ...[
+            Card(
+              color: YomaColors.danger.withValues(alpha: 0.15),
+              child: ListTile(
+                key: const Key('setup_unsent'),
+                leading: const Icon(Icons.error, color: YomaColors.danger),
+                title: Text(
+                  _unsentCount == 1
+                      ? '1 referral has not reached a driver'
+                      : '$_unsentCount referrals have not reached a driver',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text('Tap to see them, and to Call or SMS.'),
+                onTap: () async {
+                  await Navigator.of(context).push(
+                    MaterialPageRoute(
+                      builder: (_) => UnsentReferralsScreen(
+                        queue: _queue,
+                        api: _api,
+                        launcher: widget.launcher,
+                      ),
+                    ),
+                  );
+                  await _loadReturnState();
+                },
+              ),
+            ),
+            const SizedBox(height: 16),
+          ],
           const Text(
             'Enter the phone number you were registered with as a CHO.',
             style: TextStyle(fontSize: 18),

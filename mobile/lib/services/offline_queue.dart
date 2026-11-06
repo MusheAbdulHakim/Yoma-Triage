@@ -328,6 +328,17 @@ class OfflineQueue {
     });
   }
 
+  /// Everything that hasn't reached a driver, oldest first.
+  Future<List<QueuedReferral>> unsent() {
+    return _serialized(() async {
+      final items = [
+        for (final status in const ['pending', 'needs_confirmation', 'failed'])
+          ...await _withStatusUnlocked(status),
+      ]..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return items;
+    });
+  }
+
   /// Records that the server refused this referral, so it is never retried.
   Future<void> markFailed(String clientRequestId, String reason) {
     return _serialized(() async {
