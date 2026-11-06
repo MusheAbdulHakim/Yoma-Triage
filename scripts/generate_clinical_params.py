@@ -172,7 +172,8 @@ def render_sheet(params: dict) -> str:
         "edges (SBP 90, for example, is in two). The system uses the higher score. Is that right?",
         "4. **Should diastolic BP below 60 be RED?** The spec table has no low diastolic band. "
         "The system adds one, scoring it 3.",
-        "5. **Should vitals missing from the score be treated as this table does?** See section 4.",
+        "5. **Is the handling of missing vitals in section 4 right?** In particular: a patient "
+        "with every vital measured except SpO₂ can still be GREEN, with a visible note.",
         "",
         "## 2. Vital sign entry limits",
         "",
