@@ -85,9 +85,11 @@ def _structured_summary(
             cite_bit += "…"
     score = moews_result.get("moews_score")
     score_txt = "n/a" if score is None else str(score)
+    missing = moews_result.get("missing_vitals") or []
+    missing_bit = f" Not measured: {', '.join(missing)}." if missing else ""
     return (
         f"Maternal referral assessment: {moews_result['risk_level']} risk "
-        f"(MOEWS {score_txt}). "
+        f"(MOEWS {score_txt}).{missing_bit} "
         f"Gestational age: {ga} weeks.{flag_bit}{cite_bit}"
     )
 
@@ -181,6 +183,7 @@ def run_clinical_assessment(state: ReferralState) -> ReferralState:
 
     state["moews_score"] = moews_result.get("moews_score")
     state["risk_level"] = moews_result.get("risk_level") or "UNKNOWN"
+    state["missing_vitals"] = moews_result.get("missing_vitals") or []
     state["retrieved_protocol_citations"] = retrieved_docs
     state["clinical_summary"] = summary
     state["protocol_assist"] = assist

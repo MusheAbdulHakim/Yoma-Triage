@@ -2,6 +2,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import DispatchLog, Driver, Facility, Referral
 from src.services.messaging_gateway import MessagingGateway
+from src.tools.moews_calculator import missing_vitals
 
 
 class HospitalNotifier:
@@ -17,12 +18,15 @@ class HospitalNotifier:
         dispatch_id: int,
     ) -> None:
         token = referral.patient_hash[:12]
+        missing = missing_vitals(referral.vitals_json) if referral.vitals_json else []
+        not_measured = f"Not measured: {', '.join(missing)}\n" if missing else ""
         message = (
             "YOMA TRIAGE EMERGENCY REFERRAL\n"
             f"From compound #{referral.chps_compound_id}\n"
             f"Patient token: {token}\n"
             f"Condition: {referral.emergency_type}\n"
             f"Severity: {referral.risk_level}\n"
+            f"{not_measured}"
             f"Driver: {driver.name}\n"
             f"Driver phone: {driver.phone}\n"
             f"Dispatch: #{dispatch_id}\n"

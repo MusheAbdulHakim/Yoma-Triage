@@ -18,6 +18,7 @@ from src.clinical_params import PARAMS
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
+from src.tools.moews_calculator import missing_vitals
 
 logger = logging.getLogger(__name__)
 
@@ -118,6 +119,7 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "compressed_sms_payload": referral.compressed_sms_payload,
         "status": referral.status,
         "vitals": referral.vitals_json,
+        "missing_vitals": missing_vitals(referral.vitals_json),
         "client_request_id": referral.client_request_id,
         "ai_screen_result": referral.ai_screen_result,
         "ai_confidence": referral.ai_confidence,

@@ -52,7 +52,7 @@ void main() {
       expect(find.text('Select AVPU or Not measured'), findsOneWidget);
     });
 
-    testWidgets('all not measured gives MOEWS UNKNOWN', (tester) async {
+    testWidgets('all not measured says Incomplete and lists what is missing', (tester) async {
       await open(tester);
       await _tickAllNotMeasured(tester, 'vitals');
       await selectAvpu(tester, avpu: 'Not measured');
@@ -61,22 +61,66 @@ void main() {
       await tester.pumpAndSettle();
 
       final result = tester.widget<ResultScreen>(find.byType(ResultScreen));
-      expect(result.moews!.riskLevel, 'UNKNOWN');
+      expect(result.moews!.riskLevel, 'INCOMPLETE');
       expect(result.vitals!['systolic_bp'], isNull);
       expect(result.vitals!['consciousness_level'], isNull);
       expect(result.vitals!.containsKey('systolic_bp'), isTrue);
-      expect(find.text('MOEWS UNKNOWN'), findsOneWidget);
-      expect(find.text('Refer with clinical judgment'), findsOneWidget);
+      expect(find.text('Incomplete'), findsOneWidget);
+      expect(find.textContaining('GREEN'), findsNothing);
+      expect(
+        find.text(
+          'Not measured: Systolic BP, Diastolic BP, Heart rate, '
+          'Respiratory rate, Temperature, SpO₂, AVPU',
+        ),
+        findsOneWidget,
+      );
+      expect(find.text('Confirm Referral'), findsOneWidget);
+      expect(find.text('Continue Monitoring'), findsOneWidget);
     });
 
-    testWidgets('AVPU not measured alone gives UNKNOWN, not Alert',
+    testWidgets('AVPU not measured alone is Incomplete, not Alert',
         (tester) async {
       await open(tester);
       await fillVitals(tester, avpu: 'Not measured');
       await tester.tap(find.text('Continue to Result'));
       await tester.pumpAndSettle();
       final result = tester.widget<ResultScreen>(find.byType(ResultScreen));
-      expect(result.moews!.riskLevel, 'UNKNOWN');
+      expect(result.moews!.riskLevel, 'INCOMPLETE');
+      expect(find.text('Not measured: AVPU'), findsOneWidget);
+    });
+
+    testWidgets('measured critical value is RED even with vitals missing',
+        (tester) async {
+      await open(tester);
+      await fillVitals(tester, overrides: {'sbp': '60'});
+      await tester.tap(find.byKey(const Key('vitals_temp_not_measured')));
+      await tester.pump();
+      await tester.tap(find.text('Continue to Result'));
+      await tester.pumpAndSettle();
+      expect(find.text('MOEWS RED'), findsOneWidget);
+      expect(find.text('Not measured: Temperature'), findsOneWidget);
+      expect(find.textContaining('from measured vitals'), findsOneWidget);
+      expect(find.text('Confirm Referral'), findsOneWidget);
+    });
+
+    testWidgets('GREEN without SpO₂ says so', (tester) async {
+      await open(tester);
+      await fillVitals(tester);
+      await tester.tap(find.byKey(const Key('vitals_spo2_not_measured')));
+      await tester.pump();
+      await tester.tap(find.text('Continue to Result'));
+      await tester.pumpAndSettle();
+      expect(find.text('MOEWS GREEN'), findsOneWidget);
+      expect(find.text('SpO₂ not measured'), findsOneWidget);
+    });
+
+    testWidgets('GREEN with a full set shows no missing note', (tester) async {
+      await open(tester);
+      await fillVitals(tester);
+      await tester.tap(find.text('Continue to Result'));
+      await tester.pumpAndSettle();
+      expect(find.text('MOEWS GREEN'), findsOneWidget);
+      expect(find.byKey(const Key('moews_not_measured')), findsNothing);
     });
 
     testWidgets('typed values are scored', (tester) async {
@@ -158,7 +202,7 @@ void main() {
   group('limits', _limitTests);
 
   group('calculateMoews', () {
-    test('null consciousness is UNKNOWN', () {
+    test('null consciousness is INCOMPLETE', () {
       final r = calculateMoews(
         sbp: 120,
         dbp: 80,
@@ -168,8 +212,8 @@ void main() {
         spo2: 98,
         consciousness: null,
       );
-      expect(r.riskLevel, 'UNKNOWN');
-      expect(r.score, isNull);
+      expect(r.riskLevel, 'INCOMPLETE');
+      expect(r.missingVitals, ['consciousness_level']);
     });
   });
 }

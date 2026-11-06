@@ -11,6 +11,7 @@ class MoewsResult {
     this.tempScore = 0,
     this.spo2Score = 0,
     this.consciousnessScore = 0,
+    this.missingVitals = const [],
   });
 
   final int? score;
@@ -25,8 +26,33 @@ class MoewsResult {
   final int spo2Score;
   final int consciousnessScore;
 
+  /// API names of the vitals that were not measured.
+  final List<String> missingVitals;
+
   bool get hrAbnormal => hrScore > 0;
+
+  bool get isIncomplete => riskLevel == 'INCOMPLETE';
+
+  /// What the CHO sees about missing vitals, or null if nothing is missing.
+  String? get notMeasuredText {
+    if (missingVitals.isEmpty) return null;
+    if (missingVitals.length == 1 && missingVitals.first == 'spo2') {
+      return 'SpO₂ not measured';
+    }
+    final labels = missingVitals.map((name) => _vitalLabels[name] ?? name);
+    return 'Not measured: ${labels.join(', ')}';
+  }
 }
+
+const _vitalLabels = {
+  'systolic_bp': 'Systolic BP',
+  'diastolic_bp': 'Diastolic BP',
+  'heart_rate': 'Heart rate',
+  'respiratory_rate': 'Respiratory rate',
+  'temperature': 'Temperature',
+  'spo2': 'SpO₂',
+  'consciousness_level': 'AVPU',
+};
 
 int _scoreBand(MoewsBand band, num value) {
   final below = band.redBelow;
@@ -55,11 +81,14 @@ int _scoreConsciousness(String consciousness) {
   return 0;
 }
 
-String _riskLevel(List<int> scores, int total) {
+String _riskLevel(List<int> scores, int total, List<String> missing) {
+  // A measured critical value is never hidden by what wasn't measured.
   if (scores.any((s) => s == ClinicalParameters.moewsRiskRedParameterScore) ||
       total >= ClinicalParameters.moewsRiskRedTotal) {
     return 'RED';
   }
+  // A patient can't be called normal from half a set. SpO₂ alone is optional.
+  if (missing.any((name) => name != 'spo2')) return 'INCOMPLETE';
   if (total >= ClinicalParameters.moewsRiskYellowTotal ||
       scores.any((s) => s == 1)) {
     return 'YELLOW';
@@ -67,6 +96,8 @@ String _riskLevel(List<int> scores, int total) {
   return 'GREEN';
 }
 
+/// Scores what was measured. Keep in step with `src/tools/moews_calculator.py`;
+/// `tests/fixtures/moews_cases.json` is run against both.
 MoewsResult calculateMoews({
   required int? sbp,
   required int? dbp,
@@ -76,34 +107,42 @@ MoewsResult calculateMoews({
   int? spo2,
   String? consciousness = 'A',
 }) {
-  // Consciousness scores 3 when impaired, so unmeasured must not read as Alert.
-  final required = [sbp, dbp, hr, rr, temp, consciousness];
-  if (required.any((v) => v == null)) {
-    return const MoewsResult(score: null, riskLevel: 'UNKNOWN');
-  }
-
-  final sbpScore = _scoreBand(ClinicalParameters.systolicBpBand, sbp!);
-  final dbpScore = _scoreBand(ClinicalParameters.diastolicBpBand, dbp!);
-  final hrScore = _scoreBand(ClinicalParameters.heartRateBand, hr!);
-  final rrScore = _scoreBand(ClinicalParameters.respiratoryRateBand, rr!);
-  final tempScore = _scoreBand(ClinicalParameters.temperatureBand, temp!);
-  final consciousnessScore = _scoreConsciousness(consciousness!);
+  final sbpScore =
+      sbp == null ? 0 : _scoreBand(ClinicalParameters.systolicBpBand, sbp);
+  final dbpScore =
+      dbp == null ? 0 : _scoreBand(ClinicalParameters.diastolicBpBand, dbp);
+  final hrScore = hr == null ? 0 : _scoreBand(ClinicalParameters.heartRateBand, hr);
+  final rrScore =
+      rr == null ? 0 : _scoreBand(ClinicalParameters.respiratoryRateBand, rr);
+  final tempScore =
+      temp == null ? 0 : _scoreBand(ClinicalParameters.temperatureBand, temp);
   final spo2Score = spo2 == null ? 0 : _scoreBand(ClinicalParameters.spo2Band, spo2);
+  final consciousnessScore =
+      consciousness == null ? 0 : _scoreConsciousness(consciousness);
 
   final scores = <int>[
-    sbpScore,
-    dbpScore,
-    hrScore,
-    rrScore,
-    tempScore,
-    consciousnessScore,
+    if (sbp != null) sbpScore,
+    if (dbp != null) dbpScore,
+    if (hr != null) hrScore,
+    if (rr != null) rrScore,
+    if (temp != null) tempScore,
     if (spo2 != null) spo2Score,
+    if (consciousness != null) consciousnessScore,
+  ];
+  final missing = <String>[
+    if (sbp == null) 'systolic_bp',
+    if (dbp == null) 'diastolic_bp',
+    if (hr == null) 'heart_rate',
+    if (rr == null) 'respiratory_rate',
+    if (temp == null) 'temperature',
+    if (spo2 == null) 'spo2',
+    if (consciousness == null) 'consciousness_level',
   ];
 
   final total = scores.fold<int>(0, (sum, s) => sum + s);
   return MoewsResult(
-    score: total,
-    riskLevel: _riskLevel(scores, total),
+    score: scores.isEmpty ? null : total,
+    riskLevel: _riskLevel(scores, total, missing),
     hrScore: hrScore,
     sbpScore: sbpScore,
     dbpScore: dbpScore,
@@ -111,5 +150,6 @@ MoewsResult calculateMoews({
     tempScore: tempScore,
     spo2Score: spo2Score,
     consciousnessScore: consciousnessScore,
+    missingVitals: missing,
   );
 }

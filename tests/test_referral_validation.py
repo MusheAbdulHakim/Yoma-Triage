@@ -204,3 +204,32 @@ def test_every_emergency_type_in_the_app_is_accepted():
     from src.api.referral import EmergencyType
 
     assert set(values) <= set(get_args(EmergencyType))
+
+
+@pytest.mark.asyncio
+async def test_api_reports_red_and_what_is_missing_for_partial_vitals(
+    client, seeded_db, no_side_effects
+):
+    response = await client.post(
+        "/api/v1/referral", json=_vitals(systolic_bp=60, temperature=None)
+    )
+    assert response.status_code == 201, response.text
+    referral = response.json()["referral"]
+    assert referral["risk_level"] == "RED"
+    assert referral["moews_score"] == 3
+    assert referral["missing_vitals"] == ["temperature"]
+    assert "Not measured: temperature" in referral["clinical_summary"]
+
+
+@pytest.mark.asyncio
+async def test_api_reports_incomplete_when_nothing_measured_is_critical(
+    client, seeded_db, no_side_effects
+):
+    response = await client.post(
+        "/api/v1/referral", json=_vitals(temperature=None, spo2=None)
+    )
+    assert response.status_code == 201, response.text
+    referral = response.json()["referral"]
+    assert referral["risk_level"] == "INCOMPLETE"
+    assert referral["missing_vitals"] == ["temperature", "spo2"]
+    assert response.json()["dispatch"]["status"] == "TIER1_NOTIFIED"

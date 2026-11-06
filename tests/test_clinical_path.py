@@ -139,7 +139,7 @@ def test_demo_protocol_seed_documents_cover_moews_and_transport():
 
 
 @pytest.mark.parametrize("missing", [None, "", "  "])
-def test_not_measured_consciousness_reaches_moews_as_unknown(monkeypatch, missing):
+def test_not_measured_consciousness_reaches_moews_as_incomplete(monkeypatch, missing):
     from src.agents import clinical_agent
 
     monkeypatch.setattr(clinical_agent, "_get_rag_engine", lambda: None)
@@ -157,5 +157,5 @@ def test_not_measured_consciousness_reaches_moews_as_unknown(monkeypatch, missin
             },
         }
     )
-    assert result["risk_level"] == "UNKNOWN"
-    assert result["moews_score"] is None
+    assert result["risk_level"] == "INCOMPLETE"
+    assert result["missing_vitals"] == ["consciousness_level"]

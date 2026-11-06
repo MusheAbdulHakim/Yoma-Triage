@@ -5,7 +5,7 @@ from src.tools.sms_codec import compress_referral_payload, decompress_referral_p
 
 @pytest.mark.parametrize(
     ("risk_code", "risk_level"),
-    [(0, "GREEN"), (1, "YELLOW"), (2, "RED"), (3, "UNKNOWN")],
+    [(0, "GREEN"), (1, "YELLOW"), (2, "RED"), (3, "UNKNOWN"), (4, "INCOMPLETE")],
 )
 def test_referral_payload_round_trips_coordinator_risk_contract(
     risk_code, risk_level
