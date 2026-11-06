@@ -82,6 +82,17 @@ class ApiClient {
     return jsonDecode(res.body) as Map<String, dynamic>;
   }
 
+  Future<Map<String, dynamic>> getCompoundContacts(int compoundId) async {
+    final res = await _client.get(
+      Uri.parse('$baseUrl/api/v1/compound/$compoundId/contacts'),
+      headers: _headers(),
+    );
+    if (res.statusCode >= 400) {
+      throw ApiException(res.statusCode, res.body);
+    }
+    return jsonDecode(res.body) as Map<String, dynamic>;
+  }
+
   Future<Map<String, dynamic>> getDispatch(int id) async {
     final res = await _client.get(
       Uri.parse('$baseUrl/api/v1/dispatch/$id'),

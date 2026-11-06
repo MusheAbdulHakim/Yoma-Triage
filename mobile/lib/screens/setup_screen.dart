@@ -1,7 +1,10 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
 import '../services/cho_store.dart';
+import '../services/contacts_store.dart';
 
 /// First run: the server confirms this CHO and says which compound they belong to.
 /// There is no compound picker, so a phone can't be set up against the wrong one.
@@ -49,6 +52,8 @@ class _SetupScreenState extends State<SetupScreen> {
     try {
       identity = ChoIdentity.fromJson(await _api.lookupCho(phone));
       await _store.save(identity);
+      // Saved as soon as setup works, in case the network is gone by the next emergency.
+      unawaited(ContactsStore().refresh(_api, identity.compoundId));
     } on ApiException catch (e) {
       error = e.statusCode >= 500
           ? 'The server is having a problem. Try again shortly.'

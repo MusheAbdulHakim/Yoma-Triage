@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../services/api_client.dart';
 import '../services/catalog_store.dart';
+import '../services/contacts_store.dart';
 import '../services/offline_queue.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
@@ -15,7 +16,10 @@ class HomeScreen extends StatefulWidget {
   /// Overrides [ScreeningConfig.moewsOnly] so tests can exercise both modes.
   final bool? acousticEnabled;
 
-  const HomeScreen({super.key, this.acousticEnabled});
+  /// Test seam for the sync that runs when Home opens.
+  final ApiClient? api;
+
+  const HomeScreen({super.key, this.acousticEnabled, this.api});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -52,7 +56,9 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _syncCatalog() async {
     setState(() => _syncing = true);
-    await _catalog.trySyncOnConnect(ApiClient());
+    final api = widget.api ?? ApiClient();
+    await _catalog.trySyncOnConnect(api);
+    await ContactsStore().refreshForThisPhone(api);
     if (!mounted) return;
     setState(() => _syncing = false);
     await _refreshCatalogStatus();

@@ -5,15 +5,26 @@ import 'package:flutter/material.dart';
 import '../services/api_client.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
+import '../widgets/manual_contacts_panel.dart';
 
 class DispatchStatusScreen extends StatefulWidget {
   final int? dispatchId;
   final String clientRequestId;
 
+  /// The facility chosen for this referral.
+  final int? facilityId;
+  final ApiClient? api;
+  final OfflineQueue? queue;
+  final ContactLauncher launcher;
+
   const DispatchStatusScreen({
     super.key,
     required this.dispatchId,
     required this.clientRequestId,
+    this.facilityId,
+    this.api,
+    this.queue,
+    this.launcher = launchWithPhone,
   });
 
   @override
@@ -21,8 +32,8 @@ class DispatchStatusScreen extends StatefulWidget {
 }
 
 class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
-  final _api = ApiClient();
-  final _queue = OfflineQueue.shared;
+  late final ApiClient _api = widget.api ?? ApiClient();
+  late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
   Timer? _timer;
   int? _dispatchId;
   String _status = 'PENDING';
@@ -32,6 +43,9 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   bool _terminal = false;
   bool _disposed = false;
   int _pollSeconds = 2;
+  late int? _facilityId = widget.facilityId;
+
+  bool get _needsManualHelp => _status == 'FAILED' || _status == 'QUEUED';
 
   static const _terminalStates = {'COMPLETED', 'FAILED', 'DIVERTED'};
 
@@ -110,6 +124,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       if (!mounted || _disposed) return;
       final status = (data['status'] as String?) ?? 'UNKNOWN';
       final driverName = data['driver_name'] as String?;
+      final facilityId = data['facility_id'];
       final etaRaw = data['eta_minutes'];
       final eta = etaRaw is int
           ? etaRaw
@@ -118,6 +133,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
               : null;
       setState(() {
         _status = status;
+        if (facilityId is int) _facilityId = facilityId;
         _driverName = driverName;
         _etaMinutes = eta;
         final parts = <String>[
@@ -158,58 +174,63 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       appBar: AppBar(
         title: const Text('Dispatch Status'),
       ),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 32),
+        children: [
+          const SizedBox(height: 32),
+          Text(
+            _status,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: YomaColors.brand,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _detail,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade800),
+          ),
+          if (_driverName != null || _etaMinutes != null) ...[
+            const SizedBox(height: 12),
             Text(
-              _status,
+              [
+                if (_driverName != null) 'Driver: $_driverName',
+                if (_etaMinutes != null) 'ETA: ${_etaMinutes}m',
+              ].join('  ·  '),
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: YomaColors.brand,
               ),
             ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Request: ${widget.clientRequestId}',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 24),
+          if (!_terminal && _dispatchId != null)
+            const Center(child: CircularProgressIndicator()),
+          if (_needsManualHelp) ...[
             const SizedBox(height: 16),
-            Text(
-              _detail,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade800),
-            ),
-            if (_driverName != null || _etaMinutes != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                [
-                  if (_driverName != null) 'Driver: $_driverName',
-                  if (_etaMinutes != null) 'ETA: ${_etaMinutes}m',
-                ].join('  ·  '),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: YomaColors.brand,
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              'Request: ${widget.clientRequestId}',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const Spacer(),
-            if (!_terminal && _dispatchId != null)
-              const Center(child: CircularProgressIndicator()),
-            const Spacer(),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-              child: const Text('Back to Home'),
+            ManualContactsPanel(
+              key: ValueKey(_facilityId),
+              facilityIds: {if (_facilityId != null) _facilityId!},
+              launcher: widget.launcher,
             ),
           ],
-        ),
+          const SizedBox(height: 24),
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+            child: const Text('Back to Home'),
+          ),
+        ],
       ),
     );
   }

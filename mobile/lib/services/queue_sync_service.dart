@@ -3,6 +3,7 @@ import 'dart:async';
 import 'package:connectivity_plus/connectivity_plus.dart';
 
 import 'api_client.dart';
+import 'contacts_store.dart';
 import 'offline_queue.dart';
 
 /// Flushes the offline outbox whenever connectivity returns.
@@ -30,6 +31,7 @@ class QueueSyncService {
     }
     // Also try once at startup in case items were left pending.
     unawaited(flushNow());
+    unawaited(ContactsStore().refreshForThisPhone(_api));
   }
 
   void dispose() {
@@ -39,7 +41,10 @@ class QueueSyncService {
 
   Future<void> _onChange(List<ConnectivityResult> results) async {
     final online = results.any((r) => r != ConnectivityResult.none);
-    if (online) await flushNow();
+    if (online) {
+      await flushNow();
+      await ContactsStore().refreshForThisPhone(_api);
+    }
   }
 
   Future<int> flushNow() async {

@@ -66,6 +66,11 @@
 		<string>UIInterfaceOrientationLandscapeLeft</string>
 		<string>UIInterfaceOrientationLandscapeRight</string>
 	</array>
+	<key>LSApplicationQueriesSchemes</key>
+	<array>
+		<string>tel</string>
+		<string>sms</string>
+	</array>
 	<key>NSMicrophoneUsageDescription</key>
 	<string>Yoma Triage records breathing sounds for advisory screening only — not a clinical diagnosis.</string>
 </dict>

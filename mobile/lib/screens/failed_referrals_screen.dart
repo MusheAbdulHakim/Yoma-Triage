@@ -2,13 +2,19 @@ import 'package:flutter/material.dart';
 
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
+import '../widgets/manual_contacts_panel.dart';
 
 /// Referrals the server refused. They won't be retried, so no driver or hospital
 /// has been told and the CHO has to act.
 class FailedReferralsScreen extends StatefulWidget {
-  const FailedReferralsScreen({super.key, required this.queue});
+  const FailedReferralsScreen({
+    super.key,
+    required this.queue,
+    this.launcher = launchWithPhone,
+  });
 
   final OfflineQueue queue;
+  final ContactLauncher launcher;
 
   @override
   State<FailedReferralsScreen> createState() => _FailedReferralsScreenState();
@@ -49,6 +55,16 @@ class _FailedReferralsScreenState extends State<FailedReferralsScreen> {
                     ),
                   ),
                 ),
+              const SizedBox(height: 16),
+              ManualContactsPanel(
+                key: ValueKey(items.length),
+                facilityIds: {
+                  for (final item in items)
+                    if (item.payload['facility_id'] is int)
+                      item.payload['facility_id'] as int,
+                },
+                launcher: widget.launcher,
+              ),
               const SizedBox(height: 16),
               OutlinedButton(
                 onPressed: () =>

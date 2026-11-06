@@ -5,11 +5,12 @@ from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import require_api_key
 from src.db.database import get_db
-from src.db.models import CHPSCompound, Dispatch, Driver
+from src.db.models import CHPSCompound, Dispatch, Driver, Facility
 from src.services.driver_pool import DriverPoolManager
 
 router = APIRouter(
@@ -81,6 +82,29 @@ async def update_driver_availability(
         raise HTTPException(status_code=404, detail="Driver not found")
     await session.commit()
     return _driver_payload(driver)
+
+
+@router.get("/compound/{compound_id}/contacts")
+async def get_compound_contacts(
+    compound_id: int,
+    session: AsyncSession = Depends(get_db),
+) -> dict[str, Any]:
+    """What the CHO app saves so it can still reach people with no network."""
+    if not await session.get(CHPSCompound, compound_id):
+        raise HTTPException(status_code=404, detail="CHPS compound not found")
+    drivers = await DriverPoolManager().list_compound_drivers(session, compound_id)
+    facilities = await session.scalars(select(Facility).order_by(Facility.id))
+    return {
+        "compound_id": compound_id,
+        "drivers": [
+            {"name": driver.name, "phone": driver.phone, "is_motor_king": driver.is_motor_king}
+            for driver in drivers
+        ],
+        "facilities": [
+            {"id": facility.id, "name": facility.name, "phone": facility.phone}
+            for facility in facilities
+        ],
+    }
 
 
 @router.get("/compound/{compound_id}/drivers")
