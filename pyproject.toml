@@ -4,20 +4,11 @@ version = "1.0.0"
 description = "Offline-first emergency maternal referral and transport broker for Northern Ghana"
 requires-python = ">=3.11"
 dependencies = [
-    "langgraph>=0.2.0",
-    "langchain>=0.3.0",
-    "langchain-community>=0.3.0",
-    "langchain-openai>=0.2.0",
-    "chromadb>=0.5.0",
-    "langchain-chroma>=0.1.0",
-    "tiktoken>=0.7.0",
     "pydantic>=2.8.0",
     "python-dotenv>=1.0.1",
     "bitstring>=4.2.0",
     "fastapi>=0.111.0",
     "uvicorn>=0.30.0",
-    "sentence-transformers>=3.0.0",
-    "langchain-huggingface>=0.1.0",
     "alembic>=1.13.0",
     "sqlalchemy[asyncio]>=2.0.0",
     "asyncpg>=0.29.0",
@@ -26,6 +17,19 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+rag = [
+    "langgraph>=0.2.0",
+    "langchain>=0.3.0",
+    "langchain-community>=0.3.0",
+    "langchain-openai>=0.2.0",
+    "langchain-google-genai>=2.0.0",
+    "chromadb>=0.5.0",
+    "langchain-chroma>=0.1.0",
+    "tiktoken>=0.7.0",
+    "pypdf>=4.0.0",
+    "sentence-transformers>=3.0.0",
+    "langchain-huggingface>=0.1.0",
+]
 dev = [
     "pytest>=8.0.0",
     "pytest-asyncio>=0.23.0",

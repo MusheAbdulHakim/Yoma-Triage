@@ -11,6 +11,9 @@ class Settings:
     # Anything other than exactly "development" gets production behaviour.
     ENVIRONMENT: str = os.getenv("ENVIRONMENT", "production")
     LOG_LEVEL: str = os.getenv("LOG_LEVEL", "INFO")
+    # Off: POST /referral never uses RAG or an LLM. This only gates the code left in
+    # src/agents and src/rag, which also needs requirements-rag.txt.
+    RAG_ENABLED: bool = os.getenv("RAG_ENABLED", "false").strip().lower() == "true"
     GEMINI_API_KEY: str = os.getenv("GEMINI_API_KEY", "")
     DEFAULT_GEMINI_MODEL: str = "gemini-2.0-flash"
     VECTOR_STORE_DIR: str = os.getenv("VECTOR_STORE_DIR", "./data/vector_store")

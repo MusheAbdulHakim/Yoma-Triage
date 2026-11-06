@@ -43,15 +43,6 @@ async def test_accepts_valid_hash_and_omits_patient_name(
         "src.api.referral.DispatchOrchestrator.initiate_dispatch",
         AsyncMock(side_effect=fake_initiate),
     )
-    monkeypatch.setattr(
-        "src.api.referral.yoma_graph.invoke",
-        lambda state: {
-            "risk_level": "RED",
-            "moews_score": 6,
-            "clinical_summary": "Critical",
-            "compressed_sms_payload": "abc",
-        },
-    )
 
     payload = {
         **sample_referral_payload,

@@ -4,12 +4,10 @@ Mobile Money (MoMo) Escrow Tool interfacing with MTN MoMo Sandbox/Production API
 import uuid
 
 import requests
-from langchain_core.tools import tool
 
 from src.config import settings
 
 
-@tool
 def disburse_fuel_stipend(driver_phone: str, amount_ghs: float) -> dict:
     """
     Disburses an initial 30% fuel stipend directly to a Motor-King driver's MoMo wallet upon USSD referral acceptance.

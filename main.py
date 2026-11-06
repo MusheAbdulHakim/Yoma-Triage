@@ -1,6 +1,6 @@
 """
 Yoma Triage Emergency Logistics Engine
-Single Master Entry Point serving FastAPI Webhooks and LangGraph Workflows.
+Single Master Entry Point serving FastAPI Webhooks and the dispatch workers.
 """
 from __future__ import annotations
 

@@ -1,21 +1,10 @@
 """USSD callback accepts Africa's Talking camelCase form fields."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 
 async def _seed_open_referral(client, monkeypatch, request_id: str):
-    monkeypatch.setattr(
-        "src.api.referral.yoma_graph.invoke",
-        lambda state: {
-            "risk_level": "RED",
-            "moews_score": 8,
-            "clinical_summary": "Critical",
-            "compressed_sms_payload": "x",
-        },
-    )
     create = await client.post(
         "/api/v1/referral",
         json={

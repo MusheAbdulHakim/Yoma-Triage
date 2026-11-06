@@ -1,8 +1,6 @@
 """End-to-end MVP flow: referral → cascade → accept → hospital CONFIRM/DIVERT."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock
-
 import pytest
 
 
@@ -10,15 +8,6 @@ import pytest
 async def test_full_flow_accept_confirm_and_divert(
     client, seeded_db, sample_referral_payload, monkeypatch
 ):
-    monkeypatch.setattr(
-        "src.api.referral.yoma_graph.invoke",
-        lambda state: {
-            "risk_level": "RED",
-            "moews_score": 8,
-            "clinical_summary": "Critical obstetric emergency",
-            "compressed_sms_payload": "ZW5jb2RlZA==",
-        },
-    )
 
     # Integration uses demo shortcode; ignore sandbox AT_USSD_SERVICE_CODE from .env.
     monkeypatch.setattr("src.api.ussd.settings.AT_USSD_SERVICE_CODE", "")

@@ -50,8 +50,10 @@ def test_clinical_rag_initialization_seeds_protocols(monkeypatch):
 
     engine = MagicMock()
     monkeypatch.setattr(clinical_agent, "rag_engine", None)
+    pytest.importorskip("langchain_chroma", reason="needs requirements-rag.txt")
+    monkeypatch.setattr("src.config.settings.RAG_ENABLED", True)
     monkeypatch.setattr(
-        clinical_agent, "ProtocolRAGEngine", lambda *args, **kwargs: engine
+        "src.rag.engine.ProtocolRAGEngine", lambda *args, **kwargs: engine
     )
 
     assert clinical_agent._get_rag_engine() is engine
@@ -59,6 +61,7 @@ def test_clinical_rag_initialization_seeds_protocols(monkeypatch):
 
 
 def test_prepare_dispatch_encodes_unknown_score_as_zero():
+    pytest.importorskip("langgraph", reason="needs requirements-rag.txt")
     from src.agents.coordinator import prepare_dispatch_node
 
     result = prepare_dispatch_node(

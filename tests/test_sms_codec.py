@@ -10,7 +10,7 @@ from src.tools.sms_codec import compress_referral_payload, decompress_referral_p
 def test_referral_payload_round_trips_coordinator_risk_contract(
     risk_code, risk_level
 ):
-    encoded = compress_referral_payload.invoke(
+    encoded = compress_referral_payload(**
         {
             "chps_id_int": 1,
             "moews_score": 6,
@@ -20,7 +20,7 @@ def test_referral_payload_round_trips_coordinator_risk_contract(
         }
     )
 
-    decoded = decompress_referral_payload.invoke({"encoded_str": encoded})
+    decoded = decompress_referral_payload(**{"encoded_str": encoded})
 
     assert decoded["chps_id_int"] == 1
     assert decoded["moews_score"] == 6
@@ -40,7 +40,7 @@ def test_referral_payload_round_trips_coordinator_risk_contract(
 def test_referral_payload_round_trips_edge_values(
     chps_id_int, moews_score, risk_code, hr, sbp
 ):
-    encoded = compress_referral_payload.invoke(
+    encoded = compress_referral_payload(**
         {
             "chps_id_int": chps_id_int,
             "moews_score": moews_score,
@@ -49,7 +49,7 @@ def test_referral_payload_round_trips_edge_values(
             "sbp": sbp,
         }
     )
-    decoded = decompress_referral_payload.invoke({"encoded_str": encoded})
+    decoded = decompress_referral_payload(**{"encoded_str": encoded})
     assert decoded["chps_id_int"] == chps_id_int
     assert decoded["moews_score"] == (moews_score or 0)
     assert decoded["heart_rate"] == hr

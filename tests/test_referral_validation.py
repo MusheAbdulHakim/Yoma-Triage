@@ -7,9 +7,9 @@ from pathlib import Path
 
 import pytest
 
-from src.agents.coordinator import prepare_dispatch_node
 from src.api.referral import VitalsInput
 from src.api.ussd import _menu_choice
+from src.tools.sms_codec import encode_referral_payload_or_none
 
 REPO = Path(__file__).resolve().parents[1]
 NORMAL_VITALS = {
@@ -25,8 +25,7 @@ NORMAL_VITALS = {
 
 @pytest.fixture
 def no_side_effects(monkeypatch):
-    monkeypatch.setattr("src.agents.clinical_agent._get_rag_engine", lambda: None)
-    monkeypatch.setattr("src.agents.clinical_agent._get_llm", lambda: None)
+    return None
 
 
 def _payload(**overrides):
@@ -132,31 +131,19 @@ async def test_top_of_range_vitals_keep_moews_when_codec_cannot_encode(
     assert referral["compressed_sms_payload"] is None
 
 
-def test_codec_failure_keeps_state_and_records_error():
-    state = {
-        "chps_id": "1",
-        "moews_score": 3,
-        "risk_level": "RED",
-        "vitals": {"heart_rate": 80, "systolic_bp": 999},
-        "errors": ["earlier"],
-    }
-    result = prepare_dispatch_node(state)
-    assert result["moews_score"] == 3
-    assert result["risk_level"] == "RED"
-    assert result["compressed_sms_payload"] is None
-    assert result["errors"] == ["earlier", "sms_payload_encode_failed"]
-
-
-def test_codec_success_still_encodes():
-    result = prepare_dispatch_node(
-        {
-            "chps_id": "1",
-            "moews_score": 0,
-            "risk_level": "GREEN",
-            "vitals": {"heart_rate": 80, "systolic_bp": 120},
-        }
+def test_payload_that_cannot_be_encoded_is_dropped_not_raised():
+    assert (
+        encode_referral_payload_or_none(
+            chps_id_int=1, moews_score=3, risk_level="RED", hr=80, sbp=999
+        )
+        is None
     )
-    assert result["compressed_sms_payload"]
+
+
+def test_payload_within_range_is_encoded():
+    assert encode_referral_payload_or_none(
+        chps_id_int=1, moews_score=0, risk_level="GREEN", hr=80, sbp=120
+    )
 
 
 @pytest.mark.parametrize("text", ["1", "2", "3"])
@@ -227,17 +214,3 @@ async def test_api_reports_incomplete_when_nothing_measured_is_critical(
     referral = response.json()["referral"]
     assert referral["risk_level"] == "INCOMPLETE"
     assert referral["missing_vitals"] == ["temperature", "spo2"]
-
-
-@pytest.mark.asyncio
-async def test_assessment_failure_does_not_hide_a_critical_reading(
-    client, seeded_db, no_side_effects, monkeypatch
-):
-    def fail(state):
-        raise RuntimeError("graph down")
-
-    monkeypatch.setattr("src.api.referral.yoma_graph.invoke", fail)
-    response = await client.post("/api/v1/referral", json=_vitals(systolic_bp=60))
-    assert response.status_code == 201, response.text
-    assert response.json()["referral"]["risk_level"] == "RED"
-    assert response.json()["referral"]["moews_score"] == 3

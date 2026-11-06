@@ -35,8 +35,8 @@ def _payload(**overrides):
 async def test_skip_vitals_dispatches_as_unknown_without_any_assessment(
     client, seeded_db, monkeypatch
 ):
-    invoke = MagicMock(side_effect=AssertionError("assessment must not run"))
-    monkeypatch.setattr("src.api.referral.yoma_graph.invoke", invoke, raising=False)
+    invoke = MagicMock(side_effect=AssertionError("scoring must not run"))
+    monkeypatch.setattr("src.api.referral.score_vitals", invoke)
 
     response = await client.post("/api/v1/referral", json=_payload())
 
@@ -106,13 +106,24 @@ async def test_hospital_sms_says_vitals_not_taken(db_session):
         ({**NORMAL_VITALS, "temperature": None}, "INCOMPLETE"),
     ],
 )
-async def test_dispatch_is_never_gated_on_risk(client, seeded_db, monkeypatch, vitals, risk):
-    monkeypatch.setattr("src.agents.clinical_agent._get_rag_engine", lambda: None)
-    monkeypatch.setattr("src.agents.clinical_agent._get_llm", lambda: None)
+async def test_dispatch_is_never_gated_on_risk(client, seeded_db, vitals, risk):
     payload = _payload(vitals=vitals, vitals_taken=True)
 
     response = await client.post("/api/v1/referral", json=payload)
 
     assert response.status_code == 201, response.text
     assert response.json()["referral"]["risk_level"] == risk
+    assert response.json()["dispatch"]["status"] == "TIER1_NOTIFIED"
+
+
+@pytest.mark.asyncio
+async def test_a_scoring_failure_still_dispatches(client, seeded_db, monkeypatch):
+    monkeypatch.setattr(
+        "src.api.referral.score_vitals", MagicMock(side_effect=RuntimeError("scoring bug"))
+    )
+    response = await client.post(
+        "/api/v1/referral", json=_payload(vitals=NORMAL_VITALS, vitals_taken=True)
+    )
+    assert response.status_code == 201, response.text
+    assert response.json()["referral"]["risk_level"] == "UNKNOWN"
     assert response.json()["dispatch"]["status"] == "TIER1_NOTIFIED"

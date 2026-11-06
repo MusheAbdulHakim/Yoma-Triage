@@ -13,12 +13,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src import parameters
-from src.agents.coordinator import yoma_graph
 from src.api.deps import require_api_key
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
+from src.tools.clinical_summary import build_clinical_summary
 from src.tools.moews_calculator import missing_vitals, score_vitals
+from src.tools.sms_codec import encode_referral_payload_or_none
 
 logger = logging.getLogger(__name__)
 
@@ -162,6 +163,48 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
     }
 
 
+def _assess(payload: ReferralCreate) -> dict[str, Any]:
+    """Score locally: no I/O, no LLM, and no failure here can stop dispatch."""
+    vitals = payload.vitals
+    risk_level, moews_score = "UNKNOWN", None
+    if payload.vitals_taken:
+        try:
+            result = score_vitals(
+                vitals.systolic_bp,
+                vitals.diastolic_bp,
+                vitals.heart_rate,
+                vitals.respiratory_rate,
+                vitals.temperature,
+                vitals.spo2,
+                vitals.consciousness_level,
+            )
+            risk_level, moews_score = result["risk_level"], result["moews_score"]
+        except Exception:
+            logger.exception("MOEWS scoring failed; dispatching with UNKNOWN risk")
+    return {
+        "risk_level": risk_level,
+        "moews_score": moews_score,
+        "clinical_summary": build_clinical_summary(
+            emergency_type=payload.emergency_type,
+            risk_level=risk_level,
+            moews_score=moews_score,
+            vitals=vitals.model_dump(),
+            vitals_taken=payload.vitals_taken,
+        ),
+        "compressed_sms_payload": (
+            encode_referral_payload_or_none(
+                chps_id_int=payload.chps_compound_id,
+                moews_score=moews_score,
+                risk_level=risk_level,
+                hr=vitals.heart_rate,
+                sbp=vitals.systolic_bp,
+            )
+            if payload.vitals_taken
+            else None
+        ),
+    }
+
+
 @router.post("/referral", status_code=status.HTTP_201_CREATED)
 async def create_referral(
     payload: ReferralCreate, session: AsyncSession = Depends(get_db)
@@ -188,43 +231,7 @@ async def create_referral(
     vitals_json = payload.vitals.model_dump()
     if not payload.vitals_taken:
         vitals_json["vitals_taken"] = False
-    state = {
-        "chps_id": str(payload.chps_compound_id),
-        "patient_hash": payload.patient_hash,
-        "gestational_weeks": payload.gestational_weeks,
-        "vitals": payload.vitals.model_dump(),
-        "errors": [],
-    }
-    try:
-        if payload.vitals_taken:
-            assessed = yoma_graph.invoke(state)
-        else:
-            # Nothing to assess, and dispatch must not wait for anything.
-            assessed = {
-                "risk_level": "UNKNOWN",
-                "moews_score": None,
-                "clinical_summary": "Vitals not taken: dispatched without MOEWS.",
-                "compressed_sms_payload": None,
-            }
-    except Exception:
-        # Spec §10: clinical failure must not block referral/dispatch, and it must
-        # not hide a critical reading: MOEWS needs no I/O, so it can always be scored.
-        logger.exception("Clinical assessment failed; continuing with MOEWS only")
-        vitals = payload.vitals
-        assessed = {
-            **score_vitals(
-                vitals.systolic_bp,
-                vitals.diastolic_bp,
-                vitals.heart_rate,
-                vitals.respiratory_rate,
-                vitals.temperature,
-                vitals.spo2,
-                vitals.consciousness_level,
-            ),
-            "clinical_summary": "Clinical assessment unavailable — use clinical judgment",
-            "compressed_sms_payload": None,
-            "errors": ["clinical_assessment_failed"],
-        }
+    assessed = _assess(payload)
 
     referral = Referral(
         chps_compound_id=payload.chps_compound_id,
@@ -232,11 +239,11 @@ async def create_referral(
         patient_hash=payload.patient_hash,
         patient_name="Unknown",
         emergency_type=payload.emergency_type,
-        severity=assessed.get("risk_level") or "UNKNOWN",
-        moews_score=assessed.get("moews_score"),
-        risk_level=assessed.get("risk_level") or "UNKNOWN",
-        clinical_summary=assessed.get("clinical_summary"),
-        compressed_sms_payload=assessed.get("compressed_sms_payload"),
+        severity=assessed["risk_level"],
+        moews_score=assessed["moews_score"],
+        risk_level=assessed["risk_level"],
+        clinical_summary=assessed["clinical_summary"],
+        compressed_sms_payload=assessed["compressed_sms_payload"],
         vitals_json=vitals_json,
         status="CONFIRMED",
         client_request_id=client_request_id,

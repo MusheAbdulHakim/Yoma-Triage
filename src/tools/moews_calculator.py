@@ -2,8 +2,6 @@
 Deterministic Modified Obstetric Early Warning Score (MOEWS) calculator.
 """
 
-from langchain_core.tools import tool
-
 from src import parameters
 
 
@@ -69,7 +67,14 @@ def score_vitals(
     spo2: int | None = None,
     consciousness: str | None = "A",
 ) -> dict:
-    """Score what was measured. Plain function with no I/O, so it can always run."""
+    """Score what was measured. Plain function with no I/O, so it can always run.
+
+    Bands are in src/parameters.py. Only measured vitals are scored:
+    - RED: any measured parameter scores 3, or measured scores total 5 or more.
+    - INCOMPLETE: otherwise, if any vital except SpO2 is missing.
+    - YELLOW: otherwise, total 3-4 or any parameter scoring 1.
+    - GREEN: otherwise. SpO2 is listed as missing if it wasn't measured.
+    """
     measured = {
         "systolic_bp": sbp,
         "diastolic_bp": dbp,
@@ -88,27 +93,3 @@ def score_vitals(
         "risk_level": _risk_level(scores, total, missing),
         "missing_vitals": missing,
     }
-
-
-@tool
-def calculate_moews(
-    sbp: int | None,
-    dbp: int | None,
-    hr: int | None,
-    rr: int | None,
-    temp: float | None,
-    spo2: int | None = None,
-    consciousness: str | None = "A",
-) -> dict:
-    """
-    Calculates the MOEWS risk score based on Ghana Health Service clinical thresholds.
-
-    Vital bands are in src/parameters.py.
-
-    Only measured vitals are scored:
-    - RED: any measured parameter scores 3, or measured scores total 5 or more.
-    - INCOMPLETE: otherwise, if any vital except SpO2 is missing.
-    - YELLOW: otherwise, total 3-4 or any parameter scoring 1.
-    - GREEN: otherwise. SpO2 is listed as missing if it wasn't measured.
-    """
-    return score_vitals(sbp, dbp, hr, rr, temp, spo2, consciousness)

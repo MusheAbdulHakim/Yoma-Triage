@@ -3,7 +3,7 @@ from pathlib import Path
 
 import pytest
 
-from src.tools.moews_calculator import calculate_moews
+from src.tools.moews_calculator import score_vitals
 
 # Shared with mobile/test/moews_shared_cases_test.dart, so the server and the app
 # can't disagree about a patient.
@@ -15,7 +15,7 @@ SHARED_CASES = json.loads(
 @pytest.mark.parametrize("case", SHARED_CASES, ids=lambda case: case["name"])
 def test_shared_cases(case):
     vitals = case["vitals"]
-    result = calculate_moews.invoke(
+    result = score_vitals(**
         {
             "sbp": vitals["systolic_bp"],
             "dbp": vitals["diastolic_bp"],
@@ -32,7 +32,7 @@ def test_shared_cases(case):
 
 
 def test_normal_vitals_green():
-    result = calculate_moews.invoke({
+    result = score_vitals(**{
         "sbp": 120, "dbp": 80, "hr": 80, "rr": 18, "temp": 37.0, "spo2": 98, "consciousness": "A"
     })
     assert result["moews_score"] == 0
@@ -40,7 +40,7 @@ def test_normal_vitals_green():
 
 
 def test_critical_vitals_red():
-    result = calculate_moews.invoke({
+    result = score_vitals(**{
         "sbp": 70, "dbp": 50, "hr": 140, "rr": 35, "temp": 39.5, "spo2": 85, "consciousness": "V"
     })
     assert result["moews_score"] >= 5
@@ -49,7 +49,7 @@ def test_critical_vitals_red():
 
 def test_moderate_vitals_yellow():
     # Single elevated RR often maps to YELLOW (score 1–4) depending on thresholds.
-    result = calculate_moews.invoke({
+    result = score_vitals(**{
         "sbp": 120, "dbp": 80, "hr": 80, "rr": 25, "temp": 37.0, "spo2": 98, "consciousness": "A"
     })
     assert result["moews_score"] is not None
@@ -58,7 +58,7 @@ def test_moderate_vitals_yellow():
 
 
 def test_missing_vital_with_nothing_critical_is_incomplete():
-    result = calculate_moews.invoke({
+    result = score_vitals(**{
         "sbp": None, "dbp": 80, "hr": 80, "rr": 18, "temp": 37.0, "spo2": 98, "consciousness": "A"
     })
     assert result["risk_level"] == "INCOMPLETE"
@@ -67,7 +67,7 @@ def test_missing_vital_with_nothing_critical_is_incomplete():
 
 def test_single_parameter_score_three_is_red():
     # Only SBP is critical (score 3); other vitals are normal.
-    result = calculate_moews.invoke({
+    result = score_vitals(**{
         "sbp": 70, "dbp": 80, "hr": 80, "rr": 18, "temp": 37.0, "spo2": 98, "consciousness": "A"
     })
     assert result["moews_score"] == 3
@@ -75,7 +75,7 @@ def test_single_parameter_score_three_is_red():
 
 
 def test_unmeasured_consciousness_is_incomplete_not_alert():
-    result = calculate_moews.invoke({
+    result = score_vitals(**{
         "sbp": 120, "dbp": 80, "hr": 80, "rr": 18, "temp": 37.0, "spo2": 98, "consciousness": None
     })
     assert result["risk_level"] == "INCOMPLETE"
@@ -83,7 +83,7 @@ def test_unmeasured_consciousness_is_incomplete_not_alert():
 
 
 def test_unmeasured_spo2_is_scored_from_the_rest():
-    result = calculate_moews.invoke({
+    result = score_vitals(**{
         "sbp": 120, "dbp": 80, "hr": 80, "rr": 18, "temp": 37.0, "spo2": None, "consciousness": "A"
     })
     assert result["risk_level"] == "GREEN"

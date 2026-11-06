@@ -126,8 +126,6 @@ async def test_referral_commits_its_offers_and_makes_no_provider_call(
         raise AssertionError("no provider call inside a request")
 
     monkeypatch.setattr(MessagingGateway, "send_sms", fail)
-    monkeypatch.setattr("src.agents.clinical_agent._get_rag_engine", lambda: None, raising=False)
-    monkeypatch.setattr("src.agents.clinical_agent._get_llm", lambda: None, raising=False)
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         response = await client.post(
