@@ -45,7 +45,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(
             run_worker_loop(
                 "sms-outbox",
-                OutboxSender().run_once,
+                OutboxSender().drain,
                 settings.OUTBOX_POLL_SECONDS,
                 stop_workers,
             )

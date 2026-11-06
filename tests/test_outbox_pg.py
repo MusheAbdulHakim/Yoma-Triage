@@ -206,7 +206,8 @@ async def test_no_row_is_locked_while_sending(pg_sessions):  # noqa: F811
             await session.rollback()
         checked.append(True)
 
-    await OutboxSender(FakeGateway(during=assert_nothing_locked)).run_once()
+    # One at a time, or these test locks would collide with each other.
+    await OutboxSender(FakeGateway(during=assert_nothing_locked), concurrency=1).run_once(limit=2)
 
     assert len(checked) == 2
 

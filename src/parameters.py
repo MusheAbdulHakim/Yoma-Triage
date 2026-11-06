@@ -64,6 +64,10 @@ OUTBOX_MAX_ATTEMPTS = 5
 OUTBOX_BACKOFF_SECONDS = 15
 OUTBOX_SENDING_LEASE_SECONDS = 60
 OUTBOX_BATCH_SIZE = 20
+# Sent in parallel, so one hung send can't hold up the rest. OUTBOX_SEND_CONCURRENCY and
+# OUTBOX_SEND_TIMEOUT_SECONDS can be overridden by environment variables of the same name.
+OUTBOX_SEND_CONCURRENCY = 5
+OUTBOX_SEND_TIMEOUT_SECONDS = 5
 
 # Payments: mock ledger only. No money moves.
 FUEL_STIPEND_GHS = 22.5

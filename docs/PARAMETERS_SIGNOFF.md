@@ -65,7 +65,9 @@ The first matching row applies. Only measured vitals are scored.
 | SMS send attempts before giving up | 5 | attempts | After this, the message is marked failed. If it was to a driver or hospital, the CHO is alerted | Engineering placeholder (batch 2, B3) | |
 | SMS retry backoff | 15 | seconds | Wait before the first retry, doubling each time (15, 30, 60, 120 s). A failing SMS takes about 4 minutes to reach the CHO alert | Engineering placeholder (batch 2, B3) | |
 | SMS claim lease | 60 | seconds | If the server dies mid-send, the message is retried after this. The SMS may then be sent twice | Engineering placeholder (batch 2, B3) | |
-| SMS batch size | 20 | messages | The most SMS sent in one pass of the outbox | Engineering placeholder (batch 2, B3) | |
+| SMS batch size | 20 | messages | The most SMS sent before the sender waits for its next poll | Engineering placeholder (batch 2, B3) | |
+| SMS sent at once | 5 | messages | The most SMS sent in parallel. `OUTBOX_SEND_CONCURRENCY` overrides it | Engineering placeholder (batch 4) | |
+| SMS send time limit | 5 | seconds | A send that takes longer counts as failed and is retried, so the SMS may be sent twice. `OUTBOX_SEND_TIMEOUT_SECONDS` overrides it | Engineering placeholder (batch 4) | |
 | ETA shown to the CHO | 30 | minutes | Shown once a driver accepts. **Not a real estimate: the same number for every trip** | Hardcoded in the original demo | |
 | Fuel stipend recorded on accept | 22.5 | GHS | Mock ledger entry only; no money moves. 30% of an assumed GHS 75 fare | Spec §7.4 demo figure | |
 | Highest gestational age accepted | 45 | weeks | The API refuses anything above this. Typo guard only | Engineering placeholder (batch 1) | |

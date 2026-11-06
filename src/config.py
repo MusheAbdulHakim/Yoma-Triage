@@ -44,6 +44,12 @@ class Settings:
     OUTBOX_POLL_SECONDS: float = float(
         os.getenv("OUTBOX_POLL_SECONDS", str(parameters.OUTBOX_POLL_SECONDS))
     )
+    OUTBOX_SEND_CONCURRENCY: int = int(
+        os.getenv("OUTBOX_SEND_CONCURRENCY", str(parameters.OUTBOX_SEND_CONCURRENCY))
+    )
+    OUTBOX_SEND_TIMEOUT_SECONDS: float = float(
+        os.getenv("OUTBOX_SEND_TIMEOUT_SECONDS", str(parameters.OUTBOX_SEND_TIMEOUT_SECONDS))
+    )
     # How long after dispatch start a notified driver can still claim a FAILED dispatch.
     LATE_CLAIM_WINDOW_MINUTES: int = int(
         os.getenv("LATE_CLAIM_WINDOW_MINUTES", str(parameters.LATE_CLAIM_WINDOW_MINUTES))
@@ -72,6 +78,11 @@ class Settings:
     def startup_errors(self) -> list[str]:
         """Configuration that makes this environment unsafe to serve."""
         errors = [] if self.DATABASE_URL.strip() else ["DATABASE_URL must be set"]
+        # In every environment: zero concurrency would silently never send an SMS.
+        if self.OUTBOX_SEND_CONCURRENCY < 1:
+            errors.append("OUTBOX_SEND_CONCURRENCY must be at least 1")
+        if self.OUTBOX_SEND_TIMEOUT_SECONDS <= 0:
+            errors.append("OUTBOX_SEND_TIMEOUT_SECONDS must be above 0")
         if self.is_development:
             return errors
         errors += [

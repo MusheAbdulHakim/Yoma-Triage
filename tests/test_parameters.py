@@ -139,6 +139,8 @@ def test_sheet_lists_each_moews_band(vital):
         ("SMS retry backoff", parameters.OUTBOX_BACKOFF_SECONDS),
         ("SMS claim lease", parameters.OUTBOX_SENDING_LEASE_SECONDS),
         ("SMS batch size", parameters.OUTBOX_BATCH_SIZE),
+        ("SMS sent at once", parameters.OUTBOX_SEND_CONCURRENCY),
+        ("SMS send time limit", parameters.OUTBOX_SEND_TIMEOUT_SECONDS),
         ("ETA shown to the CHO", parameters.PLACEHOLDER_ETA_MINUTES),
         ("Fuel stipend recorded on accept", parameters.FUEL_STIPEND_GHS),
         ("Highest gestational age accepted", parameters.GESTATIONAL_WEEKS_MAX),

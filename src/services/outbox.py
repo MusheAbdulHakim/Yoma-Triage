@@ -5,6 +5,10 @@ message exists if and only if that change committed. ``OutboxSender`` sends sepa
 and never holds a row lock during a network call: it claims rows in a short transaction,
 sends with no transaction open, then records the result in another short transaction.
 
+A pass claims only as many messages as it can send at once, highest priority first, and
+each send has a short time limit. So however slow the provider is, a new driver alert
+waits for at most the pass in progress, not for a backlog.
+
 Delivery is at least once. If the process dies after sending but before recording, the
 claim expires and the message is sent again. Duplicate SMS is the accepted cost, because
 a lost emergency SMS is worse.
@@ -13,15 +17,17 @@ Phone numbers and message bodies must never reach application logs.
 """
 from __future__ import annotations
 
+import asyncio
 import logging
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 from typing import Any
 
-from sqlalchemy import select
+from sqlalchemy import case, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src import parameters
+from src.config import settings
 from src.db.database import async_session
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, OutboundMessage, Referral
 from src.services.messaging_gateway import MessagingGateway
@@ -56,6 +62,14 @@ PURPOSES = {
     "inbound_confirm_ack": Purpose("inbound_reply", "inbound_confirm_ack", "inbound_reply_failed"),
     "send_failure_alert": Purpose("cho", "send_failure_alert", "send_failure_alert_failed"),
 }
+# Who to reach first when there's a queue. Lower goes first.
+ROLE_PRIORITY = {"driver": 0, "hospital": 1, "cho": 2}
+OTHER_PRIORITY = 3
+_SEND_ORDER = case(
+    {name: ROLE_PRIORITY.get(purpose.role, OTHER_PRIORITY) for name, purpose in PURPOSES.items()},
+    value=OutboundMessage.purpose,
+    else_=OTHER_PRIORITY,
+)
 # If one of these roles can't be reached, the CHO has to step in.
 ALERT_CHO_ROLES = frozenset({"driver", "hospital"})
 # What the provider returned is kept for diagnosis, minus who was messaged and what it said.
@@ -105,16 +119,47 @@ class _Claimed:
 
 
 class OutboxSender:
-    def __init__(self, gateway: MessagingGateway | None = None):
+    def __init__(
+        self,
+        gateway: MessagingGateway | None = None,
+        *,
+        concurrency: int | None = None,
+        send_timeout: float | None = None,
+    ):
         self.gateway = gateway or MessagingGateway()
+        self.concurrency = concurrency or settings.OUTBOX_SEND_CONCURRENCY
+        self.send_timeout = send_timeout or settings.OUTBOX_SEND_TIMEOUT_SECONDS
 
-    async def run_once(self, limit: int = parameters.OUTBOX_BATCH_SIZE) -> int:
-        """Send what's due. Returns how many messages were attempted."""
-        claimed = await self._claim(limit)
-        for message in claimed:
-            result = await self._send(message)
+    async def run_once(self, limit: int | None = None) -> int:
+        """One pass: send what's due, in parallel. Returns how many were attempted.
+
+        Takes at most the send timeout, however the provider behaves, because nothing
+        claimed here waits behind anything else claimed here.
+        """
+        claimed = await self._claim(limit or self.concurrency)
+        slots = asyncio.Semaphore(self.concurrency)
+
+        async def send(message: _Claimed) -> dict[str, Any]:
+            async with slots:
+                return await self._send(message)
+
+        results = await asyncio.gather(*(send(message) for message in claimed))
+        for message, result in zip(claimed, results, strict=True):
             await self._record(message, result)
         return len(claimed)
+
+    async def drain(self) -> int:
+        """Passes until nothing more is due, up to the batch size. Runs in the worker.
+
+        Each pass claims afresh, so an alert that arrives mid-drain goes in the next one.
+        """
+        attempted = 0
+        while attempted < parameters.OUTBOX_BATCH_SIZE:
+            count = await self.run_once()
+            attempted += count
+            if count < self.concurrency:
+                break
+        return attempted
 
     async def _claim(self, limit: int) -> list[_Claimed]:
         """Mark due messages SENDING and release their locks before anything is sent.
@@ -132,7 +177,14 @@ class OutboxSender:
                         OutboundMessage.status.in_((PENDING, SENDING)),
                         OutboundMessage.next_attempt_at <= now,
                     )
-                    .order_by(OutboundMessage.next_attempt_at, OutboundMessage.id)
+                    # First attempts go before retries, so messages to a failing
+                    # number can't get in the way of a new emergency.
+                    .order_by(
+                        _SEND_ORDER,
+                        OutboundMessage.attempts,
+                        OutboundMessage.next_attempt_at,
+                        OutboundMessage.id,
+                    )
                     .limit(limit)
                     .with_for_update(skip_locked=True)
                     .execution_options(populate_existing=True)
@@ -177,11 +229,14 @@ class OutboxSender:
     async def _send(self, message: _Claimed) -> dict[str, Any]:
         """Runs with no transaction open and no row locked."""
         try:
-            return await self.gateway.send_sms(
-                message.recipient,
-                message.body,
-                message.dispatch_id or 0,
-                PURPOSES[message.purpose].role,
+            return await asyncio.wait_for(
+                self.gateway.send_sms(
+                    message.recipient,
+                    message.body,
+                    message.dispatch_id or 0,
+                    PURPOSES[message.purpose].role,
+                ),
+                timeout=self.send_timeout,
             )
         except Exception as exc:
             logger.warning(
