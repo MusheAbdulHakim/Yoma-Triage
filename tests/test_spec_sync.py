@@ -18,7 +18,19 @@ def _section(start: str, end: str) -> str:
 def test_old_spec_copy_is_gone_and_nothing_links_to_it():
     assert not (REPO / "docs/yoma-triage-product-spec.md").exists()
     tracked = subprocess.run(
-        ["git", "grep", "-l", "yoma-triage-product-spec", "--", "*.md", "*.py", "*.dart", "*.yaml"],
+        # docs/audit holds historical reports, which name the file they deleted.
+        [
+            "git",
+            "grep",
+            "-l",
+            "yoma-triage-product-spec",
+            "--",
+            "*.md",
+            "*.py",
+            "*.dart",
+            "*.yaml",
+            ":(exclude)docs/audit/*",
+        ],
         cwd=REPO,
         capture_output=True,
         text=True,
