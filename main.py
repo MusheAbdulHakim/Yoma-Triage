@@ -27,7 +27,8 @@ async def lifespan(app: FastAPI):
     yield
     from src.db.database import engine
 
-    await engine.dispose()
+    if engine is not None:
+        await engine.dispose()
 
 
 # API docs are served only in development.

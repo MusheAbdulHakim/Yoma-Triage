@@ -200,3 +200,72 @@ def test_late_claim_window_defaults_to_45_minutes(monkeypatch):
         check=True,
     )
     assert result.stdout.strip().splitlines()[-1] == "45"
+
+
+def test_database_url_is_required_in_every_environment(monkeypatch):
+    for environment in ("development", "production"):
+        monkeypatch.setattr(settings, "ENVIRONMENT", environment)
+        monkeypatch.setattr(settings, "DATABASE_URL", "  ")
+        assert "DATABASE_URL must be set" in settings.startup_errors()
+
+
+def test_no_default_database_credential_in_config():
+    source = (Path(__file__).resolve().parents[1] / "src" / "config.py").read_text()
+    assert "postgres:postgres" not in source
+    assert "postgresql+asyncpg://" not in source
+
+
+def _clean_env(**extra) -> dict:
+    drop = {"ENVIRONMENT", "DATABASE_URL"}
+    return {k: v for k, v in os.environ.items() if k not in drop} | extra
+
+
+def test_app_imports_without_a_database_url_and_refuses_clearly():
+    code = (
+        "import asyncio, main\n"
+        "async def run():\n"
+        "    async with main.lifespan(main.app):\n"
+        "        pass\n"
+        "asyncio.run(run())\n"
+    )
+    result = subprocess.run(
+        [sys.executable, "-c", code],
+        capture_output=True,
+        text=True,
+        env=_clean_env(ENVIRONMENT="development"),
+        cwd=Path(__file__).resolve().parents[1],
+        timeout=120,
+    )
+    assert result.returncode != 0
+    assert "Refusing to start: DATABASE_URL must be set" in result.stderr
+
+
+@pytest.mark.parametrize("environment", [None, "production", "staging", "dev"])
+def test_seed_refuses_outside_development(environment):
+    extra = {"DATABASE_URL": "postgresql+asyncpg://nobody@127.0.0.1:1/x"}
+    if environment is not None:
+        extra["ENVIRONMENT"] = environment
+    result = subprocess.run(
+        [sys.executable, "-m", "src.db.seed"],
+        capture_output=True,
+        text=True,
+        env=_clean_env(**extra),
+        cwd=Path(__file__).resolve().parents[1],
+        timeout=60,
+    )
+    assert result.returncode == 1
+    assert "Refusing to seed" in result.stderr
+    assert "ENVIRONMENT=development" in result.stderr
+
+
+def test_seed_refuses_without_a_database_url():
+    result = subprocess.run(
+        [sys.executable, "-m", "src.db.seed"],
+        capture_output=True,
+        text=True,
+        env=_clean_env(ENVIRONMENT="development"),
+        cwd=Path(__file__).resolve().parents[1],
+        timeout=60,
+    )
+    assert result.returncode == 1
+    assert "DATABASE_URL must be set" in result.stderr

@@ -7,10 +7,12 @@ from __future__ import annotations
 
 import asyncio
 import json
+import sys
 from pathlib import Path
 
 from sqlalchemy import select
 
+from src.config import settings
 from src.db.database import async_session, init_db
 from src.db.models import CHPSCompound, Driver, Facility
 
@@ -78,5 +80,21 @@ async def seed() -> None:
         )
 
 
-if __name__ == "__main__":
+def main() -> int:
+    if not settings.is_development:
+        print(
+            "Refusing to seed: this loads fake drivers and hospitals, so it only runs "
+            f"with ENVIRONMENT=development (ENVIRONMENT is {settings.ENVIRONMENT!r}).",
+            file=sys.stderr,
+        )
+        return 1
+    errors = settings.startup_errors()
+    if errors:
+        print("Refusing to seed: " + "; ".join(errors), file=sys.stderr)
+        return 1
     asyncio.run(seed())
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

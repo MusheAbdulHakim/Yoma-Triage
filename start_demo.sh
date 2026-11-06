@@ -10,6 +10,8 @@ DB_PASS="postgres"
 DB_PORT="${DB_PORT:-5433}"
 API_PORT="${API_PORT:-8000}"
 DB_CONTAINER="yoma-db"
+# Local throwaway container only.
+DEMO_DATABASE_URL="${DATABASE_URL:-postgresql+asyncpg://${DB_USER}:${DB_PASS}@127.0.0.1:${DB_PORT}/${DB_NAME}}"
 
 RED='\033[0;31m'
 GREEN='\033[0;32m'
@@ -106,10 +108,10 @@ start_api() {
     fi
 
     log "Seeding demo data..."
-    ./venv/bin/python -m src.db.seed 2>/dev/null || true
+    ENVIRONMENT="${ENVIRONMENT:-development}" DATABASE_URL="$DEMO_DATABASE_URL" ./venv/bin/python -m src.db.seed 2>/dev/null || true
 
     log "Starting FastAPI backend on port $API_PORT..."
-    ENVIRONMENT="${ENVIRONMENT:-development}" ./venv/bin/python -c "import uvicorn; uvicorn.run('main:app', host='0.0.0.0', port=$API_PORT, reload=False)" &
+    ENVIRONMENT="${ENVIRONMENT:-development}" DATABASE_URL="$DEMO_DATABASE_URL" ./venv/bin/python -c "import uvicorn; uvicorn.run('main:app', host='0.0.0.0', port=$API_PORT, reload=False)" &
     API_PID=$!
     echo "$API_PID" > /tmp/yoma_api.pid
 

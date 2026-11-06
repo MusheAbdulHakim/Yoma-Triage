@@ -16,10 +16,8 @@ class Settings:
     VECTOR_STORE_DIR: str = os.getenv("VECTOR_STORE_DIR", "./data/vector_store")
     MOMO_API_URL: str = os.getenv("MOMO_API_URL", "https://sandbox.momodeveloper.mtn.com")
     MOMO_PRIMARY_KEY: str = os.getenv("MOMO_PRIMARY_KEY", "")
-    DATABASE_URL: str = os.getenv(
-        "DATABASE_URL",
-        "postgresql+asyncpg://postgres:postgres@localhost:5432/yoma_triage",
-    )
+    # No default: a credential in code is one nobody remembers to change.
+    DATABASE_URL: str = os.getenv("DATABASE_URL", "")
     AT_API_KEY: str = os.getenv("AT_API_KEY", "")
     AT_USERNAME: str = os.getenv("AT_USERNAME", "sandbox")
     AT_SENDER_ID: str = os.getenv("AT_SENDER_ID", "YOMATRIAGE")
@@ -60,9 +58,10 @@ class Settings:
 
     def startup_errors(self) -> list[str]:
         """Configuration that makes this environment unsafe to serve."""
+        errors = [] if self.DATABASE_URL.strip() else ["DATABASE_URL must be set"]
         if self.is_development:
-            return []
-        errors = [
+            return errors
+        errors += [
             f"{name} must be set"
             for name, value in (
                 ("API_KEY", self.API_KEY),

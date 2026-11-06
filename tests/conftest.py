@@ -7,6 +7,8 @@ from collections.abc import AsyncGenerator
 # Before anything imports src.config. The default is production behaviour, so the
 # suite opts in to development explicitly; tests that need otherwise patch settings.
 os.environ["ENVIRONMENT"] = "development"
+# There is no default. Tests use their own engines; this only satisfies startup checks.
+os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
