@@ -12,7 +12,7 @@ from src.tools.sms_codec import compress_referral_payload
 
 logger = logging.getLogger(__name__)
 
-RISK_CODE_MAP = {"GREEN": 0, "YELLOW": 1, "RED": 2, "UNKNOWN": 3}
+RISK_CODE_MAP = {"GREEN": 0, "YELLOW": 1, "RED": 2, "UNKNOWN": 3, "INCOMPLETE": 4}
 
 
 def prepare_dispatch_node(state: ReferralState) -> ReferralState:

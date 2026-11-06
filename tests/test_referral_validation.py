@@ -231,3 +231,44 @@ def test_every_emergency_type_in_the_app_is_accepted():
     from src.api.referral import EmergencyType
 
     assert set(values) <= set(get_args(EmergencyType))
+
+
+@pytest.mark.asyncio
+async def test_api_reports_red_and_what_is_missing_for_partial_vitals(
+    client, seeded_db, no_side_effects
+):
+    response = await client.post(
+        "/api/v1/referral", json=_vitals(systolic_bp=60, temperature=None)
+    )
+    assert response.status_code == 201, response.text
+    referral = response.json()["referral"]
+    assert referral["risk_level"] == "RED"
+    assert referral["moews_score"] == 3
+    assert referral["missing_vitals"] == ["temperature"]
+
+
+@pytest.mark.asyncio
+async def test_api_reports_incomplete_when_nothing_measured_is_critical(
+    client, seeded_db, no_side_effects
+):
+    response = await client.post(
+        "/api/v1/referral", json=_vitals(temperature=None, spo2=None)
+    )
+    assert response.status_code == 201, response.text
+    referral = response.json()["referral"]
+    assert referral["risk_level"] == "INCOMPLETE"
+    assert referral["missing_vitals"] == ["temperature", "spo2"]
+
+
+@pytest.mark.asyncio
+async def test_assessment_failure_does_not_hide_a_critical_reading(
+    client, seeded_db, no_side_effects, monkeypatch
+):
+    def fail(state):
+        raise RuntimeError("graph down")
+
+    monkeypatch.setattr("src.api.referral.yoma_graph.invoke", fail)
+    response = await client.post("/api/v1/referral", json=_vitals(systolic_bp=60))
+    assert response.status_code == 201, response.text
+    assert response.json()["referral"]["risk_level"] == "RED"
+    assert response.json()["referral"]["moews_score"] == 3

@@ -39,6 +39,7 @@ class ResultScreen extends StatelessWidget {
       case 'RED':
         return YomaColors.danger;
       case 'YELLOW':
+      case 'INCOMPLETE':
         return YomaColors.caution;
       case 'GREEN':
         return YomaColors.safe;
@@ -56,13 +57,22 @@ class ResultScreen extends StatelessWidget {
     final heroIsMoews = moews != null;
     final heroColor =
         heroIsMoews ? _moewsColor(moews!) : _acousticColor(result.label);
-    final heroTitle =
-        heroIsMoews ? 'MOEWS ${moews!.riskLevel}' : result.label;
-    final heroSubtitle = heroIsMoews
-        ? 'Clinical spine'
-            '${moews!.score != null ? ' · score ${moews!.score}' : ''}'
-            '${moews!.hrAbnormal ? ' · HR band elevated' : ''}'
-        : result.reason;
+    final heroTitle = !heroIsMoews
+        ? result.label
+        : moews!.isIncomplete
+            ? 'Incomplete'
+            : 'MOEWS ${moews!.riskLevel}';
+    final partial =
+        heroIsMoews && moews!.missingVitals.any((name) => name != 'spo2');
+    final heroSubtitle = !heroIsMoews
+        ? result.reason
+        : moews!.isIncomplete
+            ? 'Cannot call this patient normal without a full set of vitals'
+            : 'Clinical spine'
+                '${moews!.score != null ? ' · score ${moews!.score}' : ''}'
+                '${partial ? ' from measured vitals' : ''}'
+                '${moews!.hrAbnormal ? ' · HR band elevated' : ''}';
+    final notMeasured = moews?.notMeasuredText;
 
     return Scaffold(
       appBar: AppBar(
@@ -123,6 +133,18 @@ class ResultScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                   style: const TextStyle(fontSize: 16),
                 ),
+                if (notMeasured != null) ...[
+                  const SizedBox(height: 12),
+                  Text(
+                    notMeasured,
+                    key: const Key('moews_not_measured'),
+                    textAlign: TextAlign.center,
+                    style: const TextStyle(
+                      fontSize: 16,
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                ],
               ],
             ),
           ),
@@ -203,7 +225,7 @@ class ResultScreen extends StatelessWidget {
                   Navigator.of(context).popUntil((route) => route.isFirst),
               child: const Text('Continue Monitoring'),
             ),
-          if (result.label == 'INCONCLUSIVE') ...[
+          if (!indicate && result.label == 'INCONCLUSIVE') ...[
             const SizedBox(height: 12),
             TextButton(
               onPressed: () {

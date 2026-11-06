@@ -17,6 +17,7 @@ from src.api.deps import require_api_key
 from src.db.database import get_db
 from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
+from src.tools.moews_calculator import missing_vitals, score_vitals
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +111,7 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "compressed_sms_payload": referral.compressed_sms_payload,
         "status": referral.status,
         "vitals": referral.vitals_json,
+        "missing_vitals": missing_vitals(referral.vitals_json),
         "client_request_id": referral.client_request_id,
         "ai_screen_result": referral.ai_screen_result,
         "ai_confidence": referral.ai_confidence,
@@ -176,11 +178,20 @@ async def create_referral(
     try:
         assessed = yoma_graph.invoke(state)
     except Exception:
-        # Spec §10: clinical failure must not block referral/dispatch.
-        logger.exception("Clinical assessment failed; continuing with UNKNOWN risk")
+        # Spec §10: clinical failure must not block referral/dispatch, and it must
+        # not hide a critical reading: MOEWS needs no I/O, so it can always be scored.
+        logger.exception("Clinical assessment failed; continuing with MOEWS only")
+        vitals = payload.vitals
         assessed = {
-            "risk_level": "UNKNOWN",
-            "moews_score": None,
+            **score_vitals(
+                vitals.systolic_bp,
+                vitals.diastolic_bp,
+                vitals.heart_rate,
+                vitals.respiratory_rate,
+                vitals.temperature,
+                vitals.spo2,
+                vitals.consciousness_level,
+            ),
             "clinical_summary": "Clinical assessment unavailable — use clinical judgment",
             "compressed_sms_payload": None,
             "errors": ["clinical_assessment_failed"],

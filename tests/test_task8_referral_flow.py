@@ -3,7 +3,7 @@ from unittest.mock import AsyncMock, MagicMock
 import pytest
 
 
-def test_clinical_assessment_returns_unknown_template_for_missing_vitals(monkeypatch):
+def test_clinical_assessment_reports_incomplete_for_missing_vitals(monkeypatch):
     from src.agents import clinical_agent
 
     rag = MagicMock()
@@ -23,9 +23,10 @@ def test_clinical_assessment_returns_unknown_template_for_missing_vitals(monkeyp
 
     result = clinical_agent.run_clinical_assessment(state)
 
-    assert result["risk_level"] == "UNKNOWN"
-    assert result["moews_score"] is None
-    assert "UNKNOWN" in result["clinical_summary"]
+    assert result["risk_level"] == "INCOMPLETE"
+    assert result["missing_vitals"] == ["systolic_bp", "spo2", "consciousness_level"]
+    assert "INCOMPLETE" in result["clinical_summary"]
+    assert "Not measured: systolic_bp" in result["clinical_summary"]
 
 
 def test_clinical_assessment_handles_absent_vitals_and_gestational_weeks(monkeypatch):
@@ -37,7 +38,7 @@ def test_clinical_assessment_handles_absent_vitals_and_gestational_weeks(monkeyp
 
     result = clinical_agent.run_clinical_assessment({"vitals": {}})
 
-    assert result["risk_level"] == "UNKNOWN"
+    assert result["risk_level"] == "INCOMPLETE"
     assert result["moews_score"] is None
     assert "Gestational age: unknown weeks." in result["clinical_summary"]
 
