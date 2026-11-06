@@ -34,7 +34,7 @@ async def find_cho(session: AsyncSession, phone: str) -> Cho | None:
 async def lookup_cho(payload: ChoLookup, session: AsyncSession = Depends(get_db)) -> dict[str, Any]:
     if not is_valid_ghana_phone(normalize_ghana_phone(payload.phone)):
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=422,
             detail="Enter a valid Ghana phone number, for example 0240000100.",
         )
     cho = await find_cho(session, payload.phone)
