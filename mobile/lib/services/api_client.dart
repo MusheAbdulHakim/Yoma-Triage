@@ -11,6 +11,31 @@ class ApiException implements Exception {
 
   ApiException(this.statusCode, this.body);
 
+  /// The server refused this request, and sending it again won't change that.
+  /// 408 and 429 are 4xx codes that mean "try again later".
+  bool get isPermanent =>
+      statusCode >= 400 &&
+      statusCode < 500 &&
+      statusCode != 408 &&
+      statusCode != 429;
+
+  /// The server's explanation in a form a CHO can read.
+  String get reason {
+    try {
+      final decoded = jsonDecode(body);
+      final detail = decoded is Map ? decoded['detail'] : null;
+      if (detail is String && detail.isNotEmpty) return detail;
+      if (detail is List && detail.isNotEmpty) {
+        final first = detail.first;
+        final message = first is Map ? first['msg'] : null;
+        if (message is String && message.isNotEmpty) return message;
+      }
+    } catch (_) {
+      // Not JSON: fall through to the status code.
+    }
+    return 'The server refused this referral (HTTP $statusCode)';
+  }
+
   @override
   String toString() => 'ApiException($statusCode): $body';
 }

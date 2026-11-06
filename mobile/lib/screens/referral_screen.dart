@@ -14,6 +14,7 @@ import '../theme/yoma_theme.dart';
 import '../widgets/vital_field.dart';
 import 'dispatch_status_screen.dart';
 import 'facility_picker_screen.dart';
+import 'failed_referrals_screen.dart';
 import 'queued_referral_screen.dart';
 
 class ReferralScreen extends StatefulWidget {
@@ -256,6 +257,18 @@ class _ReferralScreenState extends State<ReferralScreen> {
         }
         await _queue.flush(_api);
         dispatchId ??= await _queue.lookupDispatchId(clientRequestId);
+      } on ApiException catch (e) {
+        if (e.isPermanent) {
+          await _queue.markFailed(clientRequestId, e.reason);
+          if (!mounted) return;
+          await Navigator.of(context).pushReplacement(
+            MaterialPageRoute(
+              builder: (_) => FailedReferralsScreen(queue: _queue),
+            ),
+          );
+          return;
+        }
+        // 5xx, 408, 429: the referral stays queued for retry.
       } catch (_) {
         // Offline / API down — the referral remains durably queued.
       }

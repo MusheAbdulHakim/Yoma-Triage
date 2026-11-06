@@ -3,8 +3,10 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../services/api_client.dart';
 import '../services/catalog_store.dart';
+import '../services/offline_queue.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
+import 'failed_referrals_screen.dart';
 import 'referral_screen.dart';
 import 'screening_screen.dart';
 import 'vitals_screen.dart';
@@ -21,6 +23,7 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _catalog = CatalogStore();
+  final _queue = OfflineQueue.shared;
   bool _catalogStale = false;
   String? _catalogVersion;
   bool _syncing = false;
@@ -33,6 +36,8 @@ class _HomeScreenState extends State<HomeScreen> {
     super.initState();
     _refreshCatalogStatus();
     _syncCatalog();
+    // Picks up referrals refused in an earlier session.
+    _queue.failed().catchError((_) => <QueuedReferral>[]);
   }
 
   Future<void> _refreshCatalogStatus() async {
@@ -73,6 +78,31 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ),
+            ValueListenableBuilder<int>(
+              valueListenable: _queue.failedCount,
+              builder: (context, count, _) {
+                if (count == 0) return const SizedBox.shrink();
+                return Card(
+                  color: YomaColors.danger.withValues(alpha: 0.15),
+                  child: ListTile(
+                    key: const Key('home_failed_referrals'),
+                    leading: const Icon(Icons.error, color: YomaColors.danger),
+                    title: Text(
+                      count == 1
+                          ? '1 referral was NOT sent'
+                          : '$count referrals were NOT sent',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text('Tap to see why. Call manually.'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) => FailedReferralsScreen(queue: _queue),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
             if (_catalogStale)
               Card(
                 color: YomaColors.caution.withValues(alpha: 0.15),
