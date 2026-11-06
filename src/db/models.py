@@ -13,6 +13,7 @@ class CHPSCompound(Base):
     zone: Mapped[str] = mapped_column(String(120))
     latitude: Mapped[float | None] = mapped_column(Float, nullable=True)
     longitude: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # Seed data only. Alerts go to the CHOs in the chos table, never to this number.
     cho_phone: Mapped[str] = mapped_column(String(32))
     drivers: Mapped[list["Driver"]] = relationship(back_populates="compound")
 
@@ -63,6 +64,8 @@ class Referral(Base):
     id: Mapped[int] = mapped_column(Integer, primary_key=True)
     chps_compound_id: Mapped[int] = mapped_column(ForeignKey("chps_compounds.id"))
     facility_id: Mapped[int] = mapped_column(ForeignKey("facilities.id"))
+    # Who sent this. Null only for referrals older than this column.
+    cho_id: Mapped[int | None] = mapped_column(ForeignKey("chos.id"), nullable=True)
     patient_hash: Mapped[str] = mapped_column(String(64))
     patient_name: Mapped[str] = mapped_column(String(120), default="Unknown")
     patient_age: Mapped[int | None] = mapped_column(Integer, nullable=True)

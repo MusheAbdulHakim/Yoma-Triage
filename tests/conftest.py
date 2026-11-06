@@ -329,3 +329,9 @@ def added_sms(mock_session):
         for call in mock_session.add.call_args_list
         if isinstance(call.args[0], OutboundMessage)
     ]
+
+
+@pytest_asyncio.fixture
+async def seed_second_compound(db_session: AsyncSession, seeded_db):
+    db_session.add(CHPSCompound(id=2, name="Other CHPS", zone="Z", cho_phone="+233240000011"))
+    await db_session.flush()

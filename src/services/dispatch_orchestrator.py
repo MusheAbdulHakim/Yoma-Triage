@@ -16,7 +16,6 @@ from src import parameters
 from src.config import settings
 from src.db.database import async_session
 from src.db.models import (
-    CHPSCompound,
     Dispatch,
     DispatchLog,
     Driver,
@@ -30,7 +29,7 @@ from src.services.hospital_notifier import HospitalNotifier
 from src.services.outbox import CANCELLED as MESSAGE_CANCELLED
 from src.services.outbox import FAILED as MESSAGE_FAILED
 from src.services.outbox import PENDING as MESSAGE_PENDING
-from src.services.outbox import enqueue_sms
+from src.services.outbox import enqueue_cho_alert, enqueue_cho_update, enqueue_sms
 
 logger = logging.getLogger(__name__)
 
@@ -166,10 +165,9 @@ class DispatchOrchestrator:
         # Tier three is intentionally a CHO manual-coordination notification,
         # never an attempt to contact an emergency contact.
         if tier >= 3 or (tier == 2 and not candidates):
-            compound = await session.get(CHPSCompound, referral.chps_compound_id)
-            enqueue_sms(
+            await enqueue_cho_alert(
                 session,
-                recipient=compound.cho_phone,
+                referral,
                 body=build_cho_escalation_message(
                     referral_id=referral.id,
                     compound_id=referral.chps_compound_id,
@@ -258,10 +256,11 @@ class DispatchOrchestrator:
         facility = await session.get(Facility, dispatch.facility_id)
         self.hospital.notify_pre_arrival(session, referral, driver, facility, dispatch.id)
         if late:
-            compound = await session.get(CHPSCompound, referral.chps_compound_id)
-            enqueue_sms(
+            # To everyone: they all got the no-driver alert, so any of them may have
+            # started arranging transport that now needs standing down.
+            await enqueue_cho_alert(
                 session,
-                recipient=compound.cho_phone,
+                referral,
                 body=build_cho_late_accept_message(
                     referral_id=referral.id,
                     compound_id=referral.chps_compound_id,
@@ -385,10 +384,9 @@ class DispatchOrchestrator:
             )
         )
         referral = await session.get(Referral, dispatch.referral_id)
-        compound = await session.get(CHPSCompound, referral.chps_compound_id)
-        enqueue_sms(
+        await enqueue_cho_update(
             session,
-            recipient=compound.cho_phone,
+            referral,
             body=f"Yoma Triage: Patient arrived at hospital for referral #{referral.id}.",
             purpose="cho_arrival",
             dispatch_id=dispatch.id,

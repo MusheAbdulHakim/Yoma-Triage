@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src import parameters
 from src.config import settings
 from src.db.database import async_session
-from src.db.models import CHPSCompound, Dispatch, DispatchLog, OutboundMessage, Referral
+from src.db.models import Cho, Dispatch, DispatchLog, OutboundMessage, Referral
 from src.services.messaging_gateway import MessagingGateway
 
 logger = logging.getLogger(__name__)
@@ -98,6 +98,76 @@ def enqueue_sms(
     )
     session.add(message)
     return message
+
+
+async def _active_cho_phones(session: AsyncSession, compound_id: int) -> list[str]:
+    phones = await session.scalars(
+        select(Cho.phone).where(Cho.compound_id == compound_id, Cho.active.is_(True)).order_by(Cho.id)
+    )
+    return list(phones)
+
+
+async def _enqueue_to_chos(
+    session: AsyncSession,
+    phones: list[str],
+    *,
+    referral: Referral,
+    body: str,
+    purpose: str,
+    dispatch_id: int | None,
+) -> None:
+    if not phones:
+        # Nobody to tell. Recorded rather than sent to a number that may be nobody's.
+        logger.error("No active CHO to alert for referral %s (%s)", referral.id, purpose)
+        if dispatch_id is not None:
+            session.add(
+                DispatchLog(
+                    dispatch_id=dispatch_id,
+                    action="cho_alert_no_recipient",
+                    target_role="cho",
+                    response="NO_ACTIVE_CHO",
+                    metadata_json={"purpose": purpose},
+                )
+            )
+    for phone in phones:
+        enqueue_sms(session, recipient=phone, body=body, purpose=purpose, dispatch_id=dispatch_id)
+
+
+async def enqueue_cho_alert(
+    session: AsyncSession, referral: Referral, *, body: str, purpose: str, dispatch_id: int | None
+) -> None:
+    """Something went wrong and someone must act: every active CHO at the compound."""
+    await _enqueue_to_chos(
+        session,
+        await _active_cho_phones(session, referral.chps_compound_id),
+        referral=referral,
+        body=body,
+        purpose=purpose,
+        dispatch_id=dispatch_id,
+    )
+
+
+async def enqueue_cho_update(
+    session: AsyncSession, referral: Referral, *, body: str, purpose: str, dispatch_id: int | None
+) -> None:
+    """A routine update: the CHO who sent the referral.
+
+    If that CHO has left the compound or been deactivated, the update goes to whoever is
+    there now, so it isn't lost and doesn't go to someone no longer responsible.
+    """
+    sender = await session.get(Cho, referral.cho_id) if referral.cho_id is not None else None
+    if sender is not None and sender.active and sender.compound_id == referral.chps_compound_id:
+        phones = [sender.phone]
+    else:
+        phones = await _active_cho_phones(session, referral.chps_compound_id)
+    await _enqueue_to_chos(
+        session,
+        phones,
+        referral=referral,
+        body=body,
+        purpose=purpose,
+        dispatch_id=dispatch_id,
+    )
 
 
 def _backoff(attempts: int) -> timedelta:
@@ -283,14 +353,11 @@ class OutboxSender:
     async def _alert_cho(session: AsyncSession, row: OutboundMessage, role: str) -> None:
         dispatch = await session.get(Dispatch, row.dispatch_id)
         referral = await session.get(Referral, dispatch.referral_id) if dispatch else None
-        compound = (
-            await session.get(CHPSCompound, referral.chps_compound_id) if referral else None
-        )
-        if referral is None or compound is None:
+        if referral is None:
             return
-        enqueue_sms(
+        await enqueue_cho_alert(
             session,
-            recipient=compound.cho_phone,
+            referral,
             body=(
                 f"Yoma: SMS to the {role} for Ref #{referral.id} could not be delivered. "
                 "Call them directly."

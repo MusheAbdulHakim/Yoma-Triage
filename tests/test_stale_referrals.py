@@ -188,11 +188,23 @@ async def test_resolve_unknown_referral(client, seeded_db):
 async def test_resolve_needs_a_registered_cho_of_that_compound(client, seeded_db, db_session):
     referral_id = (await _stale(client))["referral"]["id"]
     assert (await _resolve(client, referral_id, "cancel", "+233249999999")).status_code == 403
-    cho = await db_session.scalar(select(Cho))
-    cho.compound_id = 2
+    db_session.add(Cho(id=9, name="Other", phone="+233240000090", compound_id=2))
     await db_session.commit()
-    response = await _resolve(client, referral_id, "cancel")
+    response = await _resolve(client, referral_id, "cancel", "+233240000090")
     assert response.json()["code"] == errors.CHO_WRONG_COMPOUND
+
+
+@pytest.mark.asyncio
+async def test_a_moved_cho_can_stand_down_their_own_referral_but_not_send(
+    client, seeded_db, db_session
+):
+    referral_id = (await _stale(client))["referral"]["id"]
+    (await db_session.scalar(select(Cho))).compound_id = 2
+    await db_session.commit()
+
+    refused = await _resolve(client, referral_id, "send_now")
+    assert refused.json()["code"] == errors.CHO_WRONG_COMPOUND
+    assert (await _resolve(client, referral_id, "cancel")).status_code == 200
 
 
 @pytest.mark.asyncio

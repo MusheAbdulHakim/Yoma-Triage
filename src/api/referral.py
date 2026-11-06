@@ -158,6 +158,7 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
         "id": referral.id,
         "chps_compound_id": referral.chps_compound_id,
         "facility_id": referral.facility_id,
+        "cho_id": referral.cho_id,
         "patient_hash": referral.patient_hash,
         "emergency_type": referral.emergency_type,
         "severity": referral.severity,
@@ -265,11 +266,12 @@ async def _active_cho_of(session: AsyncSession, phone: str, compound_id: int) ->
 async def _cho_who_may_stop(session: AsyncSession, phone: str, referral: Referral) -> Cho:
     """The check for standing transport down.
 
-    A CHO who has since been deactivated may still do this: stopping a trip that is no
-    longer needed is always safe, and otherwise nobody may be left able to.
+    A CHO who has since been deactivated or moved may still do this for a referral they
+    sent: stopping a trip that is no longer needed is always safe, and otherwise nobody
+    may be left able to.
     """
     cho = await _registered_cho(session, phone)
-    if cho.compound_id != referral.chps_compound_id:
+    if cho.id != referral.cho_id and cho.compound_id != referral.chps_compound_id:
         raise ApiError(status.HTTP_403_FORBIDDEN, errors.CHO_WRONG_COMPOUND, WRONG_COMPOUND)
     return cho
 
@@ -302,7 +304,7 @@ async def create_referral(
         vitals_json["vitals_taken"] = False
     # After the idempotency check, so a retry of a referral that was already accepted
     # still gets its dispatch back even if the CHO has since been deactivated.
-    await _active_cho_of(session, payload.cho_phone, payload.chps_compound_id)
+    cho = await _active_cho_of(session, payload.cho_phone, payload.chps_compound_id)
 
     assessed = _assess(payload)
     stale = payload.queue_age_seconds > settings.STALE_AFTER_MINUTES * 60
@@ -310,6 +312,7 @@ async def create_referral(
     referral = Referral(
         chps_compound_id=payload.chps_compound_id,
         facility_id=payload.facility_id,
+        cho_id=cho.id,
         patient_hash=payload.patient_hash,
         patient_name="Unknown",
         emergency_type=payload.emergency_type,

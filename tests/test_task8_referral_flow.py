@@ -81,10 +81,10 @@ async def test_divert_updates_destination_and_notifies(monkeypatch):
     from src.api import sms_webhook
 
     dispatch = MagicMock(id=11, referral_id=21, facility_id=1, status="ACCEPTED", driver_id=3)
-    referral = MagicMock(id=21, facility_id=1, patient_name="Ama", chps_compound_id=1)
+    referral = MagicMock(id=21, facility_id=1, patient_name="Ama", chps_compound_id=1, cho_id=1)
     current_facility = MagicMock(id=1, phone="020 000 0001")
     destination = MagicMock(id=2, phone="+233200000002", name="Alt Hospital")
-    compound = MagicMock(cho_phone="+233200000001")
+    sender = MagicMock(phone="+233200000001", active=True, compound_id=1)
     driver = MagicMock(phone="+233200000003")
     session = MagicMock()
     session.get = AsyncMock(
@@ -93,8 +93,8 @@ async def test_divert_updates_destination_and_notifies(monkeypatch):
             referral,
             current_facility,  # auth
             destination,
-            compound,
             driver,
+            sender,
         ]
     )
     session.add = MagicMock()
