@@ -9,7 +9,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, update
 
 from src.db.models import Dispatch, DispatchLog, Referral
-from src.services.dispatch_orchestrator import LATE_CLAIM_WINDOW, DispatchOrchestrator
+from src.services.dispatch_orchestrator import DispatchOrchestrator
 from tests.postgres_support import (
     CHO_PHONE,
     DRIVER_PHONES,
@@ -145,7 +145,7 @@ async def test_failed_dispatch_past_the_window_cannot_be_claimed(pg_sessions, no
         await session.execute(
             update(Dispatch)
             .where(Dispatch.id == dispatch_id)
-            .values(initiated_at=datetime.now(UTC) - LATE_CLAIM_WINDOW - timedelta(minutes=1))
+            .values(initiated_at=datetime.now(UTC) - timedelta(minutes=46))
         )
         await session.commit()
 
@@ -175,3 +175,36 @@ async def test_driver_who_declined_can_still_claim_while_unclaimed(pg_sessions, 
     assert "Accepted" in await _dial(MOTOR_KING)
 
     assert (await _dispatch(pg_sessions, dispatch_id)).driver_id == 1
+
+
+@pytest.mark.asyncio
+async def test_failed_dispatch_inside_the_window_can_be_claimed(pg_sessions, no_wait):  # noqa: F811
+    dispatch_id = await _open(pg_sessions)
+    await _escalate(dispatch_id, 1)
+    await _escalate(dispatch_id, 2)
+    async with pg_sessions() as session:
+        await session.execute(
+            update(Dispatch)
+            .where(Dispatch.id == dispatch_id)
+            .values(initiated_at=datetime.now(UTC) - timedelta(minutes=44))
+        )
+        await session.commit()
+
+    assert "Accepted" in await _dial(MOTOR_KING)
+
+
+@pytest.mark.asyncio
+async def test_late_claim_window_is_configurable(pg_sessions, no_wait, monkeypatch):  # noqa: F811
+    monkeypatch.setattr("src.config.settings.LATE_CLAIM_WINDOW_MINUTES", 120)
+    dispatch_id = await _open(pg_sessions)
+    await _escalate(dispatch_id, 1)
+    await _escalate(dispatch_id, 2)
+    async with pg_sessions() as session:
+        await session.execute(
+            update(Dispatch)
+            .where(Dispatch.id == dispatch_id)
+            .values(initiated_at=datetime.now(UTC) - timedelta(minutes=46))
+        )
+        await session.commit()
+
+    assert "Accepted" in await _dial(MOTOR_KING)

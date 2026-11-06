@@ -39,6 +39,8 @@ class Settings:
     CASCADE_TIER_SECONDS: int = int(
         os.getenv("CASCADE_TIER_SECONDS", str(DEFAULT_CASCADE_TIER_SECONDS))
     )
+    # How long after dispatch start a notified driver can still claim a FAILED dispatch.
+    LATE_CLAIM_WINDOW_MINUTES: int = int(os.getenv("LATE_CLAIM_WINDOW_MINUTES", "45"))
     # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
     # Every other environment refuses to start without it.
     API_KEY: str = os.getenv("API_KEY", "")

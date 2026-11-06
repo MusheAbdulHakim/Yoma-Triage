@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 CLAIMABLE = {"PENDING", "TIER1_NOTIFIED", "TIER2_NOTIFIED"}
 # A notified driver may still claim after the cascade gives up, within this window.
 ACCEPT_ELIGIBLE = CLAIMABLE | {"FAILED"}
-LATE_CLAIM_WINDOW = timedelta(hours=2)
 ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
 FUEL_STIPEND_GHS = 22.5
 
@@ -85,7 +84,8 @@ def _late_claim_open(dispatch: Dispatch) -> bool:
     initiated_at = dispatch.initiated_at
     if initiated_at.tzinfo is None:
         initiated_at = initiated_at.replace(tzinfo=UTC)
-    return datetime.now(UTC) - initiated_at <= LATE_CLAIM_WINDOW
+    window = timedelta(minutes=settings.LATE_CLAIM_WINDOW_MINUTES)
+    return datetime.now(UTC) - initiated_at <= window
 
 
 class DispatchOrchestrator:

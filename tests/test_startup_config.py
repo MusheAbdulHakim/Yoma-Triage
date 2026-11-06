@@ -180,3 +180,22 @@ async def test_unrecognised_environment_keeps_auth_on(client, monkeypatch):
 
     assert (await client.get("/api/v1/catalog/referral-graph")).status_code == 503
     assert (await client.post("/ussd/callback", data={"phoneNumber": "1"})).status_code == 503
+
+
+def test_late_claim_window_defaults_to_45_minutes(monkeypatch):
+    monkeypatch.delenv("LATE_CLAIM_WINDOW_MINUTES", raising=False)
+    env = {k: v for k, v in os.environ.items() if k != "LATE_CLAIM_WINDOW_MINUTES"}
+    result = subprocess.run(
+        [
+            sys.executable,
+            "-c",
+            "from src.config import settings; print(settings.LATE_CLAIM_WINDOW_MINUTES)",
+        ],
+        capture_output=True,
+        text=True,
+        env=env,
+        cwd=Path(__file__).resolve().parents[1],
+        timeout=60,
+        check=True,
+    )
+    assert result.stdout.strip().splitlines()[-1] == "45"
