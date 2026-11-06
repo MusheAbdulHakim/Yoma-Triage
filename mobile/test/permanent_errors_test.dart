@@ -196,6 +196,33 @@ void main() {
       expect(find.textContaining('Facility not found'), findsOneWidget);
     });
 
+    testWidgets('a captive portal on a direct send keeps it queued and warns',
+        (tester) async {
+      final api = _FailingApi(ApiException(403, '<html>Log in to Wi-Fi</html>'));
+      await tester.pumpWidget(
+        MaterialApp(home: ReferralScreen(queue: queue, api: api)),
+      );
+      await tester.tap(find.text('Emergency type'));
+      await pumpUntil(tester, find.text('Postpartum hemorrhage'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Postpartum hemorrhage').last);
+      await tester.pumpAndSettle();
+      await tester.tap(find.byIcon(Icons.edit_location_alt));
+      await pumpUntil(tester, find.text('Choose receiving facility'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.byType(ListTile).first);
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await pumpUntil(tester, find.byType(QueuedReferralScreen));
+      await pumpUntil(tester, find.byKey(const Key('queued_retry_warning')));
+
+      expect(find.byType(FailedReferralsScreen), findsNothing);
+      await tester.runAsync(() async {
+        expect(await queue.pending(), hasLength(1));
+      });
+    });
+
     testWidgets('a retry that gets refused also reaches the failed screen',
         (tester) async {
       final api = _FailingApi(ApiException(422, '{"detail":"Bad","code":"VALIDATION_ERROR"}'));

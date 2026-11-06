@@ -10,6 +10,7 @@ import 'package:yoma_triage/parameters.dart';
 import 'package:yoma_triage/screens/failed_referrals_screen.dart';
 import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:yoma_triage/screens/queued_referral_screen.dart';
+import 'package:yoma_triage/screens/setup_screen.dart';
 import 'package:yoma_triage/screens/unsent_referrals_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
@@ -358,8 +359,13 @@ void main() {
         queue: queue,
         api: _Server(error: const SocketException('no signal')),
       );
+      addTearDown(service.dispose);
 
-      await service.purgeExpired();
+      // The whole sync, with no network: this must work offline.
+      service.start();
+      for (var i = 0; i < 200 && (await queue.pending()).isNotEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 25));
+      }
 
       expect(await queue.pending(), isEmpty);
     });
@@ -396,6 +402,23 @@ void main() {
       await settle(tester);
       await tester.pump(const Duration(seconds: 1));
       expect(find.byType(UnsentReferralsScreen), findsOneWidget);
+    });
+
+    testWidgets('setup warns too, for a CHO who was sent back there', (tester) async {
+      useTallScreen(tester);
+      await tester.runAsync(() async {
+        await queue.enqueue(_sample('a'));
+        await ageRow('a', const Duration(hours: ttl - 1));
+      });
+      await tester.pumpWidget(
+        MaterialApp(home: SetupScreen(onComplete: (_) {}, api: _Server(), queue: queue)),
+      );
+      await settle(tester);
+
+      expect(find.textContaining('1 will soon be deleted'), findsOneWidget);
+      await tester.runAsync(() async {
+        expect((await queue.pending()).single.expiryWarnedAt, isNotNull);
+      });
     });
 
     testWidgets('the unsent list refreshes after a referral is marked handled',

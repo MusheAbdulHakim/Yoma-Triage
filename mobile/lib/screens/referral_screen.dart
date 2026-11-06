@@ -297,6 +297,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
           MaterialPageRoute(
             builder: (_) => QueuedReferralScreen(
               clientRequestId: clientRequestId,
+              queue: _queue,
+              api: _api,
               facilityId: _selectedFacility?.id,
             ),
           ),
