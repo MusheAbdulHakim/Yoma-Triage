@@ -122,12 +122,21 @@ void main() {
       job.cancel();
       await expectLater(job.result, throwsA(isA<JobCancelled>()));
       expect(clock.elapsedMilliseconds, lessThan(1000));
+      // The isolate is really stopped, not left spinning with its result ignored.
+      await job.exited.timeout(const Duration(seconds: 2));
     });
 
     test('cancel before the isolate has started still cancels', () async {
       final job = BackgroundJob.start(() => _spin(20000));
       job.cancel();
       await expectLater(job.result, throwsA(isA<JobCancelled>()));
+      await job.exited.timeout(const Duration(seconds: 2));
+    });
+
+    test('a finished job\'s isolate exits', () async {
+      final job = BackgroundJob.start(() => 1);
+      expect(await job.result, 1);
+      await job.exited.timeout(const Duration(seconds: 2));
     });
 
     test('cancel after it finished changes nothing', () async {

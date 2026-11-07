@@ -4,6 +4,7 @@ import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yoma_triage/main.dart';
 import 'package:yoma_triage/release_settings.dart';
 
 List<String> _check({
@@ -82,6 +83,11 @@ void main() {
       }
       expect(gradle, contains('dependsOn(checkReleaseSettings)'));
     });
+  });
+
+  test('a release with problems starts only the screen that says so', () {
+    expect(rootApp(['API_KEY must be set']), isA<MisconfiguredBuildApp>());
+    expect(rootApp(const []), isA<YomaApp>());
   });
 
   testWidgets('a wrongly built release says so, and how to get help', (tester) async {

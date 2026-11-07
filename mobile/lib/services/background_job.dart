@@ -21,11 +21,15 @@ class BackgroundJob<T> {
   BackgroundJob._();
 
   final _completer = Completer<T>();
+  final _exited = Completer<void>();
   final _port = ReceivePort();
   Isolate? _isolate;
   bool _cancelled = false;
 
   Future<T> get result => _completer.future;
+
+  /// Completes once the isolate has really stopped, whether it finished or was killed.
+  Future<void> get exited => _exited.future;
 
   static BackgroundJob<T> start<T>(
     FutureOr<T> Function() work, {
@@ -50,19 +54,22 @@ class BackgroundJob<T> {
       // Cancelled while the isolate was starting.
       if (_cancelled) isolate.kill(priority: Isolate.immediate);
     } catch (error, stack) {
+      // No isolate was started, so no exit notice will come.
+      if (!_exited.isCompleted) _exited.complete();
       _fail(error, stack);
+      _port.close();
     }
   }
 
   void _onMessage(Object? message) {
+    if (message == null && !_exited.isCompleted) _exited.complete();
     if (_completer.isCompleted) {
-      _port.close();
+      if (_exited.isCompleted) _port.close();
       return;
     }
     switch (message) {
       case _Done(:final value):
         _completer.complete(value as T);
-        _port.close();
       case _Failed(:final error, :final stack):
         _fail(StateError(error), StackTrace.fromString(stack));
       case [final error, final stack]:
@@ -74,9 +81,10 @@ class BackgroundJob<T> {
     }
   }
 
+  /// The port stays open until the exit notice, so [exited] always completes.
   void _fail(Object error, [StackTrace? stack]) {
     if (!_completer.isCompleted) _completer.completeError(error, stack);
-    _port.close();
+    if (_exited.isCompleted) _port.close();
   }
 
   /// Stops the work now. [result] fails with [JobCancelled], unless it already finished.

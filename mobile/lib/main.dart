@@ -15,15 +15,21 @@ final queueSyncService = QueueSyncService();
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
   // A release without production settings refuses to run, before it can sync anything.
-  final problems = currentReleaseProblems();
-  if (problems.isNotEmpty) {
-    runApp(MisconfiguredBuildApp(problems: problems));
+  final root = rootApp(currentReleaseProblems());
+  if (root is MisconfiguredBuildApp) {
+    runApp(root);
     return;
   }
   unawaited(purgeStaleRecordings());
   queueSyncService.start();
-  runApp(const YomaApp());
+  runApp(root);
 }
+
+/// The app to run: the real one, or, if this build's settings are wrong, only the screen
+/// that says so.
+Widget rootApp(List<String> releaseProblems) => releaseProblems.isEmpty
+    ? const YomaApp()
+    : MisconfiguredBuildApp(problems: releaseProblems);
 
 class YomaApp extends StatefulWidget {
   const YomaApp({super.key});
