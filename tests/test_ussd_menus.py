@@ -70,6 +70,19 @@ async def test_root_menu_names_the_trip(db_session, seeded_db):
 
 
 @pytest.mark.asyncio
+async def test_root_menu_counts_no_offers_during_a_trip(db_session, seeded_db):
+    """A referral offered to the driver before they took a trip isn't listed during it."""
+    first = await _open(db_session)
+    await _open(db_session)  # offered to driver 1 as well
+    await _say(db_session, DRIVER_1, accept(first.referral_id))
+
+    root = await _say(db_session, DRIVER_1, ROOT)
+
+    assert "1. Open referrals (0)" in root
+    assert "1. Open referrals (1)" in await _say(db_session, DRIVER_2, ROOT)
+
+
+@pytest.mark.asyncio
 async def test_unknown_phone(db_session, seeded_db):
     assert await _say(db_session, "+233599999999", ROOT) == "END Unknown driver."
 
