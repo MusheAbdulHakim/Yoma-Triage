@@ -113,6 +113,9 @@ class ReferralCreate(BaseModel):
     # How long this waited on the phone, by the phone's own clock. An elapsed time rather
     # than a timestamp, so a phone clock set to the wrong date can't skew it.
     queue_age_seconds: int = Field(default=0, ge=0, le=2_147_483_647)
+    # The CHO phoned or texted someone about this referral while it waited on the phone,
+    # so transport may already be on its way. Ask before alerting drivers, whatever its age.
+    manual_contact: bool = False
     ai_screen_result: str | None = Field(default=None, max_length=32)
     ai_confidence: float | None = Field(default=None, ge=0, le=1)
     ai_model_version: str | None = Field(default=None, max_length=64)
@@ -308,7 +311,9 @@ async def create_referral(
     cho = await _active_cho_of(session, payload.cho_phone, payload.chps_compound_id)
 
     assessed = _assess(payload)
-    stale = payload.queue_age_seconds > settings.STALE_AFTER_MINUTES * 60
+    stale = (
+        payload.queue_age_seconds > settings.STALE_AFTER_MINUTES * 60 or payload.manual_contact
+    )
 
     referral = Referral(
         chps_compound_id=payload.chps_compound_id,

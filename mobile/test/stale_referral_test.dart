@@ -32,6 +32,7 @@ class _Server extends ApiClient {
   static const staleAbove = 1200;
 
   final List<int?> ages = [];
+  final List<bool> manualContacts = [];
   final List<Map<String, Object?>> resolves = [];
   final List<Map<String, Object?>> cancels = [];
   Object? resolveError;
@@ -40,7 +41,8 @@ class _Server extends ApiClient {
   @override
   Future<Map<String, dynamic>> createReferral(ReferralRequest req) async {
     ages.add(req.queueAgeSeconds);
-    final stale = (req.queueAgeSeconds ?? 0) > staleAbove;
+    manualContacts.add(req.manualContact);
+    final stale = (req.queueAgeSeconds ?? 0) > staleAbove || req.manualContact;
     return {
       'referral': {'id': 42, 'status': stale ? 'AWAITING_CONFIRMATION' : 'CONFIRMED'},
       'dispatch': stale ? null : {'id': 7, 'status': 'TIER1_NOTIFIED'},
@@ -481,6 +483,55 @@ void main() {
       await settle(tester);
       await tester.runAsync(() async {
         expect((await queue.pending()).single.manualContactMade, isTrue);
+      });
+    });
+
+    // B2: a Call or SMS means transport may already be coming, whatever the age.
+    testWidgets('after a Call tap, a fresh referral asks first, with Already handled chosen',
+        (tester) async {
+      useTallScreen(tester);
+      SharedPreferences.setMockInitialValues({
+        ...registeredChoPrefs(),
+        'manual_contacts':
+            '{"compound_id":1,"drivers":[{"name":"I","phone":"+233240000001","is_motor_king":true}],"facilities":[]}',
+        'manual_contacts_updated_at': DateTime.utc(2026, 11, 5).toIso8601String(),
+      });
+      final api = _Server();
+      await tester.runAsync(() => queue.enqueue(_sample()));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: QueuedReferralScreen(
+            clientRequestId: _id,
+            queue: queue,
+            api: api,
+            launcher: (_) async => true,
+          ),
+        ),
+      );
+      await pumpUntil(tester, find.byKey(const Key('call_+233240000001')));
+      await tester.tap(find.byKey(const Key('call_+233240000001')));
+      await settle(tester);
+
+      await tester.tap(find.text('Retry sync'));
+      await pumpUntil(tester, find.byType(StaleReferralScreen));
+      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+
+      expect(api.manualContacts, [true]);
+      expect(api.ages.single, lessThan(_Server.staleAbove), reason: 'fresh, yet asked');
+      final tile = tester.widget<ListTile>(find.byKey(const Key('stale_already_handled_$_id')));
+      expect(tile.selected, isTrue);
+    });
+
+    testWidgets('without a Call or SMS, a fresh referral is sent straight on', (tester) async {
+      final api = _Server();
+      await tester.runAsync(() async {
+        await queue.enqueue(_sample());
+        await queue.flush(api);
+      });
+      expect(api.manualContacts, [false]);
+      await tester.runAsync(() async {
+        expect(await queue.needsConfirmation(), isEmpty);
+        expect(await queue.lookupDispatchId(_id), 7);
       });
     });
   });

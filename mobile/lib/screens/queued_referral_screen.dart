@@ -161,8 +161,8 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'If it waits more than ${Parameters.staleAfterMinutes} minutes, the app will '
-              'ask you before alerting drivers.',
+              'If it waits more than ${Parameters.staleAfterMinutes} minutes, or you call or '
+              'SMS someone below, the app will ask you before alerting drivers.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade800),
             ),
