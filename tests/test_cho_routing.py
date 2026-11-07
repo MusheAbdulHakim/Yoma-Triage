@@ -13,6 +13,7 @@ from src.db.models import Cho, Dispatch, DispatchLog, OutboundMessage, Referral
 from src.services.dispatch_orchestrator import DispatchOrchestrator
 from src.services.outbox import OutboxSender
 from tests.conftest import SEEDED_CHO_PHONE, queued_sms
+from tests.hospital_replies import divert_text
 from tests.postgres_support import (
     CHO_PHONE,
     pg_sessions,  # noqa: F401 - pytest fixture
@@ -111,10 +112,14 @@ async def test_diversion_notice_goes_to_the_sending_cho_only(client, two_chos, d
 
     response = await client.post(
         "/api/v1/sms/inbound",
-        json={"from": "+233240000200", "text": f"DIVERT {dispatch_id} 2"},
+        json={
+            "from": "+233240000200",
+            "text": await divert_text(db_session, dispatch_id, 2),
+        },
     )
 
     assert response.status_code == 200, response.text
+    assert response.json()["status"] == "DIVERTED"
     assert await _recipients(db_session, "divert_cho") == [SECOND_CHO]
 
 

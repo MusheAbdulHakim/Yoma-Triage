@@ -25,7 +25,7 @@ from src.db.models import (
     Wallet,
 )
 from src.services.driver_pool import DriverPoolManager
-from src.services.hospital_notifier import HospitalNotifier
+from src.services.hospital_notifier import HospitalNotifier, new_hospital_code
 from src.services.outbox import CANCELLED as MESSAGE_CANCELLED
 from src.services.outbox import FAILED as MESSAGE_FAILED
 from src.services.outbox import PENDING as MESSAGE_PENDING
@@ -266,7 +266,10 @@ class DispatchOrchestrator:
         self._record_stipend(session, dispatch, driver_id)
         driver = await session.get(Driver, driver_id)
         facility = await session.get(Facility, dispatch.facility_id)
-        self.hospital.notify_pre_arrival(session, referral, driver, facility, dispatch.id)
+        dispatch.hospital_code = await new_hospital_code(session)
+        await self.hospital.notify_pre_arrival(
+            session, referral, driver, facility, dispatch.id, code=dispatch.hospital_code
+        )
         if late:
             # To everyone: they all got the no-driver alert, so any of them may have
             # started arranging transport that now needs standing down.
@@ -487,8 +490,16 @@ class DispatchOrchestrator:
         )
         await self._cancel_waiting_pre_arrival(session, dispatch.id, origin.phone)
 
-        self.hospital.notify_pre_arrival(
-            session, referral, driver, destination, dispatch.id, diverted_from=origin.name
+        # A new code, so the old facility's code can't act on the trip any more.
+        dispatch.hospital_code = await new_hospital_code(session)
+        await self.hospital.notify_pre_arrival(
+            session,
+            referral,
+            driver,
+            destination,
+            dispatch.id,
+            code=dispatch.hospital_code,
+            diverted_from=origin.name,
         )
         enqueue_sms(
             session,

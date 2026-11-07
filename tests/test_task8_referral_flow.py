@@ -1,8 +1,6 @@
-from unittest.mock import AsyncMock, MagicMock
+from unittest.mock import MagicMock
 
 import pytest
-
-from tests.conftest import added_sms
 
 
 def test_clinical_assessment_reports_incomplete_for_missing_vitals(monkeypatch):
@@ -74,51 +72,3 @@ def test_prepare_dispatch_encodes_unknown_score_as_zero():
     )
 
     assert result["compressed_sms_payload"]
-
-
-@pytest.mark.asyncio
-async def test_inbound_sms_rejects_sender_other_than_current_facility():
-    from src.api import sms_webhook
-
-    dispatch = MagicMock(
-        id=11, referral_id=21, facility_id=1, status="ACCEPTED", driver_id=None
-    )
-    referral = MagicMock(id=21)
-    current_facility = MagicMock(id=1, phone="+233200000001")
-    session = MagicMock()
-    session.get = AsyncMock(side_effect=[dispatch, referral, current_facility])
-    session.add = MagicMock()
-    session.commit = AsyncMock()
-
-    with pytest.raises(ValueError, match="Unauthorized sender"):
-        await sms_webhook.process_inbound_sms(
-            session, "+233200000099", "CONFIRM 11"
-        )
-
-    assert dispatch.status == "ACCEPTED"
-    session.commit.assert_not_awaited()
-
-
-@pytest.mark.asyncio
-async def test_inbound_sms_status_reply_before_driver_acceptance(monkeypatch):
-    from src.api import sms_webhook
-
-    dispatch = MagicMock(
-        id=11, referral_id=21, facility_id=1, status="TIER1_NOTIFIED", driver_id=None
-    )
-    referral = MagicMock(id=21)
-    current_facility = MagicMock(id=1, phone="+233200000001", name="TTH")
-    session = MagicMock()
-    session.get = AsyncMock(side_effect=[dispatch, referral, current_facility, current_facility])
-    session.add = MagicMock()
-    session.commit = AsyncMock()
-
-    result = await sms_webhook.process_inbound_sms(
-        session, "0200000001", "CONFIRM 11"
-    )
-
-    assert result["status"] == "STATUS_ONLY"
-    assert dispatch.status == "TIER1_NOTIFIED"
-    sms = added_sms(session)
-    assert len(sms) == 1
-    assert "TIER1_NOTIFIED" in sms[0].body

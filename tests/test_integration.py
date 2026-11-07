@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import pytest
 
+from tests.hospital_replies import confirm_text, divert_text
+
 
 @pytest.mark.asyncio
 async def test_full_flow_accept_confirm_and_divert(
-    client, seeded_db, sample_referral_payload, monkeypatch
+    client, db_session, seeded_db, sample_referral_payload, monkeypatch
 ):
 
     # Integration uses demo shortcode; ignore sandbox AT_USSD_SERVICE_CODE from .env.
@@ -39,7 +41,7 @@ async def test_full_flow_accept_confirm_and_divert(
 
     confirm = await client.post(
         "/api/v1/sms/inbound",
-        json={"from": "+233240000200", "text": f"CONFIRM {dispatch_id}"},
+        json={"from": "+233240000200", "text": await confirm_text(db_session, dispatch_id)},
     )
     assert confirm.status_code == 200
     assert confirm.json()["status"] == "CONFIRMED"
@@ -69,7 +71,10 @@ async def test_full_flow_accept_confirm_and_divert(
 
     divert = await client.post(
         "/api/v1/sms/inbound",
-        json={"from": "+233240000200", "text": f"DIVERT {dispatch2_id} 2"},
+        json={
+            "from": "+233240000200",
+            "text": await divert_text(db_session, dispatch2_id, 2),
+        },
     )
     assert divert.status_code == 200, divert.text
     assert divert.json()["status"] == "DIVERTED"

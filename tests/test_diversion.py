@@ -145,7 +145,7 @@ async def test_divert_to_the_current_destination_changes_nothing(
     before = len(await queued_sms(db_session))
 
     response = await divert(client, db_session, dispatch_id, 1)
-    assert response.status_code == 400
+    assert response.json()["status"] == "DIVERT_REJECTED"
     dispatch = await db_session.get(Dispatch, dispatch_id)
     await db_session.refresh(dispatch)
     assert (dispatch.status, dispatch.facility_id) == ("HOSPITAL_NOTIFIED", 1)
@@ -153,9 +153,10 @@ async def test_divert_to_the_current_destination_changes_nothing(
         select(DispatchLog).where(DispatchLog.action == "hospital_divert")
     )
     assert list(logs) == []
-    # Only the reply explaining why, if any; no notices to anyone else.
+    # Only the reply explaining why; no notices to anyone else.
     new = (await queued_sms(db_session))[before:]
-    assert {m.recipient for m in new} <= {HOSPITAL_1}
+    assert [(m.recipient, m.purpose) for m in new] == [(HOSPITAL_1, "inbound_reply")]
+    assert "already going to Tamale Teaching Hospital" in new[0].body
 
 
 @pytest.mark.asyncio

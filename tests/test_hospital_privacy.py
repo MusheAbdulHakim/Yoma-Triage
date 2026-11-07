@@ -39,15 +39,17 @@ def driver():
 
 @pytest.fixture
 def facility():
-    return SimpleNamespace(id=1, name="Tamale Teaching Hospital", phone="+233240000200")
+    return SimpleNamespace(
+        id=1, name="Tamale Teaching Hospital", phone="+233240000200", latitude=None, longitude=None
+    )
 
 
 @pytest.mark.asyncio
 async def test_hospital_sms_omits_patient_name(
     db_session, seeded_referral_with_name, driver, facility
 ):
-    HospitalNotifier().notify_pre_arrival(
-        db_session, seeded_referral_with_name, driver, facility, dispatch_id=1
+    await HospitalNotifier().notify_pre_arrival(
+        db_session, seeded_referral_with_name, driver, facility, dispatch_id=1, code="4821"
     )
     await db_session.flush()
 
@@ -63,8 +65,8 @@ async def test_hospital_notify_targets_facility_phone(
     db_session, seeded_referral_with_name, driver, facility
 ):
     """After driver accept, clinic SMS goes to facility.phone (not patient)."""
-    HospitalNotifier().notify_pre_arrival(
-        db_session, seeded_referral_with_name, driver, facility, dispatch_id=42
+    await HospitalNotifier().notify_pre_arrival(
+        db_session, seeded_referral_with_name, driver, facility, dispatch_id=42, code="4821"
     )
     await db_session.flush()
 
@@ -74,7 +76,7 @@ async def test_hospital_notify_targets_facility_phone(
     assert messages[0].purpose == "hospital_pre_arrival"
     assert messages[0].dispatch_id == 42
     assert f"Driver phone: {driver.phone}" in messages[0].body
-    assert "Reply CONFIRM 42" in messages[0].body
+    assert "Reply CONFIRM 4821, or DIVERT 4821 <facility code>" in messages[0].body
 
 
 @pytest.mark.asyncio
