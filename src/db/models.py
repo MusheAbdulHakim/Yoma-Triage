@@ -76,7 +76,7 @@ class Referral(Base):
     risk_level: Mapped[str] = mapped_column(String(32), default="UNKNOWN")
     clinical_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     compressed_sms_payload: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    # CONFIRMED|AWAITING_CONFIRMATION|MANUALLY_HANDLED|CANCELLED
+    # CONFIRMED|AWAITING_CONFIRMATION|MANUALLY_HANDLED|CANCELLED|EXPIRED_UNCONFIRMED
     status: Mapped[str] = mapped_column(String(32), default="CREATED")
     vitals_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     client_request_id: Mapped[str | None] = mapped_column(String(36), unique=True, nullable=True)
@@ -153,6 +153,7 @@ class Wallet(Base):
     amount: Mapped[float] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(8), default="GHS")
     source: Mapped[str] = mapped_column(String(64), default="community_fund_mock")
+    # INITIAL_DISBURSED|CANCELLED. A cancelled dispatch keeps its row, marked CANCELLED.
     status: Mapped[str] = mapped_column(String(32), default="INITIAL_DISBURSED")
     transaction_id: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())

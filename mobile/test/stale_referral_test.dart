@@ -32,6 +32,7 @@ class _Server extends ApiClient {
   static const staleAbove = 1200;
 
   final List<int?> ages = [];
+  final List<bool> manualContacts = [];
   final List<Map<String, Object?>> resolves = [];
   final List<Map<String, Object?>> cancels = [];
   Object? resolveError;
@@ -40,7 +41,8 @@ class _Server extends ApiClient {
   @override
   Future<Map<String, dynamic>> createReferral(ReferralRequest req) async {
     ages.add(req.queueAgeSeconds);
-    final stale = (req.queueAgeSeconds ?? 0) > staleAbove;
+    manualContacts.add(req.manualContact);
+    final stale = (req.queueAgeSeconds ?? 0) > staleAbove || req.manualContact;
     return {
       'referral': {'id': 42, 'status': stale ? 'AWAITING_CONFIRMATION' : 'CONFIRMED'},
       'dispatch': stale ? null : {'id': 7, 'status': 'TIER1_NOTIFIED'},
@@ -349,6 +351,65 @@ void main() {
     });
   });
 
+  group('a referral the server closed after waiting unanswered (B4)', () {
+    const expired = '{"detail":"This referral was closed after 24 hours without an answer. '
+        'Drivers were not told. If transport is still needed, start a new Emergency Referral '
+        'or phone a driver now.","code":"REFERRAL_EXPIRED"}';
+
+    Future<void> pumpExpired(WidgetTester tester) async {
+      useTallScreen(tester);
+      final api = _Server();
+      await tester.runAsync(() async {
+        await enqueueAged(const Duration(minutes: 30));
+        await queue.flush(api);
+      });
+      api.resolveError = ApiException(409, expired);
+      await tester.pumpWidget(
+        MaterialApp(home: StaleReferralScreen(queue: queue, api: api)),
+      );
+      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+    }
+
+    Future<void> choose(WidgetTester tester, String action) async {
+      await tester.tap(find.byKey(Key('stale_${action}_$_id')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('stale_confirm_$_id')));
+    }
+
+    testWidgets('Send now says drivers were not told, and waits to be read', (tester) async {
+      await pumpExpired(tester);
+      await choose(tester, 'send_now');
+      await pumpUntil(tester, find.byKey(const Key('stale_expired_message')));
+
+      expect(find.text('Drivers were not told'), findsOneWidget);
+      expect(find.textContaining('start a new Emergency Referral'), findsOneWidget);
+      // Still on this phone until the CHO has read it.
+      await tester.runAsync(() async {
+        expect(await queue.needsConfirmation(), hasLength(1));
+      });
+
+      await tester.tap(find.byKey(const Key('stale_expired_ok')));
+      await settle(tester);
+      await tester.runAsync(() async {
+        expect(await queue.needsConfirmation(), isEmpty);
+      });
+      expect(find.byType(DispatchStatusScreen), findsNothing);
+    });
+
+    for (final action in ['already_handled', 'cancel']) {
+      testWidgets('$action needs no message: nobody was told anyway', (tester) async {
+        await pumpExpired(tester);
+        await choose(tester, action);
+        await settle(tester);
+
+        expect(find.byKey(const Key('stale_expired_message')), findsNothing);
+        await tester.runAsync(() async {
+          expect(await queue.needsConfirmation(), isEmpty);
+        });
+      });
+    }
+  });
+
   group('how the prompt is reached', () {
     testWidgets('Home opens it when a stale referral arrives', (tester) async {
       useTallScreen(tester);
@@ -377,6 +438,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: HomeScreen(api: api, queue: queue, acousticEnabled: false)),
       );
+      // Warnings are behind one summary banner on Home.
+      await pumpUntil(tester, find.byKey(const Key('home_warnings_summary')));
+      await tester.tap(find.byKey(const Key('home_warnings_summary')));
       await pumpUntil(tester, find.byKey(const Key('home_stale_referrals')));
       await tester.tap(find.byKey(const Key('home_stale_referrals')));
       await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
@@ -419,6 +483,55 @@ void main() {
       await settle(tester);
       await tester.runAsync(() async {
         expect((await queue.pending()).single.manualContactMade, isTrue);
+      });
+    });
+
+    // B2: a Call or SMS means transport may already be coming, whatever the age.
+    testWidgets('after a Call tap, a fresh referral asks first, with Already handled chosen',
+        (tester) async {
+      useTallScreen(tester);
+      SharedPreferences.setMockInitialValues({
+        ...registeredChoPrefs(),
+        'manual_contacts':
+            '{"compound_id":1,"drivers":[{"name":"I","phone":"+233240000001","is_motor_king":true}],"facilities":[]}',
+        'manual_contacts_updated_at': DateTime.utc(2026, 11, 5).toIso8601String(),
+      });
+      final api = _Server();
+      await tester.runAsync(() => queue.enqueue(_sample()));
+      await tester.pumpWidget(
+        MaterialApp(
+          home: QueuedReferralScreen(
+            clientRequestId: _id,
+            queue: queue,
+            api: api,
+            launcher: (_) async => true,
+          ),
+        ),
+      );
+      await pumpUntil(tester, find.byKey(const Key('call_+233240000001')));
+      await tester.tap(find.byKey(const Key('call_+233240000001')));
+      await settle(tester);
+
+      await tester.tap(find.text('Retry sync'));
+      await pumpUntil(tester, find.byType(StaleReferralScreen));
+      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+
+      expect(api.manualContacts, [true]);
+      expect(api.ages.single, lessThan(_Server.staleAbove), reason: 'fresh, yet asked');
+      final tile = tester.widget<ListTile>(find.byKey(const Key('stale_already_handled_$_id')));
+      expect(tile.selected, isTrue);
+    });
+
+    testWidgets('without a Call or SMS, a fresh referral is sent straight on', (tester) async {
+      final api = _Server();
+      await tester.runAsync(() async {
+        await queue.enqueue(_sample());
+        await queue.flush(api);
+      });
+      expect(api.manualContacts, [false]);
+      await tester.runAsync(() async {
+        expect(await queue.needsConfirmation(), isEmpty);
+        expect(await queue.lookupDispatchId(_id), 7);
       });
     });
   });

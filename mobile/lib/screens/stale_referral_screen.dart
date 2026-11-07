@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../parameters.dart';
+
 import '../services/api_client.dart';
 import '../services/cho_store.dart';
 import '../services/offline_queue.dart';
@@ -92,6 +94,12 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
     } on ApiException catch (e) {
       if (e.code == 'REFERRAL_ALREADY_RESOLVED') {
         await widget.queue.removeResolved(id);
+      } else if (e.code == 'REFERRAL_EXPIRED') {
+        // The server closed it after it waited too long unanswered. Nobody was told, so
+        // Already handled and Cancel are done anyway. Send now is not: say so plainly,
+        // and make sure it's read, before the referral leaves this phone.
+        if (answer == _Answer.sendNow && mounted) await _explainExpired(e.reason);
+        await widget.queue.removeResolved(id);
       } else {
         problem = e.code == null
             ? 'Could not save your answer. Try again, or call directly.'
@@ -126,6 +134,30 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
       await Navigator.of(context).maybePop();
     }
   }
+
+  Future<void> _explainExpired(String reason) => showDialog<void>(
+        context: context,
+        barrierDismissible: false,
+        builder: (context) => AlertDialog(
+          title: const Text('Drivers were not told'),
+          content: Text(
+            reason.isNotEmpty
+                ? reason
+                : 'This referral was closed after '
+                    '${Parameters.expireUnconfirmedHours} hours without an answer. If '
+                    'transport is still needed, start a new Emergency Referral or phone a '
+                    'driver now.',
+            key: const Key('stale_expired_message'),
+          ),
+          actions: [
+            TextButton(
+              key: const Key('stale_expired_ok'),
+              onPressed: () => Navigator.of(context).pop(),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
 
   Widget _option(QueuedReferral item, _Answer answer) {
     final id = item.clientRequestId;

@@ -1,5 +1,5 @@
 import 'package:flutter/foundation.dart'
-    show TargetPlatform, defaultTargetPlatform, kIsWeb;
+    show TargetPlatform, defaultTargetPlatform, kIsWeb, kReleaseMode;
 
 import 'parameters.dart';
 
@@ -10,10 +10,14 @@ import 'parameters.dart';
 /// - Web → loopback
 /// - iOS Simulator → loopback (shares the Mac network stack)
 /// - Android emulator → `10.0.2.2` (host loopback alias)
+/// - Release builds → none: `API_BASE_URL` must be given (see release_settings.dart)
 class ApiConfig {
   static String get baseUrl {
     const fromEnv = String.fromEnvironment('API_BASE_URL');
     if (fromEnv.isNotEmpty) return fromEnv;
+    // No development defaults in a release: it must say where its server is, and
+    // release_settings.dart refuses to start one that doesn't.
+    if (kReleaseMode) return '';
     if (kIsWeb) return 'http://127.0.0.1:8000';
     if (defaultTargetPlatform == TargetPlatform.iOS) {
       return 'http://127.0.0.1:8000';

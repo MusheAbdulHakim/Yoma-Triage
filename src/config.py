@@ -58,6 +58,10 @@ class Settings:
     STALE_AFTER_MINUTES: int = int(
         os.getenv("STALE_AFTER_MINUTES", str(parameters.STALE_AFTER_MINUTES))
     )
+    # An unanswered stale referral is closed after this long.
+    EXPIRE_UNCONFIRMED_HOURS: float = float(
+        os.getenv("EXPIRE_UNCONFIRMED_HOURS", str(parameters.EXPIRE_UNCONFIRMED_HOURS))
+    )
     # CHO/API shared secret (header X-API-Key). Empty + development → open for local demo.
     # Every other environment refuses to start without it.
     API_KEY: str = os.getenv("API_KEY", "")
@@ -83,6 +87,9 @@ class Settings:
             errors.append("OUTBOX_SEND_CONCURRENCY must be at least 1")
         if self.OUTBOX_SEND_TIMEOUT_SECONDS <= 0:
             errors.append("OUTBOX_SEND_TIMEOUT_SECONDS must be above 0")
+        # Zero would close every stale referral before the CHO could answer.
+        if self.EXPIRE_UNCONFIRMED_HOURS <= 0:
+            errors.append("EXPIRE_UNCONFIRMED_HOURS must be above 0")
         if self.is_development:
             return errors
         errors += [

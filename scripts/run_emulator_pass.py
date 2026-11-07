@@ -55,10 +55,15 @@ TEST_CHO = "+233240000777"
 SMALL_WIDTH_PX, SMALL_HEIGHT_PX, SMALL_DENSITY = 640, 1136, 320  # 320 x 568 dp
 
 AVDS = {"yoma_api34": 5554, "yoma_api24_2gb": 5556}
+# Guest RAM for each run, in MB, whatever the AVD's own setting. The API 34 AVD is set to
+# 4 GB, which with a Gradle build alongside was enough for the host to kill the emulator.
+AVD_MEMORY_MB = {"yoma_api34": 3072, "yoma_api24_2gb": 2048}
 
 # What each integration test file needs from the backend, and from the build.
 SCENARIOS: dict[str, dict] = {
     "1": {"file": "s1_yamnet_test.dart", "defines": {"MOEWS_ONLY": "false"}},
+    # A1: the screen keeps drawing and answering taps while YAMNet runs.
+    "responsive": {"file": "s10_responsive_test.dart"},
     "3": {"file": "s3_setup_test.dart"},
     "4": {"file": "s4_full_referral_test.dart"},
     "5": {"file": "s5_skip_vitals_test.dart"},
@@ -93,6 +98,15 @@ def run(cmd: list[str], *, check: bool = True, timeout: float = 120, **kwargs) -
     return done.stdout
 
 
+def stop_gradle() -> None:
+    """Free the build daemons' memory before an emulator needs it. The next build starts
+    them again, a little slower."""
+    wrapper = MOBILE / "android" / "gradlew"
+    if wrapper.exists():
+        run([str(wrapper), "--stop"], check=False, cwd=wrapper.parent, timeout=120)
+    run(["pkill", "-f", "KotlinCompileDaemon"], check=False)
+
+
 class Device:
     def __init__(self, avd: str) -> None:
         self.avd = avd
@@ -118,6 +132,7 @@ class Device:
         if running:
             self.process = None
         else:
+            stop_gradle()
             # The emulator keeps its own copy of the file handle.
             with open(self.out / "emulator.log", "w") as emulator_log:
                 self.process = subprocess.Popen(
@@ -133,6 +148,8 @@ class Device:
                         "-no-snapshot",
                         "-gpu",
                         "swiftshader_indirect",
+                        "-memory",
+                        str(AVD_MEMORY_MB[self.avd]),
                     ],
                     stdout=emulator_log,
                     stderr=subprocess.STDOUT,
@@ -261,7 +278,12 @@ class Device:
             self.shell("uiautomator dump /sdcard/u.xml", timeout=60)
             raw = self.shell("cat /sdcard/u.xml", timeout=30)
             if "<hierarchy" in raw:
-                root = ET.fromstring(raw[raw.index("<hierarchy") :])
+                try:
+                    root = ET.fromstring(raw[raw.index("<hierarchy") :])
+                except ET.ParseError:
+                    # Read while the screen was changing: a partial file. Read it again.
+                    time.sleep(1)
+                    continue
                 return [dict(n.attrib) for n in root.iter("node")]
             time.sleep(1)
         return []
@@ -657,44 +679,85 @@ def save_results(device: Device) -> None:
 # --- Scenario 2 and cold start: the release APK, driven through adb -------------------
 
 
-RELEASE_APK = MOBILE / "build/app/outputs/flutter-apk/app-release.apk"
+RELEASE_APK = MOBILE / "build/app/outputs/flutter-apk/app-x86_64-release.apk"
 DEMO_STRINGS = ["Demo Normal", "Demo Code Red", "Web demo simulator", "Stub classifier"]
 
 
+APK_DIR = MOBILE / "build/app/outputs/flutter-apk"
+BUNDLE = MOBILE / "build/app/outputs/bundle/release/app-release.aab"
+ABIS = ["armeabi-v7a", "arm64-v8a", "x86_64"]
+TEST_RELEASE_DEFINES = [
+    "--dart-define=MOEWS_ONLY=false",
+    f"--dart-define=API_BASE_URL=http://10.0.2.2:{BACKEND_PORT}",
+    # A3: a release talking to the local backend has to say it's a test build, and
+    # shows a red label on every screen.
+    "--dart-define=YOMA_TEST_RELEASE=true",
+]
+
+
+def megabytes(path: Path) -> float:
+    return round(path.stat().st_size / 1024 / 1024, 1)
+
+
 def build_release() -> dict:
-    log("Building release APK with MOEWS_ONLY=false")
+    """A5: one APK per ABI, as shipped, and an app bundle. The emulators install the
+    x86_64 APK."""
+    log("Building release APKs (split per ABI) and an app bundle, with MOEWS_ONLY=false")
     # Not --no-pub, here or below: the step it skips regenerates the plugin list, and a
     # release build fails if the list still names integration_test from a debug build.
     run(
-        [
-            FLUTTER,
-            "build",
-            "apk",
-            "--release",
-            "--dart-define=MOEWS_ONLY=false",
-            f"--dart-define=API_BASE_URL=http://10.0.2.2:{BACKEND_PORT}",
-        ],
+        [FLUTTER, "build", "apk", "--release", "--split-per-abi", *TEST_RELEASE_DEFINES],
         cwd=MOBILE,
         timeout=1800,
     )
-    info = {
-        "bytes": RELEASE_APK.stat().st_size,
-        "megabytes": round(RELEASE_APK.stat().st_size / 1024 / 1024, 1),
+    run(
+        [FLUTTER, "build", "appbundle", "--release", *TEST_RELEASE_DEFINES],
+        cwd=MOBILE,
+        timeout=1800,
+    )
+    stop_gradle()
+    apks = {abi: APK_DIR / f"app-{abi}-release.apk" for abi in ABIS}
+    info: dict = {
+        "apk_megabytes": {abi: megabytes(path) for abi, path in apks.items()},
+        "apk_bytes": {abi: path.stat().st_size for abi, path in apks.items()},
+        "bundle_megabytes": megabytes(BUNDLE),
+        "bundle_bytes": BUNDLE.stat().st_size,
     }
-    listing = run(["unzip", "-l", str(RELEASE_APK)])
+    # A3: without production settings, or the test flag, a release must refuse to build.
+    refused = subprocess.run(
+        [FLUTTER, "build", "apk", "--release"],
+        cwd=MOBILE,
+        capture_output=True,
+        text=True,
+        timeout=1800,
+    )
+    info["plain_release_refused"] = refused.returncode != 0 and (
+        "Refusing to build a release" in refused.stdout + refused.stderr
+    )
+    stop_gradle()
     largest = []
-    for line in listing.splitlines():
+    for line in run(["unzip", "-l", str(RELEASE_APK)]).splitlines():
         parts = line.split()
         if len(parts) == 4 and parts[0].isdigit():
             largest.append((int(parts[0]), parts[3]))
-    info["largest"] = [
-        f"{size / 1024 / 1024:.1f} MB {name}" for size, name in sorted(largest, reverse=True)[:12]
+    info["largest_in_x86_64_apk"] = [
+        f"{size / 1024 / 1024:.1f} MB {name}" for size, name in sorted(largest, reverse=True)[:10]
     ]
-    # The strings a demo button or stub would need, in the compiled Dart of any ABI.
+    # A5: no OPERA-CE model file ships, in any APK or the bundle.
+    info["opera_ce_files_shipped"] = sorted(
+        {
+            name
+            for path in [*apks.values(), BUNDLE]
+            for name in run(["unzip", "-Z1", str(path)]).splitlines()
+            if "opera_ce" in name
+        }
+    )
+    # The strings a demo button or stub would need, in the compiled Dart of every ABI.
     found = {}
     with tempfile.TemporaryDirectory() as tmp:
-        run(["unzip", "-q", "-o", str(RELEASE_APK), "lib/*/libapp.so", "-d", tmp])
-        for lib in glob.glob(f"{tmp}/lib/*/libapp.so"):
+        for abi, path in apks.items():
+            run(["unzip", "-q", "-o", str(path), "lib/*/libapp.so", "-d", f"{tmp}/{abi}"])
+        for lib in glob.glob(f"{tmp}/*/lib/*/libapp.so"):
             blob = Path(lib).read_bytes()
             for text in DEMO_STRINGS:
                 found.setdefault(text, False)
@@ -827,6 +890,14 @@ def scenario_2(device: Device, apk: dict) -> bool:
         device.screenshot("s2_1_release_home")
         text = screen_text(device.dump())
         notes.append(f"Release Home: {text[:300]}")
+        # A3: a plain release refused to build, and this test release says what it is.
+        entry["plain_release_refused"] = apk.get("plain_release_refused", False)
+        entry["test_release_labelled"] = "TEST BUILD" in text
+        if not entry["plain_release_refused"] or not entry["test_release_labelled"]:
+            passed = False
+        # A5: no OPERA-CE model file in any APK or the bundle.
+        if apk.get("opera_ce_files_shipped"):
+            passed = False
         shown = [s for s in DEMO_STRINGS if s in text]
         if shown:
             notes.append(f"Demo strings visible on Home: {shown}")
@@ -1081,8 +1152,21 @@ def main() -> int:
     parser.add_argument(
         "--scenarios",
         nargs="*",
-        default=["1", "2", "3", "4", "5", "6", "7", "8", "9", "banners_native", "timings"],
-        help="1-9, banners, banners_native and timings",
+        default=[
+            "1",
+            "responsive",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "banners_native",
+            "timings",
+        ],
+        help="1-9, responsive, banners, banners_native and timings",
     )
     parser.add_argument(
         "--keep-running",
@@ -1107,6 +1191,9 @@ def main() -> int:
     all_passed = True
     apk: dict | None = None
     try:
+        # Build before any emulator boots: Gradle and an emulator together don't fit in memory.
+        if {"2", "timings"} & set(args.scenarios):
+            apk = build_release()
         for avd in args.avd or list(AVDS):
             device = Device(avd)
             CURRENT["device"] = device

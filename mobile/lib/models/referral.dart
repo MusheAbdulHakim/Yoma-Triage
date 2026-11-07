@@ -26,6 +26,10 @@ class ReferralRequest {
   /// queue sends it. Never a timestamp, so a phone set to the wrong date can't skew it.
   final int? queueAgeSeconds;
 
+  /// The CHO tapped Call or SMS for this referral while it waited. The server then asks
+  /// "Still needs transport?" before alerting drivers, whatever the age.
+  final bool manualContact;
+
   ReferralRequest({
     required this.clientRequestId,
     required this.chpsCompoundId,
@@ -44,6 +48,7 @@ class ReferralRequest {
     this.originSource,
     this.vitalsTaken = true,
     this.queueAgeSeconds,
+    this.manualContact = false,
   });
 
   Map<String, dynamic> toJson() => {
@@ -56,6 +61,7 @@ class ReferralRequest {
         'vitals': vitals,
         if (!vitalsTaken) 'vitals_taken': false,
         if (queueAgeSeconds != null) 'queue_age_seconds': queueAgeSeconds,
+        if (manualContact) 'manual_contact': true,
         if (aiScreenResult != null) 'ai_screen_result': aiScreenResult,
         if (aiConfidence != null) 'ai_confidence': aiConfidence,
         if (aiModelVersion != null) 'ai_model_version': aiModelVersion,

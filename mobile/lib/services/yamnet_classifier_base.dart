@@ -6,5 +6,8 @@ import 'screening_result.dart';
 abstract class YamnetClassifier {
   Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes);
 
+  /// Stops a classification in progress. It then returns [cancelledResult].
+  void cancel();
+
   Future<void> dispose();
 }

@@ -109,6 +109,11 @@ class OfflineQueue {
   /// How many records the CHO has been warned are about to be deleted.
   final ValueNotifier<int> expiringCount = ValueNotifier<int>(0);
 
+  /// Goes up after every send attempt, wherever it came from: a screen showing one
+  /// referral listens, so it can follow a send that happened by itself when signal
+  /// returned.
+  final ValueNotifier<int> changes = ValueNotifier<int>(0);
+
   Database? _db;
   final DatabaseFactory? databaseFactoryOverride;
   final String? databasePathOverride;
@@ -323,8 +328,9 @@ class OfflineQueue {
     });
   }
 
-  /// The CHO tapped Call or SMS for this referral. If it turns out to be stale, the
-  /// prompt starts on "Already handled".
+  /// The CHO tapped Call or SMS for this referral. When it's sent, the server asks
+  /// "Still needs transport?" before alerting drivers, whatever its age, and the prompt
+  /// starts on "Already handled".
   Future<void> markManualContact(String clientRequestId) {
     return _serialized(() async {
       for (final status in const ['pending', 'needs_confirmation']) {
@@ -490,6 +496,7 @@ class OfflineQueue {
               originSource: queued.payload['origin_source'] as String?,
               vitalsTaken: queued.payload['vitals_taken'] != false,
               queueAgeSeconds: queued.ageSeconds,
+              manualContact: queued.manualContactMade,
             ),
           );
           final referral = response['referral'];
@@ -526,6 +533,7 @@ class OfflineQueue {
       needsConfirmationCount.value =
           (await _withStatusUnlocked('needs_confirmation')).length;
       retryWarning.value = warning;
+      changes.value++;
       return sent;
     });
   }

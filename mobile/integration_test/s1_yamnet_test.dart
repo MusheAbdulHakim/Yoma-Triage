@@ -140,29 +140,17 @@ void main() {
     expect(result.source, 'yamnet', reason: result.reason);
   });
 
-  // Evidence for the report: the classifier reports any load failure as "not installed".
-  testWidgets('record why the OPERA-CE encoder does or does not load', (tester) async {
-    try {
-      final data = await rootBundle.load(_operaAsset);
-      await Host.note('OPERA-CE asset loads: ${data.lengthInBytes} bytes');
-      final encoder = await Interpreter.fromAsset(_operaAsset);
-      addTearDown(encoder.close);
-      final input = encoder.getInputTensors().first;
-      final output = encoder.getOutputTensors().first;
-      await Host.note('OPERA-CE tensors: in ${input.shape} ${input.type}, '
-          'out ${output.shape} ${output.type}');
-      final size = input.shape.reduce((a, b) => a * b);
+  // A5: OPERA-CE is no longer bundled, and says so rather than "not installed".
+  testWidgets('the OPERA-CE model files are not in the app', (tester) async {
+    for (final asset in [_operaAsset, 'assets/models/opera_ce_encoder.onnx']) {
+      Object? error;
       try {
-        encoder.run(
-          List<double>.filled(size, 0.0),
-          [List<double>.filled(output.shape.reduce((a, b) => a * b), 0.0)],
-        );
-        await Host.note('OPERA-CE probe with a flat input: ran');
+        await rootBundle.load(asset);
       } catch (e) {
-        await Host.note('OPERA-CE probe with a flat input failed: $e');
+        error = e;
       }
-    } catch (e) {
-      await Host.note('OPERA-CE encoder failed to load: $e');
+      await Host.note('$asset in the app bundle: ${error == null}');
+      expect(error, isNotNull, reason: '$asset must not be bundled');
     }
   });
 
@@ -179,6 +167,7 @@ void main() {
         '"${result.reason}", $ms ms',
       );
       expect(result.label, 'INCONCLUSIVE', reason: clip.key);
+      expect(result.reason, contains('not included in this build'), reason: clip.key);
     }
   });
 }

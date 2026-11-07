@@ -17,6 +17,8 @@ class ScreeningService {
   YamnetClassifier? _classifier;
   AudioRecorderService? _recorder;
   ScreeningResult? lastDualRunSecondary;
+  YamnetClassifier? _secondary;
+  bool _cancelled = false;
 
   bool get isWebSimulator => kIsWeb;
 
@@ -39,18 +41,23 @@ class ScreeningService {
 
     try {
       final pcm = await (_recorder ?? createAudioRecorder()).stop();
+      if (_cancelled) return cancelledResult();
       _classifier ??= await createConfiguredClassifier();
+      if (_cancelled) return cancelledResult();
       final primary = await _classifier!.classifyPcm16kHzMono(pcm);
+      if (_cancelled) return cancelledResult();
 
       if (ScreeningConfig.dualRunYamnet &&
           ScreeningConfig.model != 'yamnet' &&
           ScreeningConfig.model != 'stub') {
         try {
-          final yamnet = await createYamnetClassifier();
-          lastDualRunSecondary = await yamnet.classifyPcm16kHzMono(pcm);
+          final yamnet = _secondary = await createYamnetClassifier();
+          if (!_cancelled) lastDualRunSecondary = await yamnet.classifyPcm16kHzMono(pcm);
           await yamnet.dispose();
         } catch (_) {
           // Dual-run is best-effort; primary result still used.
+        } finally {
+          _secondary = null;
         }
       }
       return primary;
@@ -62,6 +69,14 @@ class ScreeningService {
       }
       return unavailableResult();
     }
+  }
+
+  /// The CHO tapped Cancel during analysis, or left the screen. Stops the model where it
+  /// is; [stopAndClassify] then returns [cancelledResult].
+  void cancelAnalysis() {
+    _cancelled = true;
+    _classifier?.cancel();
+    _secondary?.cancel();
   }
 
   /// Web-only demo buttons.

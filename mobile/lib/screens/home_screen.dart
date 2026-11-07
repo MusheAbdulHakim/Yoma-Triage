@@ -36,6 +36,7 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _catalogStale = false;
   String? _catalogVersion;
   bool _syncing = false;
+  bool _warningsOpen = false;
 
   bool get _acousticEnabled =>
       widget.acousticEnabled ?? !ScreeningConfig.moewsOnly;
@@ -99,196 +100,268 @@ class _HomeScreenState extends State<HomeScreen> {
     await _refreshCatalogStatus();
   }
 
+  /// Every warning that applies now, most urgent first.
+  List<_Warning> _warnings() => [
+        if (_queue.failedCount.value > 0)
+          _Warning(
+            urgent: true,
+            title: _queue.failedCount.value == 1
+                ? '1 referral was NOT sent'
+                : '${_queue.failedCount.value} referrals were NOT sent',
+            card: Card(
+              color: YomaColors.danger.withValues(alpha: 0.15),
+              child: ListTile(
+                key: const Key('home_failed_referrals'),
+                leading: const Icon(Icons.error, color: YomaColors.danger),
+                title: Text(
+                  _queue.failedCount.value == 1
+                      ? '1 referral was NOT sent'
+                      : '${_queue.failedCount.value} referrals were NOT sent',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text('Tap to see why. Call manually.'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => FailedReferralsScreen(queue: _queue),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (_queue.needsConfirmationCount.value > 0)
+          _Warning(
+            urgent: true,
+            title: 'Still needs transport?',
+            card: Card(
+              color: YomaColors.danger.withValues(alpha: 0.15),
+              child: ListTile(
+                key: const Key('home_stale_referrals'),
+                leading: const Icon(Icons.help, color: YomaColors.danger),
+                title: const Text(
+                  'Still needs transport?',
+                  style: TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: Text(
+                  _queue.needsConfirmationCount.value == 1
+                      ? '1 old referral is waiting for your answer. '
+                          'Drivers have not been told.'
+                      : '${_queue.needsConfirmationCount.value} old referrals are waiting '
+                          'for your answer. Drivers have not been told.',
+                ),
+                onTap: _openStalePrompt,
+              ),
+            ),
+          ),
+        if (_queue.expiringCount.value > 0)
+          _Warning(
+            urgent: false,
+            title: _queue.expiringCount.value == 1
+                ? '1 unsent referral will soon be deleted'
+                : '${_queue.expiringCount.value} unsent referrals will soon be deleted',
+            card: Card(
+              color: YomaColors.caution.withValues(alpha: 0.15),
+              child: ListTile(
+                key: const Key('home_expiring'),
+                leading: const Icon(Icons.delete_outline, color: YomaColors.caution),
+                title: Text(
+                  _queue.expiringCount.value == 1
+                      ? '1 unsent referral will soon be deleted from this phone'
+                      : '${_queue.expiringCount.value} unsent referrals will soon be deleted '
+                          'from this phone',
+                  style: const TextStyle(fontWeight: FontWeight.w700),
+                ),
+                subtitle: const Text('Tap to see them, and to Call or SMS.'),
+                onTap: () => Navigator.of(context).push(
+                  MaterialPageRoute(
+                    builder: (_) => UnsentReferralsScreen(queue: _queue, api: widget.api),
+                  ),
+                ),
+              ),
+            ),
+          ),
+        if (_queue.retryWarning.value case final warning?)
+          _Warning(
+            urgent: false,
+            title: warning,
+            card: Card(
+              color: YomaColors.caution.withValues(alpha: 0.15),
+              child: ListTile(
+                leading: const Icon(Icons.wifi_off, color: YomaColors.caution),
+                title: Text(warning, key: const Key('home_retry_warning')),
+              ),
+            ),
+          ),
+        if (_catalogStale)
+          _Warning(
+            urgent: false,
+            title: 'Facility catalog may be stale',
+            card: Card(
+              color: YomaColors.caution.withValues(alpha: 0.15),
+              child: ListTile(
+                key: const Key('home_catalog_stale'),
+                title: const Text('Facility catalog may be stale'),
+                subtitle: Text(
+                  _catalogVersion == null
+                      ? 'Using on-device bootstrap. Sync when online (refresh every '
+                          '${CatalogConfig.staleAfterDays} days).'
+                      : 'Last version $_catalogVersion. Sync when online.',
+                ),
+                trailing: _syncing
+                    ? const SizedBox(
+                        width: 24,
+                        height: 24,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : IconButton(
+                        icon: const Icon(Icons.sync),
+                        onPressed: _syncCatalog,
+                      ),
+              ),
+            ),
+          ),
+      ];
+
+  /// One banner for all the warnings, so they can never push Emergency Referral off the
+  /// screen. It names the most urgent, and opens to show each.
+  Widget _warningsSummary(List<_Warning> warnings) {
+    final top = warnings.first;
+    final colour = top.urgent ? YomaColors.danger : YomaColors.caution;
+    final more = warnings.length - 1;
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Card(
+          color: colour.withValues(alpha: 0.15),
+          child: ListTile(
+            key: const Key('home_warnings_summary'),
+            leading: Icon(top.urgent ? Icons.error : Icons.warning_amber, color: colour),
+            title: Text(top.title, style: const TextStyle(fontWeight: FontWeight.w700)),
+            subtitle: Text(
+              _warningsOpen
+                  ? 'Tap to hide'
+                  : more == 0
+                      ? 'Tap to see details'
+                      : '$more more ${more == 1 ? 'warning' : 'warnings'}. Tap to see all.',
+            ),
+            trailing: Icon(_warningsOpen ? Icons.expand_less : Icons.expand_more),
+            onTap: () => setState(() => _warningsOpen = !_warningsOpen),
+          ),
+        ),
+        if (_warningsOpen) ...[for (final warning in warnings) warning.card],
+      ],
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Yoma Triage'),
       ),
-      body: Padding(
-        padding: const EdgeInsets.all(24),
+      body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            if (AppEnvironment.name != 'production')
-              Padding(
-                padding: const EdgeInsets.only(bottom: 8),
-                child: Text(
-                  'Env: ${AppEnvironment.name} · model: ${ScreeningConfig.moewsOnly ? 'MOEWS_ONLY' : ScreeningConfig.model}',
-                  textAlign: TextAlign.center,
-                  style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+            // Pinned above everything that scrolls: always on screen, whatever else is.
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+              child: Semantics(
+                button: true,
+                label: 'Emergency Referral',
+                child: OutlinedButton(
+                  key: const Key('home_emergency_referral'),
+                  style: OutlinedButton.styleFrom(
+                    minimumSize: const Size.fromHeight(64),
+                    foregroundColor: YomaColors.danger,
+                    side: const BorderSide(color: YomaColors.danger, width: 2),
+                    textStyle: const TextStyle(fontSize: 20),
+                  ),
+                  onPressed: () {
+                    Navigator.of(context).push(
+                      MaterialPageRoute(builder: (_) => const ReferralScreen()),
+                    );
+                  },
+                  child: const Text('Emergency Referral'),
                 ),
               ),
-            ValueListenableBuilder<String?>(
-              valueListenable: _queue.retryWarning,
-              builder: (context, warning, _) {
-                if (warning == null) return const SizedBox.shrink();
-                return Card(
-                  color: YomaColors.caution.withValues(alpha: 0.15),
-                  child: ListTile(
-                    leading: const Icon(Icons.wifi_off, color: YomaColors.caution),
-                    title: Text(warning, key: const Key('home_retry_warning')),
-                  ),
-                );
-              },
             ),
-            ValueListenableBuilder<int>(
-              valueListenable: _queue.expiringCount,
-              builder: (context, count, _) {
-                if (count == 0) return const SizedBox.shrink();
-                return Card(
-                  color: YomaColors.caution.withValues(alpha: 0.15),
-                  child: ListTile(
-                    key: const Key('home_expiring'),
-                    leading: const Icon(Icons.delete_outline, color: YomaColors.caution),
-                    title: Text(
-                      count == 1
-                          ? '1 unsent referral will soon be deleted from this phone'
-                          : '$count unsent referrals will soon be deleted from this phone',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: const Text('Tap to see them, and to Call or SMS.'),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) =>
-                            UnsentReferralsScreen(queue: _queue, api: widget.api),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            ValueListenableBuilder<int>(
-              valueListenable: _queue.needsConfirmationCount,
-              builder: (context, count, _) {
-                if (count == 0) return const SizedBox.shrink();
-                return Card(
-                  color: YomaColors.danger.withValues(alpha: 0.15),
-                  child: ListTile(
-                    key: const Key('home_stale_referrals'),
-                    leading: const Icon(Icons.help, color: YomaColors.danger),
-                    title: const Text(
-                      'Still needs transport?',
-                      style: TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: Text(
-                      count == 1
-                          ? '1 old referral is waiting for your answer. '
-                              'Drivers have not been told.'
-                          : '$count old referrals are waiting for your answer. '
-                              'Drivers have not been told.',
-                    ),
-                    onTap: _openStalePrompt,
-                  ),
-                );
-              },
-            ),
-            ValueListenableBuilder<int>(
-              valueListenable: _queue.failedCount,
-              builder: (context, count, _) {
-                if (count == 0) return const SizedBox.shrink();
-                return Card(
-                  color: YomaColors.danger.withValues(alpha: 0.15),
-                  child: ListTile(
-                    key: const Key('home_failed_referrals'),
-                    leading: const Icon(Icons.error, color: YomaColors.danger),
-                    title: Text(
-                      count == 1
-                          ? '1 referral was NOT sent'
-                          : '$count referrals were NOT sent',
-                      style: const TextStyle(fontWeight: FontWeight.w700),
-                    ),
-                    subtitle: const Text('Tap to see why. Call manually.'),
-                    onTap: () => Navigator.of(context).push(
-                      MaterialPageRoute(
-                        builder: (_) => FailedReferralsScreen(queue: _queue),
-                      ),
-                    ),
-                  ),
-                );
-              },
-            ),
-            if (_catalogStale)
-              Card(
-                color: YomaColors.caution.withValues(alpha: 0.15),
-                child: ListTile(
-                  title: const Text('Facility catalog may be stale'),
-                  subtitle: Text(
-                    _catalogVersion == null
-                        ? 'Using on-device bootstrap. Sync when online (refresh every ${CatalogConfig.staleAfterDays} days).'
-                        : 'Last version $_catalogVersion. Sync when online.',
-                  ),
-                  trailing: _syncing
-                      ? const SizedBox(
-                          width: 24,
-                          height: 24,
-                          child: CircularProgressIndicator(strokeWidth: 2),
-                        )
-                      : IconButton(
-                          icon: const Icon(Icons.sync),
-                          onPressed: _syncCatalog,
+            Expanded(
+              child: ListenableBuilder(
+                listenable: Listenable.merge([
+                  _queue.failedCount,
+                  _queue.needsConfirmationCount,
+                  _queue.expiringCount,
+                  _queue.retryWarning,
+                ]),
+                builder: (context, _) {
+                  final warnings = _warnings();
+                  return ListView(
+                    key: const Key('home_scroll'),
+                    padding: const EdgeInsets.fromLTRB(16, 8, 16, 24),
+                    children: [
+                      if (AppEnvironment.name != 'production')
+                        Padding(
+                          padding: const EdgeInsets.only(bottom: 8),
+                          child: Text(
+                            'Env: ${AppEnvironment.name} · model: '
+                            '${ScreeningConfig.moewsOnly ? 'MOEWS_ONLY' : ScreeningConfig.model}',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
+                          ),
                         ),
-                ),
-              ),
-            const SizedBox(height: 16),
-            const Text(
-              'Community Health Officer',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              _acousticEnabled
-                  ? 'Screen breathing or start an emergency referral.'
-                  : 'Record vitals or start an emergency referral.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-            const Spacer(),
-            Semantics(
-              button: true,
-              label: _acousticEnabled ? 'Screen Breathing' : 'Record Vitals',
-              child: FilledButton(
-                style: FilledButton.styleFrom(
-                  minimumSize: const Size.fromHeight(72),
-                  textStyle: const TextStyle(fontSize: 20),
-                ),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(
-                      builder: (_) => _acousticEnabled
-                          ? const ScreeningScreen()
-                          : VitalsScreen(result: moewsOnlyResult()),
-                    ),
+                      if (warnings.isNotEmpty) _warningsSummary(warnings),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'Community Health Officer',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                      ),
+                      const SizedBox(height: 8),
+                      Text(
+                        _acousticEnabled
+                            ? 'Screen breathing or start an emergency referral.'
+                            : 'Record vitals or start an emergency referral.',
+                        textAlign: TextAlign.center,
+                        style: TextStyle(color: Colors.grey.shade700),
+                      ),
+                      const SizedBox(height: 24),
+                      Semantics(
+                        button: true,
+                        label: _acousticEnabled ? 'Screen Breathing' : 'Record Vitals',
+                        child: FilledButton(
+                          style: FilledButton.styleFrom(
+                            minimumSize: const Size.fromHeight(72),
+                            textStyle: const TextStyle(fontSize: 20),
+                          ),
+                          onPressed: () {
+                            Navigator.of(context).push(
+                              MaterialPageRoute(
+                                builder: (_) => _acousticEnabled
+                                    ? const ScreeningScreen()
+                                    : VitalsScreen(result: moewsOnlyResult()),
+                              ),
+                            );
+                          },
+                          child: Text(_acousticEnabled ? 'Screen Breathing' : 'Record Vitals'),
+                        ),
+                      ),
+                    ],
                   );
                 },
-                child:
-                    Text(_acousticEnabled ? 'Screen Breathing' : 'Record Vitals'),
               ),
             ),
-            const SizedBox(height: 16),
-            Semantics(
-              button: true,
-              label: 'Emergency Referral',
-              child: OutlinedButton(
-                style: OutlinedButton.styleFrom(
-                  minimumSize: const Size.fromHeight(72),
-                  foregroundColor: YomaColors.danger,
-                  side: const BorderSide(color: YomaColors.danger, width: 2),
-                  textStyle: const TextStyle(fontSize: 20),
-                ),
-                onPressed: () {
-                  Navigator.of(context).push(
-                    MaterialPageRoute(builder: (_) => const ReferralScreen()),
-                  );
-                },
-                child: const Text('Emergency Referral'),
-              ),
-            ),
-            const Spacer(),
           ],
         ),
       ),
     );
   }
+}
+
+/// A warning on Home: [title] for the summary banner, [card] for the open list.
+class _Warning {
+  const _Warning({required this.urgent, required this.title, required this.card});
+
+  final bool urgent;
+  final String title;
+  final Widget card;
 }

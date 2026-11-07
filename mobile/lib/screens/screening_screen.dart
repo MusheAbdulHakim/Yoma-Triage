@@ -10,6 +10,12 @@ import '../theme/yoma_theme.dart';
 import '../widgets/breathing_pulse.dart';
 import 'vitals_screen.dart';
 
+/// What to tell the CHO when the microphone won't start, instead of the exception.
+String plainMicrophoneError(Object error) =>
+    error.toString().toLowerCase().contains('permission')
+        ? 'Microphone permission is off.'
+        : 'The microphone could not start.';
+
 class ScreeningScreen extends StatefulWidget {
   /// When non-null, overrides [kIsWeb] so widget tests can exercise the simulator.
   final bool? forceWebSimulator;
@@ -29,6 +35,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
   bool _analyzing = false;
   bool _recording = false;
   bool _finishing = false;
+  bool _cancelling = false;
   String? _error;
   late final ScreeningService _screening =
       widget.service ?? ScreeningService();
@@ -52,7 +59,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = plainMicrophoneError(e);
         _recording = false;
       });
     }
@@ -112,10 +119,19 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     );
   }
 
+  /// Stops the model; [_finish] then carries on to vitals with the cancelled result.
+  void _cancelAnalysis() {
+    if (_cancelling) return;
+    setState(() => _cancelling = true);
+    _screening.cancelAnalysis();
+  }
+
   @override
   void dispose() {
     _timer?.cancel();
     _finishing = true;
+    // Leaving mid-analysis: stop the model rather than let it run on unseen.
+    if (_analyzing) _screening.cancelAnalysis();
     // Do not dispose the recorder while classify may still be running;
     // stopAndClassify owns stop(); only dispose if we never started finish.
     if (!_analyzing) {
@@ -140,7 +156,8 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
   }
 
   String get _nativeStatusText {
-    if (_analyzing) return 'Checking breath…';
+    if (_cancelling) return 'Cancelling…';
+    if (_analyzing) return 'Checking breath… You can keep using the phone.';
     if (_recording) return 'Listening… $_remaining s left';
     return _error ?? 'Starting microphone…';
   }
@@ -235,7 +252,9 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         if (_error != null) ...[
           const SizedBox(height: 12),
           Text(
-            'Mic unavailable — no breathing result. Continue to vitals, or use Emergency Referral from Home.',
+            'Mic unavailable — no breathing result. Continue to vitals, or use Emergency '
+            'Referral from Home. To screen breathing next time, allow the microphone for '
+            'Yoma Triage in the phone\'s Settings.',
             style: TextStyle(color: Colors.orange.shade800),
           ),
         ],
@@ -254,13 +273,25 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
           ),
         ),
         const Spacer(),
-        OutlinedButton(
-          style: OutlinedButton.styleFrom(
-            minimumSize: const Size.fromHeight(56),
+        if (_analyzing) ...[
+          const LinearProgressIndicator(key: Key('screening_progress')),
+          const SizedBox(height: 16),
+          OutlinedButton(
+            key: const Key('screening_cancel'),
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+            ),
+            onPressed: _cancelling ? null : _cancelAnalysis,
+            child: Text(_cancelling ? 'Cancelling…' : 'Cancel'),
           ),
-          onPressed: _analyzing ? null : () => _finish(forceRed: false),
-          child: Text(_analyzing ? 'Checking breath…' : 'Stop & Analyze Early'),
-        ),
+        ] else
+          OutlinedButton(
+            style: OutlinedButton.styleFrom(
+              minimumSize: const Size.fromHeight(56),
+            ),
+            onPressed: () => _finish(forceRed: false),
+            child: const Text('Stop & Analyze Early'),
+          ),
       ],
     );
   }

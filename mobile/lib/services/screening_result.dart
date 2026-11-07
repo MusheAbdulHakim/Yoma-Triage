@@ -67,6 +67,15 @@ ScreeningResult unavailableResult({
       modelVersion: 'unavailable-v0',
     );
 
+/// The CHO cancelled the breath check while it was being analysed.
+ScreeningResult cancelledResult() => ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: 'Breath check cancelled — use MOEWS and clinical judgment',
+      source: 'cancelled',
+      modelVersion: 'cancelled-v0',
+    );
+
 /// Acoustic screening switched off (`MOEWS_ONLY`): vitals decide alone.
 ScreeningResult moewsOnlyResult() => ScreeningResult(
       label: 'INCONCLUSIVE',

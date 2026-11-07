@@ -459,3 +459,40 @@ async def test_cancel_and_accept_at_once_end_consistently(pg_sessions):  # noqa:
         purposes = [m.purpose for m in messages]
         if row.driver_id is not None:
             assert "cancel_driver" in purposes
+
+
+# --- B2: a manual Call or SMS -------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_after_a_manual_call_a_fresh_referral_waits_for_the_answer(
+    client, seeded_db, db_session
+):
+    response = await client.post(
+        "/api/v1/referral", json=_referral(queue_age_seconds=5, manual_contact=True)
+    )
+    assert response.status_code == 201, response.text
+    body = response.json()
+    assert body["referral"]["status"] == "AWAITING_CONFIRMATION"
+    assert body["dispatch"] is None
+    assert (await db_session.scalars(select(Dispatch))).all() == []
+
+
+@pytest.mark.asyncio
+async def test_without_a_manual_call_a_fresh_referral_dispatches(client, seeded_db):
+    response = await client.post(
+        "/api/v1/referral", json=_referral(queue_age_seconds=5, manual_contact=False)
+    )
+    assert response.json()["referral"]["status"] == "CONFIRMED"
+    assert response.json()["dispatch"] is not None
+
+
+@pytest.mark.asyncio
+async def test_send_now_after_a_manual_call_dispatches(client, seeded_db):
+    response = await client.post(
+        "/api/v1/referral", json=_referral(queue_age_seconds=0, manual_contact=True)
+    )
+    referral_id = response.json()["referral"]["id"]
+    resolved = await _resolve(client, referral_id, "send_now")
+    assert resolved.status_code == 200, resolved.text
+    assert resolved.json()["dispatch"] is not None

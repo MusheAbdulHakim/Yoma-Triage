@@ -1,5 +1,7 @@
 /// Scenario 6: real airplane mode. The referral queues, and Call and SMS open the phone's
-/// own dialler and messaging app with the right number and text.
+/// own dialler and messaging app with the right number and text. When signal returns the
+/// queue sends by itself: after a Call or SMS the CHO is asked first (B2), and without
+/// one the screen moves on to drivers notified (A4).
 library;
 
 import 'package:flutter/material.dart';
@@ -60,28 +62,61 @@ void main() {
     expect(text, isNot(contains('Zebra')), reason: 'no patient name');
     await tester.wait(const Duration(seconds: 1));
 
-    // Signal returns while the CHO is still looking at this screen.
+    // Signal returns while the CHO is still looking at this screen. Nothing is tapped.
     await Host.airplane(false);
-    var sent = false;
-    for (var i = 0; i < 40 && !sent; i++) {
+    var received = false;
+    for (var i = 0; i < 40 && !received; i++) {
       await tester.wait(const Duration(seconds: 1));
-      sent = (await Host.rows('dispatches')).isNotEmpty;
+      received = (await Host.rows('referrals')).isNotEmpty;
     }
-    expect(sent, isTrue, reason: 'the queue sends by itself when signal returns');
-    await tester.wait(const Duration(seconds: 4));
-    // Back to the top: a list only builds what is near the screen.
-    await tester.drag(find.byType(ListView).first, const Offset(0, 3000));
-    await tester.wait(const Duration(seconds: 1));
-    await Host.note(
-      'After automatic send, the queued screen still says drivers were not notified: '
-      '${find.textContaining('Drivers have not been notified').evaluate().isNotEmpty}',
-    );
-    await tester.shot('s6_6_sent_while_on_queued_screen');
+    expect(received, isTrue, reason: 'the queue sends by itself when signal returns');
 
-    await tester.tapOn(find.text('Retry sync'));
-    await tester.waitFor(find.text('Dispatch Status'));
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 15));
-    await tester.shot('s6_7_dispatched');
+    // B2: the CHO already used Call or SMS, so drivers are not told until the CHO says
+    // transport is still needed, however young the referral is.
+    final held = await Host.rows('referrals');
+    expect(held.single['status'], 'AWAITING_CONFIRMATION', reason: 'held for the CHO');
+    expect(await Host.rows('dispatches'), isEmpty, reason: 'nobody told before the CHO answers');
+    // A4: the queued screen follows the send to the question.
+    await tester.waitFor(
+      find.text('Still needs transport?'),
+      timeout: const Duration(seconds: 20),
+      reason: 'the screen to follow the automatic send to the question',
+    );
+    expect(find.textContaining('You used Call or SMS'), findsOneWidget);
+    await tester.wait(const Duration(seconds: 2));
+    await tester.shot('s6_6_manual_contact_question');
+
+    final sendNow = find.byWidgetPredicate(
+      (w) => w.key is ValueKey<String> &&
+          (w.key! as ValueKey<String>).value.startsWith('stale_send_now_'),
+    );
+    final id = (tester.widget(sendNow).key! as ValueKey<String>)
+        .value
+        .substring('stale_send_now_'.length);
+    await tester.tapOn(sendNow);
+    await tester.tapOn(find.byKey(Key('stale_confirm_$id')));
+    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 20));
+    expect(await Host.rows('dispatches'), hasLength(1));
+    await tester.shot('s6_7_send_now_dispatched');
+
+    // A4 with no Call or SMS: a second referral queues offline and, when signal returns,
+    // the screen moves on to drivers notified by itself.
+    await tester.tapOn(find.text('Back to Home'));
+    await tester.waitFor(find.text('Community Health Officer'));
+    await Host.airplane(true);
+    await tester.wait(const Duration(seconds: 2));
+    await tester.openReferralForm();
+    await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
+    await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));
+    await Host.airplane(false);
+    await tester.waitFor(
+      find.text('TIER1_NOTIFIED'),
+      timeout: const Duration(seconds: 60),
+      reason: 'the screen to show drivers notified after the automatic send',
+    );
+    expect(find.textContaining('Drivers have not been notified'), findsNothing);
+    expect(await Host.rows('dispatches'), hasLength(2));
+    await tester.shot('s6_8_dispatched_by_itself');
 
     final server = '${await Host.rows('referrals')} ${await Host.rows('outbox')}';
     expect(server, isNot(contains('Zebra')), reason: 'the name never reaches the server');

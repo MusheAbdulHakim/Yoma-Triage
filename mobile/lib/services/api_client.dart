@@ -19,6 +19,7 @@ const apiErrorCodes = {
   'VALIDATION_ERROR',
   'REFERRAL_ALREADY_RESOLVED',
   'DISPATCH_NOT_CANCELLABLE',
+  'REFERRAL_EXPIRED',
 };
 
 class ApiException implements Exception {

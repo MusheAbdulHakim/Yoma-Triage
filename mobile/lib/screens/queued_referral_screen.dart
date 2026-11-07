@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 
 import '../parameters.dart';
@@ -42,7 +44,23 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
     super.initState();
     _queue = widget.queue ?? OfflineQueue.shared;
     _api = widget.api ?? ApiClient();
+    _queue.changes.addListener(_onQueueChanged);
   }
+
+  @override
+  void dispose() {
+    _queue.changes.removeListener(_onQueueChanged);
+    super.dispose();
+  }
+
+  /// A send happened without the CHO tapping Retry sync, usually because signal came
+  /// back. Show where this referral is now, rather than "not notified" after it was.
+  void _onQueueChanged() {
+    if (_retrying || _leaving || !mounted) return;
+    unawaited(_showWhereItIs(automatic: true));
+  }
+
+  bool _leaving = false;
 
   Future<void> _retrySync() async {
     setState(() {
@@ -52,50 +70,7 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
 
     try {
       await _queue.flush(_api);
-      final refused = (await _queue.failed())
-          .any((q) => q.clientRequestId == widget.clientRequestId);
-      if (!mounted) return;
-      if (refused) {
-        await Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => FailedReferralsScreen(queue: _queue),
-          ),
-        );
-        return;
-      }
-      final stale = (await _queue.needsConfirmation())
-          .any((q) => q.clientRequestId == widget.clientRequestId);
-      if (!mounted) return;
-      if (stale) {
-        await Navigator.of(context).pushReplacement(
-          MaterialPageRoute(
-            builder: (_) => StaleReferralScreen(
-              queue: _queue,
-              api: _api,
-              launcher: widget.launcher,
-            ),
-          ),
-        );
-        return;
-      }
-      final dispatchId = await _queue.lookupDispatchId(widget.clientRequestId);
-      if (!mounted) return;
-      if (dispatchId == null) {
-        setState(() {
-          _retryMessage =
-              'Still waiting for coverage. Referral remains saved on this device.';
-        });
-        return;
-      }
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => DispatchStatusScreen(
-            dispatchId: dispatchId,
-            clientRequestId: widget.clientRequestId,
-            facilityId: widget.facilityId,
-          ),
-        ),
-      );
+      await _showWhereItIs(automatic: false);
     } catch (error) {
       if (!mounted) return;
       setState(() {
@@ -105,6 +80,63 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
     } finally {
       if (mounted) setState(() => _retrying = false);
     }
+  }
+
+  /// Moves to the screen for this referral's state: refused, stale, or dispatched. If
+  /// it's still waiting, a Retry sync says so; a send by itself stays quiet.
+  Future<void> _showWhereItIs({required bool automatic}) async {
+    final refused = (await _queue.failed())
+        .any((q) => q.clientRequestId == widget.clientRequestId);
+    if (!mounted || _leaving) return;
+    if (refused) {
+      _leaving = true;
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => FailedReferralsScreen(queue: _queue),
+        ),
+      );
+      return;
+    }
+    final stale = (await _queue.needsConfirmation())
+        .any((q) => q.clientRequestId == widget.clientRequestId);
+    if (!mounted || _leaving) return;
+    if (stale) {
+      _leaving = true;
+      await Navigator.of(context).pushReplacement(
+        MaterialPageRoute(
+          builder: (_) => StaleReferralScreen(
+            queue: _queue,
+            api: _api,
+            launcher: widget.launcher,
+          ),
+        ),
+      );
+      return;
+    }
+    final dispatchId = await _queue.lookupDispatchId(widget.clientRequestId);
+    if (!mounted || _leaving) return;
+    if (dispatchId == null) {
+      if (!automatic) {
+        setState(() {
+          _retryMessage =
+              'Still waiting for coverage. Referral remains saved on this device.';
+        });
+      }
+      return;
+    }
+    _leaving = true;
+    await Navigator.of(context).pushReplacement(
+      MaterialPageRoute(
+        builder: (_) => DispatchStatusScreen(
+          dispatchId: dispatchId,
+          clientRequestId: widget.clientRequestId,
+          facilityId: widget.facilityId,
+          api: _api,
+          queue: _queue,
+          launcher: widget.launcher,
+        ),
+      ),
+    );
   }
 
   @override
@@ -129,8 +161,8 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
             ),
             const SizedBox(height: 8),
             Text(
-              'If it waits more than ${Parameters.staleAfterMinutes} minutes, the app will '
-              'ask you before alerting drivers.',
+              'If it waits more than ${Parameters.staleAfterMinutes} minutes, or you call or '
+              'SMS someone below, the app will ask you before alerting drivers.',
               textAlign: TextAlign.center,
               style: TextStyle(color: Colors.grey.shade800),
             ),

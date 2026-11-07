@@ -45,6 +45,9 @@ FUEL_STIPEND_GHS = parameters.FUEL_STIPEND_GHS
 ACCEPTED_REPLY = "END Accepted! Proceed to CHPS. (Fuel stipend: mock ledger until MoMo is live.)"
 
 
+# A stipend ledger entry for a dispatch the CHO cancelled. The row is kept.
+STIPEND_CANCELLED = "CANCELLED"
+
 class DispatchNotCancellableError(Exception):
     def __init__(self, status: str) -> None:
         super().__init__(status)
@@ -302,6 +305,34 @@ class DispatchOrchestrator:
             )
         )
 
+    @staticmethod
+    async def _cancel_stipend(session: AsyncSession, dispatch: Dispatch) -> None:
+        """The ledger entry stays, as a record that it was promised, marked cancelled.
+
+        No money moves either way while the ledger is a mock; the driver may already have
+        set off, so whether to pay for a cancelled trip is left to whoever settles it.
+        """
+        stipends = await session.scalars(
+            select(Wallet).where(
+                Wallet.dispatch_id == dispatch.id, Wallet.status != STIPEND_CANCELLED
+            )
+        )
+        for stipend in stipends:
+            stipend.status = STIPEND_CANCELLED
+            session.add(
+                DispatchLog(
+                    dispatch_id=dispatch.id,
+                    action="momo_escrow_cancelled",
+                    target_role="driver",
+                    response=STIPEND_CANCELLED,
+                    metadata_json={
+                        "transaction_id": stipend.transaction_id,
+                        "amount_ghs": stipend.amount,
+                        "note": "Dispatch cancelled; ledger entry kept, marked cancelled",
+                    },
+                )
+            )
+
     async def handle_decline(
         self, session: AsyncSession, dispatch_id: int, driver_id: int
     ) -> str:
@@ -427,6 +458,7 @@ class DispatchOrchestrator:
         if dispatch.driver_id is None:
             return dispatch
 
+        await self._cancel_stipend(session, dispatch)
         driver = await session.get_one(Driver, dispatch.driver_id)
         enqueue_sms(
             session,

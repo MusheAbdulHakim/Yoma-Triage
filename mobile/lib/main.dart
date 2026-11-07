@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'release_settings.dart';
 import 'screens/home_screen.dart';
 import 'screens/setup_screen.dart';
 import 'services/audio_recorder.dart';
@@ -13,10 +14,22 @@ final queueSyncService = QueueSyncService();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // A release without production settings refuses to run, before it can sync anything.
+  final root = rootApp(currentReleaseProblems());
+  if (root is MisconfiguredBuildApp) {
+    runApp(root);
+    return;
+  }
   unawaited(purgeStaleRecordings());
   queueSyncService.start();
-  runApp(const YomaApp());
+  runApp(root);
 }
+
+/// The app to run: the real one, or, if this build's settings are wrong, only the screen
+/// that says so.
+Widget rootApp(List<String> releaseProblems) => releaseProblems.isEmpty
+    ? const YomaApp()
+    : MisconfiguredBuildApp(problems: releaseProblems);
 
 class YomaApp extends StatefulWidget {
   const YomaApp({super.key});
@@ -76,6 +89,7 @@ class _YomaAppState extends State<YomaApp> {
       navigatorKey: _navigator,
       debugShowCheckedModeBanner: false,
       theme: buildYomaTheme(),
+      builder: yomaTestRelease ? testReleaseBanner : null,
       home: home,
     );
   }

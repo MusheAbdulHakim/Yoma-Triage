@@ -77,6 +77,8 @@ abstract final class Parameters {
 
   // Queue. A referral older than this waits for the CHO to say it's still needed.
   static const staleAfterMinutes = 20;
+  // The server closes a stale referral nobody answered after this long.
+  static const expireUnconfirmedHours = 24;
 
   // Acoustic screening (app only).
   static const acousticRedAbove = 0.7;

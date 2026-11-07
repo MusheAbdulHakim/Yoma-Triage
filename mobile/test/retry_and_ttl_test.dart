@@ -178,9 +178,12 @@ void main() {
 
       queue.noteRetryWarning(ApiException(403, _portal).retryWarning);
       await tester.pump();
+      // Warnings are behind one summary banner on Home.
+      await tester.tap(find.byKey(const Key('home_warnings_summary')));
+      await tester.pump();
 
       expect(find.byKey(const Key('home_retry_warning')), findsOneWidget);
-      expect(find.textContaining('log in'), findsOneWidget);
+      expect(find.textContaining('log in'), findsWidgets);
     });
 
     testWidgets('on the queued screen after Retry sync', (tester) async {
@@ -406,6 +409,9 @@ void main() {
         MaterialApp(home: HomeScreen(api: _Server(), queue: queue, acousticEnabled: false)),
       );
       await settle(tester);
+      // Warnings are behind one summary banner on Home.
+      await tester.tap(find.byKey(const Key('home_warnings_summary')));
+      await tester.pump();
 
       expect(
         find.text('1 unsent referral will soon be deleted from this phone'),

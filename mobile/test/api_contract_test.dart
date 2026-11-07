@@ -56,6 +56,24 @@ void main() {
       ),
     );
     expect(jsonDecode(sent.body)['queue_age_seconds'], 61);
+    expect(jsonDecode(sent.body).containsKey('manual_contact'), isFalse);
+  });
+
+  test('createReferral says when the CHO called or texted someone (B2)', () async {
+    await clientReturning(201, '{}').createReferral(
+      ReferralRequest(
+        clientRequestId: 'a',
+        chpsCompoundId: 1,
+        facilityId: 1,
+        patientHash: 'h',
+        choPhone: '+233240000100',
+        emergencyType: 'pph',
+        vitals: const {},
+        queueAgeSeconds: 5,
+        manualContact: true,
+      ),
+    );
+    expect(jsonDecode(sent.body)['manual_contact'], isTrue);
   });
 
   for (final (name, call) in <(String, Future<void> Function(ApiClient))>[

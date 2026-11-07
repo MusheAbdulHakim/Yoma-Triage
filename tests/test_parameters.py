@@ -70,6 +70,10 @@ def test_stale_threshold_matches_the_app():
     assert _dart_constant("staleAfterMinutes") == parameters.STALE_AFTER_MINUTES
 
 
+def test_unconfirmed_expiry_matches_the_app():
+    assert _dart_constant("expireUnconfirmedHours") == parameters.EXPIRE_UNCONFIRMED_HOURS
+
+
 def test_local_record_ttl_matches_the_app():
     assert _dart_constant("localRecordTtlHours") == parameters.LOCAL_RECORD_TTL_HOURS
 
@@ -137,6 +141,7 @@ def test_sheet_lists_each_moews_band(vital):
         ("Shortest tier wait allowed in the field", parameters.MIN_FIELD_CASCADE_TIER_SECONDS),
         ("Late-claim window", parameters.LATE_CLAIM_WINDOW_MINUTES),
         ("Stale queued referral", parameters.STALE_AFTER_MINUTES),
+        ("Unanswered stale referral expires", parameters.EXPIRE_UNCONFIRMED_HOURS),
         ("Local record TTL", parameters.LOCAL_RECORD_TTL_HOURS),
         ("Cascade worker poll interval", parameters.WORKER_POLL_SECONDS),
         ("SMS outbox poll interval", parameters.OUTBOX_POLL_SECONDS),
