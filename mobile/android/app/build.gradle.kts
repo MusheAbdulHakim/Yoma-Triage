@@ -1,3 +1,6 @@
+import java.net.URI
+import java.util.Base64
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
@@ -51,4 +54,61 @@ kotlin {
 
 flutter {
     source = "../.."
+}
+
+// A3: a release build fails closed. It must carry production settings and an HTTPS server
+// address, or say plainly that it is a test build (YOMA_TEST_RELEASE=true), which the app
+// then labels on every screen. lib/release_settings.dart checks the same rules at startup.
+// The release build command is in docs/deploy-environments.md.
+fun dartDefines(): Map<String, String> {
+    val raw = project.findProperty("dart-defines")?.toString() ?: return emptyMap()
+    return raw.split(",")
+        .filter { it.isNotBlank() }
+        .mapNotNull { entry ->
+            val decoded = String(Base64.getDecoder().decode(entry), Charsets.UTF_8)
+            val split = decoded.indexOf('=')
+            if (split < 0) null else decoded.substring(0, split) to decoded.substring(split + 1)
+        }
+        .toMap()
+}
+
+val localHosts = setOf("localhost", "127.0.0.1", "10.0.2.2", "0.0.0.0")
+
+fun releaseSettingsProblems(defines: Map<String, String>): List<String> {
+    val appEnv = defines["APP_ENV"].orEmpty().trim()
+    if (defines["YOMA_TEST_RELEASE"] == "true") {
+        return if (appEnv == "production") {
+            listOf("YOMA_TEST_RELEASE=true can't be combined with APP_ENV=production")
+        } else {
+            emptyList()
+        }
+    }
+    val problems = mutableListOf<String>()
+    if (appEnv != "production") problems += "APP_ENV must be production (got '$appEnv')"
+    val url = defines["API_BASE_URL"].orEmpty().trim()
+    val host = runCatching { URI(url).host }.getOrNull().orEmpty().lowercase()
+    if (!url.startsWith("https://") || host.isEmpty()) {
+        problems += "API_BASE_URL must be an https:// address (got '$url')"
+    } else if (host in localHosts) {
+        problems += "API_BASE_URL must not point at this computer or the emulator (got '$url')"
+    }
+    if (defines["API_KEY"].orEmpty().isBlank()) problems += "API_KEY must be set"
+    return problems
+}
+
+val checkReleaseSettings = tasks.register("checkReleaseSettings") {
+    val problems = releaseSettingsProblems(dartDefines())
+    doLast {
+        if (problems.isNotEmpty()) {
+            throw GradleException(
+                "Refusing to build a release without production settings:\n" +
+                    problems.joinToString("\n") { "  - $it" } +
+                    "\nSee docs/deploy-environments.md for the release build command.",
+            )
+        }
+    }
+}
+
+tasks.matching { it.name == "preReleaseBuild" }.configureEach {
+    dependsOn(checkReleaseSettings)
 }

@@ -690,6 +690,9 @@ def build_release() -> dict:
             "--release",
             "--dart-define=MOEWS_ONLY=false",
             f"--dart-define=API_BASE_URL=http://10.0.2.2:{BACKEND_PORT}",
+            # A3: a release talking to the local backend has to say it's a test build,
+            # and shows a red label on every screen.
+            "--dart-define=YOMA_TEST_RELEASE=true",
         ],
         cwd=MOBILE,
         timeout=1800,
@@ -699,6 +702,18 @@ def build_release() -> dict:
         "bytes": RELEASE_APK.stat().st_size,
         "megabytes": round(RELEASE_APK.stat().st_size / 1024 / 1024, 1),
     }
+    # A3: without production settings, or the test flag, a release must refuse to build.
+    refused = subprocess.run(
+        [FLUTTER, "build", "apk", "--release"],
+        cwd=MOBILE,
+        capture_output=True,
+        text=True,
+        timeout=1800,
+    )
+    info["plain_release_refused"] = refused.returncode != 0 and (
+        "Refusing to build a release" in refused.stdout + refused.stderr
+    )
+    stop_gradle()
     listing = run(["unzip", "-l", str(RELEASE_APK)])
     largest = []
     for line in listing.splitlines():
@@ -845,6 +860,11 @@ def scenario_2(device: Device, apk: dict) -> bool:
         device.screenshot("s2_1_release_home")
         text = screen_text(device.dump())
         notes.append(f"Release Home: {text[:300]}")
+        # A3: a plain release refused to build, and this test release says what it is.
+        entry["plain_release_refused"] = apk.get("plain_release_refused", False)
+        entry["test_release_labelled"] = "TEST BUILD" in text
+        if not entry["plain_release_refused"] or not entry["test_release_labelled"]:
+            passed = False
         shown = [s for s in DEMO_STRINGS if s in text]
         if shown:
             notes.append(f"Demo strings visible on Home: {shown}")

@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import 'release_settings.dart';
 import 'screens/home_screen.dart';
 import 'screens/setup_screen.dart';
 import 'services/audio_recorder.dart';
@@ -13,6 +14,12 @@ final queueSyncService = QueueSyncService();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  // A release without production settings refuses to run, before it can sync anything.
+  final problems = currentReleaseProblems();
+  if (problems.isNotEmpty) {
+    runApp(MisconfiguredBuildApp(problems: problems));
+    return;
+  }
   unawaited(purgeStaleRecordings());
   queueSyncService.start();
   runApp(const YomaApp());
@@ -76,6 +83,7 @@ class _YomaAppState extends State<YomaApp> {
       navigatorKey: _navigator,
       debugShowCheckedModeBanner: false,
       theme: buildYomaTheme(),
+      builder: yomaTestRelease ? testReleaseBanner : null,
       home: home,
     );
   }
