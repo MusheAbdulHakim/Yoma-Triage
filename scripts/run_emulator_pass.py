@@ -278,7 +278,12 @@ class Device:
             self.shell("uiautomator dump /sdcard/u.xml", timeout=60)
             raw = self.shell("cat /sdcard/u.xml", timeout=30)
             if "<hierarchy" in raw:
-                root = ET.fromstring(raw[raw.index("<hierarchy") :])
+                try:
+                    root = ET.fromstring(raw[raw.index("<hierarchy") :])
+                except ET.ParseError:
+                    # Read while the screen was changing: a partial file. Read it again.
+                    time.sleep(1)
+                    continue
                 return [dict(n.attrib) for n in root.iter("node")]
             time.sleep(1)
         return []
