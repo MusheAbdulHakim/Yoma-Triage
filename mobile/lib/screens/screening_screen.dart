@@ -10,6 +10,12 @@ import '../theme/yoma_theme.dart';
 import '../widgets/breathing_pulse.dart';
 import 'vitals_screen.dart';
 
+/// What to tell the CHO when the microphone won't start, instead of the exception.
+String plainMicrophoneError(Object error) =>
+    error.toString().toLowerCase().contains('permission')
+        ? 'Microphone permission is off.'
+        : 'The microphone could not start.';
+
 class ScreeningScreen extends StatefulWidget {
   /// When non-null, overrides [kIsWeb] so widget tests can exercise the simulator.
   final bool? forceWebSimulator;
@@ -53,7 +59,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     } catch (e) {
       if (!mounted) return;
       setState(() {
-        _error = e.toString();
+        _error = plainMicrophoneError(e);
         _recording = false;
       });
     }
@@ -246,7 +252,9 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
         if (_error != null) ...[
           const SizedBox(height: 12),
           Text(
-            'Mic unavailable — no breathing result. Continue to vitals, or use Emergency Referral from Home.',
+            'Mic unavailable — no breathing result. Continue to vitals, or use Emergency '
+            'Referral from Home. To screen breathing next time, allow the microphone for '
+            'Yoma Triage in the phone\'s Settings.',
             style: TextStyle(color: Colors.orange.shade800),
           ),
         ],

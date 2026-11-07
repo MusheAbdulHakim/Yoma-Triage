@@ -8,6 +8,11 @@ import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/manual_contacts_panel.dart';
 
+/// Shown instead of the network error itself, which means nothing to a CHO.
+const dispatchUnreachableMessage =
+    'Server unreachable, so this status may be out of date. Your referral was sent, '
+    'and this screen will keep checking. Use Call or SMS below if urgent.';
+
 class DispatchStatusScreen extends StatefulWidget {
   final int? dispatchId;
   final String clientRequestId;
@@ -46,7 +51,12 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   int _pollSeconds = 2;
   late int? _facilityId = widget.facilityId;
 
-  bool get _needsManualHelp => _status == 'FAILED' || _status == 'QUEUED';
+  /// The last status check couldn't reach the server.
+  bool _unreachable = false;
+
+  bool get _needsManualHelp =>
+      _status == 'FAILED' || _status == 'QUEUED' || _unreachable;
+
 
   bool _cancelling = false;
 
@@ -138,6 +148,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
               ? etaRaw.toInt()
               : null;
       setState(() {
+        _unreachable = false;
         _status = status;
         if (facilityId is int) _facilityId = facilityId;
         _driverName = driverName;
@@ -157,10 +168,11 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
         }
       });
       if (!_terminal && mounted && !_disposed) _schedulePoll();
-    } catch (e) {
+    } catch (_) {
       if (!mounted || _disposed) return;
       setState(() {
-        _detail = 'Polling… ($e)';
+        _unreachable = true;
+        _detail = dispatchUnreachableMessage;
         _pollSeconds = (_pollSeconds * 2).clamp(2, 10);
       });
       if (!_terminal && mounted && !_disposed) _schedulePoll();

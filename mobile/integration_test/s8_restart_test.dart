@@ -25,12 +25,13 @@ void main() {
 
     await Host.killBackend();
     await tester.wait(const Duration(seconds: _tierSeconds + 5));
-    await Host.note(
-      'While the backend was down the screen said: '
-      '${tester.widgetList<Text>(find.textContaining('Polling')).map((t) => t.data).join(' | ')}',
-    );
     await tester.shot('s8_2_backend_down');
     expect(find.text('TIER1_NOTIFIED'), findsOneWidget, reason: 'last known status stays');
+    // A4: plain words and a next step, not the network error.
+    expect(find.textContaining('Server unreachable'), findsOneWidget);
+    for (final raw in ['SocketException', 'ClientException', 'Polling']) {
+      expect(find.textContaining(raw), findsNothing, reason: raw);
+    }
 
     final restarted = Stopwatch()..start();
     await Host.startBackend();

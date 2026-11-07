@@ -122,10 +122,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
         _selectedFacility = suggested;
         _facilityConfirmed = false;
       });
-    } catch (e) {
+    } catch (_) {
       if (!mounted) return;
       setState(() {
-        _error = 'Catalog load failed: $e';
+        _error = 'The facility list could not be loaded on this phone, so '
+            '${FacilityConfig.facilityLabel} is selected. Check the facility before '
+            'sending.';
         _selectedFacility = const CatalogFacility(
           id: FacilityConfig.facilityId,
           name: FacilityConfig.facilityLabel,
@@ -314,9 +316,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
           ),
         );
       }
-    } catch (e) {
+    } catch (_) {
       if (mounted) {
-        setState(() => _error = 'Could not queue referral: $e');
+        setState(
+          () => _error = 'This referral could not be saved on the phone, so it was not '
+              'sent. Phone a driver and the hospital directly now, then try again.',
+        );
       }
     } finally {
       if (mounted) setState(() => _submitting = false);

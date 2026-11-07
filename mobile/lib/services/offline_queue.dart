@@ -109,6 +109,11 @@ class OfflineQueue {
   /// How many records the CHO has been warned are about to be deleted.
   final ValueNotifier<int> expiringCount = ValueNotifier<int>(0);
 
+  /// Goes up after every send attempt, wherever it came from: a screen showing one
+  /// referral listens, so it can follow a send that happened by itself when signal
+  /// returned.
+  final ValueNotifier<int> changes = ValueNotifier<int>(0);
+
   Database? _db;
   final DatabaseFactory? databaseFactoryOverride;
   final String? databasePathOverride;
@@ -526,6 +531,7 @@ class OfflineQueue {
       needsConfirmationCount.value =
           (await _withStatusUnlocked('needs_confirmation')).length;
       retryWarning.value = warning;
+      changes.value++;
       return sent;
     });
   }

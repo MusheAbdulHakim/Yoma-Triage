@@ -68,20 +68,14 @@ void main() {
       sent = (await Host.rows('dispatches')).isNotEmpty;
     }
     expect(sent, isTrue, reason: 'the queue sends by itself when signal returns');
-    await tester.wait(const Duration(seconds: 4));
-    // Back to the top: a list only builds what is near the screen.
-    await tester.drag(find.byType(ListView).first, const Offset(0, 3000));
-    await tester.wait(const Duration(seconds: 1));
-    await Host.note(
-      'After automatic send, the queued screen still says drivers were not notified: '
-      '${find.textContaining('Drivers have not been notified').evaluate().isNotEmpty}',
+    // A4: nothing is tapped. The queued screen follows the send to the dispatch screen.
+    await tester.waitFor(
+      find.text('TIER1_NOTIFIED'),
+      timeout: const Duration(seconds: 20),
+      reason: 'the screen to show drivers notified after the automatic send',
     );
-    await tester.shot('s6_6_sent_while_on_queued_screen');
-
-    await tester.tapOn(find.text('Retry sync'));
-    await tester.waitFor(find.text('Dispatch Status'));
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 15));
-    await tester.shot('s6_7_dispatched');
+    expect(find.textContaining('Drivers have not been notified'), findsNothing);
+    await tester.shot('s6_6_dispatched_by_itself');
 
     final server = '${await Host.rows('referrals')} ${await Host.rows('outbox')}';
     expect(server, isNot(contains('Zebra')), reason: 'the name never reaches the server');
