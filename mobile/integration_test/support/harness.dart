@@ -242,6 +242,9 @@ extension Drive on WidgetTester {
   }
 
   Future<void> startApp() async {
+    // Unmount the running app first. Otherwise Flutter keeps its screens' state, and a
+    // restart wouldn't re-read anything a test changed (the catalog's sync time, say).
+    await pumpWidget(const SizedBox.shrink());
     app.main();
     await pump();
   }
