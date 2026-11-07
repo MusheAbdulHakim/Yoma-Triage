@@ -246,10 +246,14 @@ async def test_undeliverable_driver_sms_alerts_every_active_cho(
 ):
     monkeypatch.setattr("src.services.outbox.parameters.OUTBOX_MAX_ATTEMPTS", 1)
     async with pg_sessions() as session:
-        session.add(Cho(name="Second", phone=SECOND_CHO, compound_id=1))
+        sender = Cho(name="Second", phone=SECOND_CHO, compound_id=1)
+        session.add(sender)
+        await session.flush()
+        # A known sender, so a sender-only alert can't pass by falling back to everyone.
         referral = Referral(
             chps_compound_id=1,
             facility_id=1,
+            cho_id=sender.id,
             patient_hash="0" * 64,
             emergency_type="pph",
             status="CONFIRMED",
