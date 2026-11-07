@@ -77,6 +77,24 @@ Refusing to build a release without production settings:
   - API_KEY must be set
 ```
 
+**Signing.** Release builds are signed with the upload key when
+`mobile/android/key.properties` exists. It is gitignored: never commit it, or the keystore.
+
+```properties
+storePassword=...
+keyPassword=...
+keyAlias=...
+# Optional; defaults to ~/yoma-release.jks
+storeFile=/home/you/yoma-release.jks
+```
+
+Without it, Gradle warns `android/key.properties not found: signing the release with the
+DEBUG key` and uses the debug key, which is fine for the emulator pass but must never reach
+a phone. Check which key signed an APK with
+`$ANDROID_HOME/build-tools/36.0.0/apksigner verify --print-certs <apk>`. Keep a backup of
+the keystore and its passwords somewhere safe: losing them means a Play listing can't be
+updated.
+
 **Test releases.** A release that talks to a test backend, such as the emulator pass's
 `http://10.0.2.2:8000`, needs `--dart-define=YOMA_TEST_RELEASE=true`. It shows a red
 "TEST BUILD — not for patient use" label on every screen, and can't be combined with

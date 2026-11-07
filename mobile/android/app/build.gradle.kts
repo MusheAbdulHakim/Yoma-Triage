@@ -1,5 +1,7 @@
+import java.io.FileInputStream
 import java.net.URI
 import java.util.Base64
+import java.util.Properties
 
 plugins {
     id("com.android.application")
@@ -7,6 +9,16 @@ plugins {
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
+
+// Release signing. android/key.properties is gitignored and never committed; it holds
+//   storePassword=...  keyPassword=...  keyAlias=...  storeFile=/path/to/yoma-release.jks
+// storeFile defaults to ~/yoma-release.jks. Without the file, release builds are signed
+// with the debug key, as before, and Gradle says so. See docs/deploy-environments.md.
+val keyProperties = Properties().apply {
+    val file = rootProject.file("key.properties")
+    if (file.exists()) FileInputStream(file).use { load(it) }
+}
+val hasReleaseKey = keyProperties.getProperty("storePassword") != null
 
 android {
     namespace = "gh.yomatriage.yoma_triage"
@@ -32,11 +44,31 @@ android {
         versionName = flutter.versionName
     }
 
+    signingConfigs {
+        if (hasReleaseKey) {
+            create("release") {
+                storeFile = file(
+                    keyProperties.getProperty("storeFile")
+                        ?: "${System.getProperty("user.home")}/yoma-release.jks",
+                )
+                storePassword = keyProperties.getProperty("storePassword")
+                keyAlias = keyProperties.getProperty("keyAlias")
+                keyPassword = keyProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            // TODO: Add your own signing config for the release build.
-            // Signing with the debug keys for now, so `flutter run --release` works.
-            signingConfig = signingConfigs.getByName("debug")
+            signingConfig = if (hasReleaseKey) {
+                signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "android/key.properties not found: signing the release with the DEBUG key. " +
+                        "Don't distribute this build.",
+                )
+                signingConfigs.getByName("debug")
+            }
         }
     }
 
