@@ -122,4 +122,19 @@ void main() {
     expect(find.text('Next'), findsOneWidget);
     expect(find.byKey(const Key('test_release_banner')), findsOneWidget);
   });
+
+  testWidgets('a screen reader reads the test label too, on every screen', (tester) async {
+    final semantics = tester.ensureSemantics();
+    await tester.pumpWidget(
+      MaterialApp(
+        builder: testReleaseBanner,
+        home: Scaffold(appBar: AppBar(title: const Text('Yoma Triage')), body: const Text('Home')),
+      ),
+    );
+    // A route hides the semantics of whatever was painted before it in the same boundary,
+    // so without a boundary of its own the label is drawn but never read out.
+    expect(find.bySemanticsLabel('TEST BUILD — not for patient use'), findsOneWidget);
+    expect(find.bySemanticsLabel('Home'), findsOneWidget);
+    semantics.dispose();
+  });
 }

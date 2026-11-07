@@ -118,10 +118,15 @@ Widget testReleaseBanner(BuildContext context, Widget? child) {
         ),
       ),
       Expanded(
-        child: MediaQuery.removePadding(
-          context: context,
-          removeTop: true,
-          child: child ?? const SizedBox.shrink(),
+        // Its own semantics boundary: a route blocks the semantics of whatever was painted
+        // before it within the same boundary, which would hide the label from TalkBack.
+        child: Semantics(
+          container: true,
+          child: MediaQuery.removePadding(
+            context: context,
+            removeTop: true,
+            child: child ?? const SizedBox.shrink(),
+          ),
         ),
       ),
     ],
