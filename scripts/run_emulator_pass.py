@@ -70,6 +70,8 @@ SCENARIOS: dict[str, dict] = {
     "6": {"file": "s6_offline_test.dart"},
     "7": {"file": "s7_stale_test.dart", "env": {"STALE_AFTER_MINUTES": "1"}},
     "8": {"file": "s8_restart_test.dart", "env": {"CASCADE_TIER_SECONDS": "30"}},
+    # Batch 6: a hospital diverts the patient; the screen follows the trip to the new one.
+    "11": {"file": "s11_diversion_test.dart"},
     "banners": {"file": "s9_home_banners_test.dart"},
     # The same test at the device's own size. It can fail there too: that's a finding.
     "banners_native": {"file": "s9_home_banners_test.dart"},
@@ -82,7 +84,9 @@ QUERIES = {
     "from outbound_messages order by id",
     "referrals": "select id, status, cho_id, queue_age_seconds, vitals_json::text as vitals_json, "
     "patient_hash, emergency_type from referrals order by id",
-    "dispatches": "select id, referral_id, status, current_tier, driver_id from dispatches order by id",
+    "dispatches": "select id, referral_id, status, current_tier, driver_id, facility_id, "
+    "hospital_code from dispatches order by id",
+    "drivers": "select id, phone, availability from drivers order by id",
     "audit": "select entity_type, entity_id, action from audit_logs order by id",
 }
 
@@ -1162,11 +1166,12 @@ def main() -> int:
             "6",
             "7",
             "8",
+            "11",
             "9",
             "banners_native",
             "timings",
         ],
-        help="1-9, responsive, banners, banners_native and timings",
+        help="1-9, 11, responsive, banners, banners_native and timings",
     )
     parser.add_argument(
         "--keep-running",

@@ -45,14 +45,14 @@ void main() {
     final dispatchId = tester.dispatchIdOnScreen();
     await Host.note('Dispatch #$dispatchId');
 
-    final accept = await ussd(motorKingDriver, '1');
+    final accept = await ussdAccept(motorKingDriver, dispatchId);
     await Host.note('USSD accept replied: "$accept"');
     expect(accept, contains('Accepted'));
     await tester.waitFor(find.text('HOSPITAL_NOTIFIED'), timeout: const Duration(seconds: 15));
     await tester.waitFor(find.textContaining('Driver: Ibrahim'));
     await tester.shot('s4_5_accepted');
 
-    final arrival = await ussd(motorKingDriver, '3');
+    final arrival = await ussdArrival(motorKingDriver);
     await Host.note('USSD arrival replied: "$arrival"');
     expect(arrival, contains('Arrival confirmed'));
     await tester.waitFor(find.text('COMPLETED'), timeout: const Duration(seconds: 15));
