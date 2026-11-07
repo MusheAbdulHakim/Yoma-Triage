@@ -377,6 +377,9 @@ void main() {
       await tester.pumpWidget(
         MaterialApp(home: HomeScreen(api: api, queue: queue, acousticEnabled: false)),
       );
+      // Warnings are behind one summary banner on Home.
+      await pumpUntil(tester, find.byKey(const Key('home_warnings_summary')));
+      await tester.tap(find.byKey(const Key('home_warnings_summary')));
       await pumpUntil(tester, find.byKey(const Key('home_stale_referrals')));
       await tester.tap(find.byKey(const Key('home_stale_referrals')));
       await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
