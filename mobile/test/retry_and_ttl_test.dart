@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:flutter/material.dart';
@@ -309,6 +310,21 @@ void main() {
         await queue.purgeExpired(now: backOn.add(const Duration(hours: warning))),
         1,
       );
+    });
+
+    test('a warning from before a longer TTL does not delete early', () async {
+      // An update can raise the TTL over a record already warned under the old one.
+      await queue.enqueue(_sample('a'));
+      await queue.pending();
+      // The same connection the queue holds, so it stays open.
+      final db = await databaseFactoryFfi.openDatabase('${dbDir.path}/outbox.db');
+      final row = (await db.query('referral_outbox')).single;
+      final payload = jsonDecode(row['payload_json']! as String) as Map<String, dynamic>;
+      payload['local_expiry_warned_at'] = hoursIn(1).toIso8601String();
+      await db.update('referral_outbox', {'payload_json': jsonEncode(payload)});
+
+      expect(await queue.purgeExpired(now: hoursIn(1 + warning)), 0);
+      expect(await queue.pending(), hasLength(1));
     });
 
     test('a later warning does not restart the clock', () async {
