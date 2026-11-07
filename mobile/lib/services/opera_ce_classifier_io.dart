@@ -19,8 +19,9 @@ export 'opera_ce_head_map.dart' show mapOperaCeHeadToResult;
 /// **INCONCLUSIVE** after a successful encoder forward — never invents
 /// GREEN/RED from embeddings alone.
 ///
-/// Like YAMNet, loading and inference run in a background isolate, so the main thread
-/// never stalls.
+/// The model files are not in the app bundle (see pubspec.yaml), so a normal build gets
+/// [operaCeNotInBuildResult]. Like YAMNet, loading and inference run in a background
+/// isolate, so the main thread never stalls.
 class OperaCeClassifierIo implements YamnetClassifier {
   OperaCeClassifierIo._(this._models);
 
@@ -37,7 +38,7 @@ class OperaCeClassifierIo implements YamnetClassifier {
     try {
       encoder = await _loadAsset(encoderAsset);
     } catch (_) {
-      return OperaCeUnavailable(_operaPending());
+      return OperaCeUnavailable(operaCeNotInBuildResult());
     }
     Uint8List? head;
     try {
@@ -52,7 +53,7 @@ class OperaCeClassifierIo implements YamnetClassifier {
       ).result;
       return OperaCeClassifierIo._(models);
     } catch (_) {
-      return OperaCeUnavailable(_operaPending());
+      return OperaCeUnavailable(operaCeFailedToStartResult());
     }
   }
 
@@ -102,12 +103,22 @@ class OperaCeModels {
   final int? headOutputSize;
 }
 
-ScreeningResult _operaPending() => ScreeningResult(
+/// The model files aren't in this build: since batch 5, that's every normal build.
+ScreeningResult operaCeNotInBuildResult() => ScreeningResult(
       label: 'INCONCLUSIVE',
       confidence: 0.0,
-      reason: 'opera_ce encoder pack not installed — use MOEWS and clinical judgment',
+      reason: 'OPERA-CE is not included in this build — use MOEWS and clinical judgment',
       source: 'opera_ce',
-      modelVersion: 'opera_ce-pending',
+      modelVersion: 'opera_ce-not-in-build',
+    );
+
+/// The files are there, but the model wouldn't load or run on this phone.
+ScreeningResult operaCeFailedToStartResult() => ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: 'OPERA-CE could not start on this phone — use MOEWS and clinical judgment',
+      source: 'opera_ce',
+      modelVersion: 'opera_ce-failed-to-start',
     );
 
 ScreeningResult _operaUnavailable() => ScreeningResult(

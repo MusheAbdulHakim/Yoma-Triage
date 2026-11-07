@@ -674,33 +674,49 @@ def save_results(device: Device) -> None:
 # --- Scenario 2 and cold start: the release APK, driven through adb -------------------
 
 
-RELEASE_APK = MOBILE / "build/app/outputs/flutter-apk/app-release.apk"
+RELEASE_APK = MOBILE / "build/app/outputs/flutter-apk/app-x86_64-release.apk"
 DEMO_STRINGS = ["Demo Normal", "Demo Code Red", "Web demo simulator", "Stub classifier"]
 
 
+APK_DIR = MOBILE / "build/app/outputs/flutter-apk"
+BUNDLE = MOBILE / "build/app/outputs/bundle/release/app-release.aab"
+ABIS = ["armeabi-v7a", "arm64-v8a", "x86_64"]
+TEST_RELEASE_DEFINES = [
+    "--dart-define=MOEWS_ONLY=false",
+    f"--dart-define=API_BASE_URL=http://10.0.2.2:{BACKEND_PORT}",
+    # A3: a release talking to the local backend has to say it's a test build, and
+    # shows a red label on every screen.
+    "--dart-define=YOMA_TEST_RELEASE=true",
+]
+
+
+def megabytes(path: Path) -> float:
+    return round(path.stat().st_size / 1024 / 1024, 1)
+
+
 def build_release() -> dict:
-    log("Building release APK with MOEWS_ONLY=false")
+    """A5: one APK per ABI, as shipped, and an app bundle. The emulators install the
+    x86_64 APK."""
+    log("Building release APKs (split per ABI) and an app bundle, with MOEWS_ONLY=false")
     # Not --no-pub, here or below: the step it skips regenerates the plugin list, and a
     # release build fails if the list still names integration_test from a debug build.
     run(
-        [
-            FLUTTER,
-            "build",
-            "apk",
-            "--release",
-            "--dart-define=MOEWS_ONLY=false",
-            f"--dart-define=API_BASE_URL=http://10.0.2.2:{BACKEND_PORT}",
-            # A3: a release talking to the local backend has to say it's a test build,
-            # and shows a red label on every screen.
-            "--dart-define=YOMA_TEST_RELEASE=true",
-        ],
+        [FLUTTER, "build", "apk", "--release", "--split-per-abi", *TEST_RELEASE_DEFINES],
+        cwd=MOBILE,
+        timeout=1800,
+    )
+    run(
+        [FLUTTER, "build", "appbundle", "--release", *TEST_RELEASE_DEFINES],
         cwd=MOBILE,
         timeout=1800,
     )
     stop_gradle()
-    info = {
-        "bytes": RELEASE_APK.stat().st_size,
-        "megabytes": round(RELEASE_APK.stat().st_size / 1024 / 1024, 1),
+    apks = {abi: APK_DIR / f"app-{abi}-release.apk" for abi in ABIS}
+    info: dict = {
+        "apk_megabytes": {abi: megabytes(path) for abi, path in apks.items()},
+        "apk_bytes": {abi: path.stat().st_size for abi, path in apks.items()},
+        "bundle_megabytes": megabytes(BUNDLE),
+        "bundle_bytes": BUNDLE.stat().st_size,
     }
     # A3: without production settings, or the test flag, a release must refuse to build.
     refused = subprocess.run(
@@ -714,20 +730,29 @@ def build_release() -> dict:
         "Refusing to build a release" in refused.stdout + refused.stderr
     )
     stop_gradle()
-    listing = run(["unzip", "-l", str(RELEASE_APK)])
     largest = []
-    for line in listing.splitlines():
+    for line in run(["unzip", "-l", str(RELEASE_APK)]).splitlines():
         parts = line.split()
         if len(parts) == 4 and parts[0].isdigit():
             largest.append((int(parts[0]), parts[3]))
-    info["largest"] = [
-        f"{size / 1024 / 1024:.1f} MB {name}" for size, name in sorted(largest, reverse=True)[:12]
+    info["largest_in_x86_64_apk"] = [
+        f"{size / 1024 / 1024:.1f} MB {name}" for size, name in sorted(largest, reverse=True)[:10]
     ]
-    # The strings a demo button or stub would need, in the compiled Dart of any ABI.
+    # A5: no OPERA-CE model file ships, in any APK or the bundle.
+    info["opera_ce_files_shipped"] = sorted(
+        {
+            name
+            for path in [*apks.values(), BUNDLE]
+            for name in run(["unzip", "-Z1", str(path)]).splitlines()
+            if "opera_ce" in name
+        }
+    )
+    # The strings a demo button or stub would need, in the compiled Dart of every ABI.
     found = {}
     with tempfile.TemporaryDirectory() as tmp:
-        run(["unzip", "-q", "-o", str(RELEASE_APK), "lib/*/libapp.so", "-d", tmp])
-        for lib in glob.glob(f"{tmp}/lib/*/libapp.so"):
+        for abi, path in apks.items():
+            run(["unzip", "-q", "-o", str(path), "lib/*/libapp.so", "-d", f"{tmp}/{abi}"])
+        for lib in glob.glob(f"{tmp}/*/lib/*/libapp.so"):
             blob = Path(lib).read_bytes()
             for text in DEMO_STRINGS:
                 found.setdefault(text, False)
@@ -864,6 +889,9 @@ def scenario_2(device: Device, apk: dict) -> bool:
         entry["plain_release_refused"] = apk.get("plain_release_refused", False)
         entry["test_release_labelled"] = "TEST BUILD" in text
         if not entry["plain_release_refused"] or not entry["test_release_labelled"]:
+            passed = False
+        # A5: no OPERA-CE model file in any APK or the bundle.
+        if apk.get("opera_ce_files_shipped"):
             passed = False
         shown = [s for s in DEMO_STRINGS if s in text]
         if shown:

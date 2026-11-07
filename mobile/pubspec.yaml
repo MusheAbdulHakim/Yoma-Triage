@@ -38,5 +38,9 @@ dependency_overrides:
 flutter:
   uses-material-design: true
   assets:
-    - assets/models/
+    # Only the model the app uses. The OPERA-CE files in assets/models/ (the 16 MB ONNX
+    # export and the encoder TFLite, which doesn't load on Android) stay in the repo for
+    # scripts/spikes/export_opera_ce.py but are not bundled; OPERA-CE then reports
+    # INCONCLUSIVE, "not included in this build".
+    - assets/models/yamnet.tflite
     - assets/catalog/northern_bootstrap.json

@@ -1,5 +1,11 @@
 # Model pack checksums
 
+**Bundled in the app:** `yamnet.tflite` only (see `mobile/pubspec.yaml`). The OPERA-CE files
+below stay here for `scripts/spikes/export_opera_ce.py` but are not in any build since
+batch 5: the ONNX export is unused by the app, and the encoder TFLite fails to load on
+Android (`Bad state: failed precondition`). OPERA-CE then returns INCONCLUSIVE, "not
+included in this build".
+
 | File | sha256 | Notes |
 |------|--------|-------|
 | `yamnet.tflite` | (see release notes) | AudioSet YAMNet |

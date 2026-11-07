@@ -26,10 +26,9 @@ class OperaCeClassifierStub implements YamnetClassifier {
     return ScreeningResult(
       label: 'INCONCLUSIVE',
       confidence: 0.0,
-      reason:
-          'opera_ce encoder pack not installed — use MOEWS and clinical judgment',
+      reason: 'OPERA-CE is not included in this build — use MOEWS and clinical judgment',
       source: 'opera_ce',
-      modelVersion: 'opera_ce-pending',
+      modelVersion: 'opera_ce-not-in-build',
     );
   }
 
