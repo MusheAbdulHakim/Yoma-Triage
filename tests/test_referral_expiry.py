@@ -1,6 +1,7 @@
 """B4: stale referrals the CHO never answers are closed by the cascade worker."""
 from __future__ import annotations
 
+import asyncio
 import uuid
 from datetime import UTC, datetime, timedelta
 
@@ -129,7 +130,11 @@ async def test_a_referral_being_answered_is_left_for_the_next_run(pg_sessions): 
         await answering.execute(
             select(Referral).where(Referral.id == referral_id).with_for_update()
         )
-        assert await expire_unconfirmed_referrals(now=NOW, sessions=pg_sessions) == 0
+        # Bounded, so an expiry that waits for the lock fails here instead of hanging.
+        expired = await asyncio.wait_for(
+            expire_unconfirmed_referrals(now=NOW, sessions=pg_sessions), timeout=10
+        )
+        assert expired == 0
         await answering.execute(
             update(Referral).where(Referral.id == referral_id).values(status="MANUALLY_HANDLED")
         )
