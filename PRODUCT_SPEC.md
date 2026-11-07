@@ -5,7 +5,7 @@
 | Field | Value |
 |-------|-------|
 | **Document Title** | Yoma Triage: Intelligent Clinical Triage, Edge Computing Decision Support, and Resilient Multi-Channel Emergency Referral Orchestration Platform for Northern Ghana |
-| **Version** | 2.1 |
+| **Version** | 2.2 |
 | **Date** | 6 November 2026 |
 | **Status** | Working spec, kept in step with the code (branch `fix/batch-3`) |
 | **Classification** | Internal / Hackathon Submission / Developer Reference |
@@ -20,7 +20,8 @@ This spec describes where the product is going, and notes state what exists toda
 |---|---|---|
 | MOEWS scoring, Incomplete result | Built | §9.3 |
 | Emergency: skip vitals | Built | §7.1.3 |
-| CHO registration and home compound | Built, no OTP yet | §7.8 |
+| CHO registration and administration | Built, no OTP yet | §7.8 |
+| Stale queued referrals, cancelling a dispatch | Built | §7.10 |
 | Offline manual fallback (Call and SMS buttons) | Built | §7.9 |
 | SMS cascade, surviving restarts | Built, SMS tiers only | §7.2.1, §10.8 |
 | Transactional SMS outbox | Built | §10.8 |
@@ -930,6 +931,8 @@ Each phone belongs to a registered CHO and their compound. This is the identity 
 - On first run the app asks for the CHO's phone. The backend returns their compound if they are a registered, active CHO, or a clear error otherwise. There is no compound picker and no default compound.
 - Every referral includes `cho_phone`. The backend rejects a referral whose CHO is unknown, inactive or from another compound.
 - A phone that isn't set up can't send a referral, and it tells the CHO to call directly.
+- Every referral records the CHO who sent it. Routine updates go to that CHO. No-driver, FAILED, late-accept and undeliverable-SMS alerts go to all active CHOs at the compound. The compound's own `cho_phone` is seed data and is never messaged.
+- `python -m src.admin.deactivate_cho` and `python -m src.admin.move_cho` work in every environment and write an audit log row. The app re-checks the CHO on every sync. If they were deactivated or moved, it returns to setup, says why, and keeps unsent referrals visible with the Call and SMS buttons. **Not built:** reactivating a CHO, except by direct SQL.
 
 ## 7.9 Offline Manual Fallback
 
@@ -939,6 +942,17 @@ When the system can't help, the CHO can still reach people (Principle 9).
 - When a referral is queued or has failed, or a dispatch reaches FAILED, the screen shows **Call** and **SMS** buttons for each saved driver and the chosen facility. These use the phone's own dialler and messaging.
 - The SMS button prefills a short message that never names the patient.
 - The screen shows when the list was last updated. This works with no network.
+
+## 7.10 Stale Queued Referrals and Cancelling
+
+A referral that waited for hours shouldn't send a driver to a patient who has already left.
+
+- The app sends how long the referral waited (`queue_age_seconds`), measured with the phone's own clock and never as a timestamp. A clock set backwards reads as zero, so that referral dispatches at once.
+- A referral older than `STALE_AFTER_MINUTES` (placeholder 20) is stored as AWAITING_CONFIRMATION and nobody is told.
+- The app asks "Still needs transport?" with Send now, Already handled and Cancel. If the CHO tapped Call or SMS for this referral, it starts on Already handled.
+- A CHO can cancel an active dispatch. This stops the cascade and late claims, and tells an accepted driver and the hospital. Before a driver accepts, neither has been told anything to stand down from, so no notice goes out. A completed dispatch can't be cancelled. The mock stipend ledger entry stays.
+- A failed referral can be marked handled, which deletes the local record. Unsent, stale and failed records are deleted after `LOCAL_RECORD_TTL_HOURS` (placeholder 72), and only once the CHO has had `LOCAL_RECORD_WARNING_HOURS` (placeholder 12) of notice.
+- A refusal counts as final only if it carries a code defined in `src/api/errors.py`. Anything else, such as a captive portal's 401 or 403, keeps the referral and retries with a visible warning.
 
 ---
 
@@ -1318,7 +1332,9 @@ dependencies:
 | `GET /api/v1/referral/{id}` | GET | Get a referral |
 | `GET /api/v1/dispatch/{id}` | GET | Get dispatch status |
 | `GET /api/v1/dispatch/{id}/logs` | GET | Get a dispatch's timeline |
-| `POST /api/v1/cho/lookup` | POST | First-run setup: find a CHO's compound by phone |
+| `POST /api/v1/referral/{id}/resolve` | POST | The CHO's answer for a stale referral |
+| `POST /api/v1/dispatch/{id}/cancel` | POST | Cancel an active dispatch |
+| `POST /api/v1/cho/lookup` | POST | Setup and re-check: find a CHO's compound by phone |
 | `POST /ussd/callback` | POST | Handle USSD responses from drivers |
 | `POST /api/v1/sms/inbound` | POST | Handle inbound SMS (hospital confirmation) |
 | `GET /api/v1/driver/{id}/status` | GET | Get driver availability |
@@ -1465,7 +1481,7 @@ The mobile application uses a hybrid synchronization engine that monitors networ
 
 ## 10.7 Authentication & Security
 
-> **Status:** CHOs are identified by a registered phone number (§7.8), not yet verified by OTP. A shared `API_KEY` and `AT_WEBHOOK_SECRET` protect the APIs. Outside `ENVIRONMENT=development`, the server refuses to start without them. **Not built:** OTP, driver PIN, hospital login, per-user access control, and audit log writes for anything except CHO registration.
+> **Status:** CHOs are identified by a registered phone number (§7.8), not yet verified by OTP. A shared `API_KEY` and `AT_WEBHOOK_SECRET` protect the APIs. Outside `ENVIRONMENT=development`, the server refuses to start without them. **Not built:** OTP, driver PIN, hospital login, per-user access control, and audit log writes for anything except CHO administration and answers to stale referrals.
 
 **Compliance:** Yoma Triage handles patient data and must comply with Ghana's Data Protection Act, 2012 (Act 843). All patient data is processed with minimal collection principles, stored with encryption, and retained only as long as necessary for the referral to succeed.
 
@@ -1486,7 +1502,7 @@ The mobile application uses a hybrid synchronization engine that monitors networ
 
 **Cascade timing lives in the database.** Each dispatch stores `next_action` and `next_action_at` in the same transaction as its state change. A worker polls every 5 seconds with `SELECT ... FOR UPDATE SKIP LOCKED`, performs the tier transition, and sets the next action. Its first run is immediate, so anything overdue after a restart is handled on startup, and the cascade continues after the server is killed mid-tier.
 
-**All outbound SMS go through a transactional outbox.** Business code inserts into `outbound_messages` in the same transaction as the state change, so nothing calls Africa's Talking before commit or while holding a row lock. A sender worker claims rows in a short transaction, sends with no transaction open, and records the result. It retries with backoff up to a limit, then marks the message FAILED and alerts the CHO if it was to a driver or hospital. A waiting driver offer is cancelled once someone else has claimed the dispatch.
+**All outbound SMS go through a transactional outbox.** Business code inserts into `outbound_messages` in the same transaction as the state change, so nothing calls Africa's Talking before commit or while holding a row lock. A sender worker claims rows in a short transaction, sends with no transaction open, and records the result. Each pass claims at most `OUTBOX_SEND_CONCURRENCY` messages (default 5), drivers first, then hospitals, CHOs and everything else, and sends them in parallel with `OUTBOX_SEND_TIMEOUT_SECONDS` each (default 5). So a hung provider delays a new driver alert by one pass at most, unless other first-attempt driver alerts are already ahead of it. It retries with backoff up to a limit, then marks the message FAILED and alerts the CHO if it was to a driver or hospital. A waiting driver offer is cancelled once someone else has claimed the dispatch.
 
 Delivery is at least once: if the server dies between sending and recording, the SMS goes out again. Phone numbers and message bodies do not appear in application logs.
 
@@ -1504,7 +1520,7 @@ The code stays in `src/agents` and `src/rag` behind `RAG_ENABLED`, which is off,
 
 ## 11.1 Entity Relationship Diagram
 
-> **Status:** the code also has `chos` (id, name, phone, compound_id, active, created_at) and `outbound_messages` (recipient, body, purpose, dispatch_id, status, attempts, next_attempt_at, provider_response, created_at), and `dispatches` has `next_action` and `next_action_at`. **Not built:** `emergency_contact`, `referral.outcome`, `facility.blood_bank_status`. `referral.patient_name` exists but always holds "Unknown".
+> **Status:** the code also has `chos` (id, name, phone, compound_id, active, created_at) and `outbound_messages` (recipient, body, purpose, dispatch_id, status, attempts, next_attempt_at, provider_response, created_at), `dispatches` has `next_action` and `next_action_at`, and `referrals` has `cho_id` and `queue_age_seconds`. **Not built:** `emergency_contact`, `referral.outcome`, `facility.blood_bank_status`. `referral.patient_name` exists but always holds "Unknown".
 
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
@@ -1588,7 +1604,7 @@ The code stays in `src/agents` and `src/rag` behind `RAG_ENABLED`, which is off,
 
 ## 11.2 What Data Is Stored
 
-> **Not built:** the 90-day retention and anonymization jobs, and the stated encryption. The CHO's phone is checked on each referral but not stored with it.
+> **Not built:** the 90-day retention and anonymization jobs, and the stated encryption. Each referral stores the sending CHO's id, not their phone.
 
 To comply with Ghana's Data Protection Act (Act 843) and protect patient privacy, the platform separates essential operational tracking data from sensitive personal identification markers:
 
@@ -1731,7 +1747,7 @@ FALLBACK SUCCESS: Personal contact provided faster transport than registered dri
 
 ## Journey 3: Network Outage
 
-> **Status:** the queue and message work, and the screen shows the Call and SMS buttons (§7.9). **Not built:** recording that a referral was coordinated manually. When the network returns, a queued referral still dispatches live, even hours later.
+> **Status:** the queue and message work, and the screen shows the Call and SMS buttons (§7.9). When the network returns, a referral queued for longer than `STALE_AFTER_MINUTES` waits for the CHO's answer rather than dispatching (§7.10). **Not built:** a referral under that limit still dispatches, even if the CHO has already called a driver by hand.
 
 ```
 09:00 — Network outage in Tamale area
