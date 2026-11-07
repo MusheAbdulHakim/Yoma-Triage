@@ -55,10 +55,15 @@ TEST_CHO = "+233240000777"
 SMALL_WIDTH_PX, SMALL_HEIGHT_PX, SMALL_DENSITY = 640, 1136, 320  # 320 x 568 dp
 
 AVDS = {"yoma_api34": 5554, "yoma_api24_2gb": 5556}
+# Guest RAM for each run, in MB, whatever the AVD's own setting. The API 34 AVD is set to
+# 4 GB, which with a Gradle build alongside was enough for the host to kill the emulator.
+AVD_MEMORY_MB = {"yoma_api34": 3072, "yoma_api24_2gb": 2048}
 
 # What each integration test file needs from the backend, and from the build.
 SCENARIOS: dict[str, dict] = {
     "1": {"file": "s1_yamnet_test.dart", "defines": {"MOEWS_ONLY": "false"}},
+    # A1: the screen keeps drawing and answering taps while YAMNet runs.
+    "responsive": {"file": "s10_responsive_test.dart"},
     "3": {"file": "s3_setup_test.dart"},
     "4": {"file": "s4_full_referral_test.dart"},
     "5": {"file": "s5_skip_vitals_test.dart"},
@@ -93,6 +98,15 @@ def run(cmd: list[str], *, check: bool = True, timeout: float = 120, **kwargs) -
     return done.stdout
 
 
+def stop_gradle() -> None:
+    """Free the build daemons' memory before an emulator needs it. The next build starts
+    them again, a little slower."""
+    wrapper = MOBILE / "android" / "gradlew"
+    if wrapper.exists():
+        run([str(wrapper), "--stop"], check=False, cwd=wrapper.parent, timeout=120)
+    run(["pkill", "-f", "KotlinCompileDaemon"], check=False)
+
+
 class Device:
     def __init__(self, avd: str) -> None:
         self.avd = avd
@@ -118,6 +132,7 @@ class Device:
         if running:
             self.process = None
         else:
+            stop_gradle()
             # The emulator keeps its own copy of the file handle.
             with open(self.out / "emulator.log", "w") as emulator_log:
                 self.process = subprocess.Popen(
@@ -133,6 +148,8 @@ class Device:
                         "-no-snapshot",
                         "-gpu",
                         "swiftshader_indirect",
+                        "-memory",
+                        str(AVD_MEMORY_MB[self.avd]),
                     ],
                     stdout=emulator_log,
                     stderr=subprocess.STDOUT,
@@ -677,6 +694,7 @@ def build_release() -> dict:
         cwd=MOBILE,
         timeout=1800,
     )
+    stop_gradle()
     info = {
         "bytes": RELEASE_APK.stat().st_size,
         "megabytes": round(RELEASE_APK.stat().st_size / 1024 / 1024, 1),
@@ -1081,8 +1099,21 @@ def main() -> int:
     parser.add_argument(
         "--scenarios",
         nargs="*",
-        default=["1", "2", "3", "4", "5", "6", "7", "8", "9", "banners_native", "timings"],
-        help="1-9, banners, banners_native and timings",
+        default=[
+            "1",
+            "responsive",
+            "2",
+            "3",
+            "4",
+            "5",
+            "6",
+            "7",
+            "8",
+            "9",
+            "banners_native",
+            "timings",
+        ],
+        help="1-9, responsive, banners, banners_native and timings",
     )
     parser.add_argument(
         "--keep-running",
