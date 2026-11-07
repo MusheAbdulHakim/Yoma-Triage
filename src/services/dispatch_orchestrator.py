@@ -227,7 +227,7 @@ class DispatchOrchestrator:
         if late and not _late_claim_open(dispatch):
             return "END Dispatch not available."
 
-        referral = await session.get(Referral, dispatch.referral_id)
+        referral = await session.get_one(Referral, dispatch.referral_id)
         candidates = await self.pool.get_candidates(
             session,
             referral.chps_compound_id,
@@ -383,7 +383,7 @@ class DispatchOrchestrator:
                 metadata_json={"driver_id": driver_id},
             )
         )
-        referral = await session.get(Referral, dispatch.referral_id)
+        referral = await session.get_one(Referral, dispatch.referral_id)
         await enqueue_cho_update(
             session,
             referral,
@@ -403,7 +403,7 @@ class DispatchOrchestrator:
         has been told anything they would act on: the hospital hears about a referral
         only once a driver accepts.
         """
-        dispatch = await session.scalar(_locked_dispatch(dispatch_id))
+        dispatch: Dispatch | None = await session.scalar(_locked_dispatch(dispatch_id))
         if dispatch is None:
             raise ValueError(f"dispatch {dispatch_id} not found")
         if dispatch.status == CANCELLED:
@@ -413,7 +413,7 @@ class DispatchOrchestrator:
 
         dispatch.status = CANCELLED
         self._set_next_action(dispatch)
-        referral = await session.get(Referral, dispatch.referral_id)
+        referral = await session.get_one(Referral, dispatch.referral_id)
         referral.status = CANCELLED
         session.add(
             DispatchLog(
@@ -427,7 +427,7 @@ class DispatchOrchestrator:
         if dispatch.driver_id is None:
             return dispatch
 
-        driver = await session.get(Driver, dispatch.driver_id)
+        driver = await session.get_one(Driver, dispatch.driver_id)
         enqueue_sms(
             session,
             recipient=driver.phone,
@@ -445,7 +445,7 @@ class DispatchOrchestrator:
         for message in waiting:
             message.status = MESSAGE_CANCELLED
             message.next_attempt_at = None
-        facility = await session.get(Facility, dispatch.facility_id)
+        facility = await session.get_one(Facility, dispatch.facility_id)
         enqueue_sms(
             session,
             recipient=facility.phone,

@@ -398,7 +398,7 @@ async def cancel_dispatch(
     dispatch = await session.get(Dispatch, dispatch_id)
     if dispatch is None:
         raise ApiError(404, errors.DISPATCH_NOT_FOUND, "Dispatch not found")
-    referral = await session.get(Referral, dispatch.referral_id)
+    referral = await session.get_one(Referral, dispatch.referral_id)
     cho = await _cho_who_may_stop(session, payload.cho_phone, referral)
     try:
         dispatch = await DispatchOrchestrator().cancel_dispatch(session, dispatch_id, cho.id)
