@@ -3,6 +3,8 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
+import 'audio_pcm.dart';
+import 'background_job.dart';
 import 'opera_ce_head_map.dart';
 import 'opera_ce_mel.dart';
 import 'screening_result.dart';
@@ -16,210 +18,226 @@ export 'opera_ce_head_map.dart' show mapOperaCeHeadToResult;
 /// Without a trained head (`opera_ce_head.tflite`), always returns
 /// **INCONCLUSIVE** after a successful encoder forward — never invents
 /// GREEN/RED from embeddings alone.
+///
+/// Like YAMNet, loading and inference run in a background isolate, so the main thread
+/// never stalls.
 class OperaCeClassifierIo implements YamnetClassifier {
-  OperaCeClassifierIo._({
-    required Interpreter encoder,
-    required this.encoderInputSize,
-    required this.encoderOutputSize,
-    Interpreter? head,
-    this.headInputSize,
-    this.headOutputSize,
-  })  : _encoder = encoder,
-        _head = head;
-
-  final Interpreter _encoder;
-  final Interpreter? _head;
-  final int encoderInputSize;
-  final int encoderOutputSize;
-  final int? headInputSize;
-  final int? headOutputSize;
+  OperaCeClassifierIo._(this._models);
 
   static const encoderAsset = 'assets/models/opera_ce_encoder.tflite';
   static const headAsset = 'assets/models/opera_ce_head.tflite';
   static const modelVersionEncoderOnly = 'opera-ce-encoder-v0';
   static const modelVersionWithHead = 'opera-ce-head-v0';
 
+  final OperaCeModels _models;
+  BackgroundJob<ScreeningResult>? _job;
+
   static Future<YamnetClassifier> create() async {
+    final Uint8List encoder;
     try {
-      await rootBundle.load(encoderAsset);
+      encoder = await _loadAsset(encoderAsset);
     } catch (_) {
-      return _OperaPending();
+      return OperaCeUnavailable(_operaPending());
     }
-
-    Interpreter? encoder;
-    Interpreter? head;
+    Uint8List? head;
     try {
-      encoder = await Interpreter.fromAsset(encoderAsset);
-      final inTensors = encoder.getInputTensors();
-      final outTensors = encoder.getOutputTensors();
-      if (inTensors.isEmpty || outTensors.isEmpty) {
-        encoder.close();
-        return _OperaPending();
-      }
-      final inSize = inTensors.first.shape.isEmpty
-          ? OperaCeMel.melFrames * OperaCeMel.melBins
-          : inTensors.first.shape.reduce((a, b) => a * b);
-      final outSize = outTensors.first.shape.isEmpty
-          ? 1280
-          : outTensors.first.shape.reduce((a, b) => a * b);
-
-      final probeIn = List<double>.filled(inSize, 0.0);
-      final probeOut = singleBatchOutput(outSize);
-      encoder.run(probeIn, probeOut);
-
-      try {
-        await rootBundle.load(headAsset);
-        head = await Interpreter.fromAsset(headAsset);
-        final hIn = head.getInputTensors().first.shape.reduce((a, b) => a * b);
-        final hOut =
-            head.getOutputTensors().first.shape.reduce((a, b) => a * b);
-        final hProbeIn = List<double>.filled(hIn, 0.0);
-        final hProbeOut = singleBatchOutput(hOut);
-        head.run(hProbeIn, hProbeOut);
-        return OperaCeClassifierIo._(
-          encoder: encoder,
-          encoderInputSize: inSize,
-          encoderOutputSize: outSize,
-          head: head,
-          headInputSize: hIn,
-          headOutputSize: hOut,
-        );
-      } catch (_) {
-        try {
-          head?.close();
-        } catch (_) {}
-        head = null;
-      }
-
-      return OperaCeClassifierIo._(
-        encoder: encoder,
-        encoderInputSize: inSize,
-        encoderOutputSize: outSize,
-      );
+      head = await _loadAsset(headAsset);
     } catch (_) {
-      try {
-        encoder?.close();
-      } catch (_) {}
-      try {
-        head?.close();
-      } catch (_) {}
-      return _OperaPending();
+      head = null;
     }
+    try {
+      final models = await BackgroundJob.start(
+        () => _probeOperaCe(encoder, head),
+        name: 'opera-ce-load',
+      ).result;
+      return OperaCeClassifierIo._(models);
+    } catch (_) {
+      return OperaCeUnavailable(_operaPending());
+    }
+  }
+
+  static Future<Uint8List> _loadAsset(String name) async {
+    final data = await rootBundle.load(name);
+    return data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
   }
 
   @override
   Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async {
+    final job = _startClassifying(_models, pcmBytes);
+    _job = job;
     try {
-      final samples = _pcm16ToFloat(_stripWavHeader(pcmBytes));
-      if (samples.isEmpty) {
-        return ScreeningResult(
-          label: 'INCONCLUSIVE',
-          confidence: 0.0,
-          reason: 'Empty audio — use clinical judgment',
-          source: 'opera_ce',
-          modelVersion: modelVersionEncoderOnly,
-        );
-      }
-
-      final mel = OperaCeMel.melForEncoder(samples);
-      final input = List<double>.filled(encoderInputSize, 0.0);
-      final n = mel.length < encoderInputSize ? mel.length : encoderInputSize;
-      for (var i = 0; i < n; i++) {
-        input[i] = mel[i];
-      }
-      final encoderOutput = singleBatchOutput(encoderOutputSize);
-      _encoder.run(input, encoderOutput);
-      final embedding = encoderOutput[0];
-
-      final head = _head;
-      if (head == null || headInputSize == null || headOutputSize == null) {
-        return ScreeningResult(
-          label: 'INCONCLUSIVE',
-          confidence: 0.0,
-          reason:
-              'OPERA-CE encoder OK; classifier head not trained — use MOEWS and clinical judgment',
-          source: 'opera_ce',
-          modelVersion: modelVersionEncoderOnly,
-        );
-      }
-
-      final hIn = List<double>.filled(headInputSize!, 0.0);
-      final copy = embedding.length < headInputSize!
-          ? embedding.length
-          : headInputSize!;
-      for (var i = 0; i < copy; i++) {
-        hIn[i] = embedding[i];
-      }
-      final headOutput = singleBatchOutput(headOutputSize!);
-      head.run(hIn, headOutput);
-      return mapOperaCeHeadToResult(headOutput[0]);
+      return await job.result;
+    } on JobCancelled {
+      return cancelledResult();
     } catch (_) {
-      return ScreeningResult(
-        label: 'INCONCLUSIVE',
-        confidence: 0.0,
-        reason: 'OPERA-CE screening unavailable — use clinical judgment',
-        source: 'opera_ce',
-        modelVersion: modelVersionEncoderOnly,
-      );
+      return _operaUnavailable();
+    } finally {
+      if (identical(_job, job)) _job = null;
     }
   }
 
   @override
-  Future<void> dispose() async {
-    try {
-      _encoder.close();
-    } catch (_) {}
-    try {
-      _head?.close();
-    } catch (_) {}
-  }
+  void cancel() => _job?.cancel();
 
-  Uint8List _stripWavHeader(Uint8List bytes) {
-    if (bytes.length > 44 &&
-        bytes[0] == 0x52 &&
-        bytes[1] == 0x49 &&
-        bytes[2] == 0x46 &&
-        bytes[3] == 0x46) {
-      for (var i = 12; i + 8 < bytes.length; i++) {
-        if (bytes[i] == 0x64 &&
-            bytes[i + 1] == 0x61 &&
-            bytes[i + 2] == 0x74 &&
-            bytes[i + 3] == 0x61) {
-          final dataStart = i + 8;
-          if (dataStart < bytes.length) {
-            return Uint8List.sublistView(bytes, dataStart);
-          }
+  @override
+  Future<void> dispose() async => cancel();
+}
+
+/// What a background isolate needs to run OPERA-CE: the model files and tensor sizes.
+class OperaCeModels {
+  OperaCeModels({
+    required this.encoder,
+    required this.encoderInputSize,
+    required this.encoderOutputSize,
+    this.head,
+    this.headInputSize,
+    this.headOutputSize,
+  });
+
+  final Uint8List encoder;
+  final int encoderInputSize;
+  final int encoderOutputSize;
+  final Uint8List? head;
+  final int? headInputSize;
+  final int? headOutputSize;
+}
+
+ScreeningResult _operaPending() => ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: 'opera_ce encoder pack not installed — use MOEWS and clinical judgment',
+      source: 'opera_ce',
+      modelVersion: 'opera_ce-pending',
+    );
+
+ScreeningResult _operaUnavailable() => ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: 'OPERA-CE screening unavailable — use clinical judgment',
+      source: 'opera_ce',
+      modelVersion: OperaCeClassifierIo.modelVersionEncoderOnly,
+    );
+
+/// Top level, so the closure sent to the isolate can't capture the classifier.
+BackgroundJob<ScreeningResult> _startClassifying(OperaCeModels models, Uint8List pcmBytes) =>
+    BackgroundJob.start(() => _classifyInBackground(models, pcmBytes), name: 'opera-ce');
+
+int _size(List<int> shape, int fallback) =>
+    shape.isEmpty ? fallback : shape.reduce((a, b) => a * b);
+
+/// Loads the encoder, and the head if there is one, and runs each once on zeros.
+OperaCeModels _probeOperaCe(Uint8List encoderModel, Uint8List? headModel) {
+  final encoder = Interpreter.fromBuffer(encoderModel);
+  try {
+    final inTensors = encoder.getInputTensors();
+    final outTensors = encoder.getOutputTensors();
+    if (inTensors.isEmpty || outTensors.isEmpty) {
+      throw StateError('OPERA-CE encoder has no input or output tensor');
+    }
+    final inSize = _size(inTensors.first.shape, OperaCeMel.melFrames * OperaCeMel.melBins);
+    final outSize = _size(outTensors.first.shape, 1280);
+    encoder.run(List<double>.filled(inSize, 0.0), singleBatchOutput(outSize));
+
+    if (headModel != null) {
+      try {
+        final head = Interpreter.fromBuffer(headModel);
+        try {
+          final hIn = _size(head.getInputTensors().first.shape, 0);
+          final hOut = _size(head.getOutputTensors().first.shape, 0);
+          head.run(List<double>.filled(hIn, 0.0), singleBatchOutput(hOut));
+          return OperaCeModels(
+            encoder: encoderModel,
+            encoderInputSize: inSize,
+            encoderOutputSize: outSize,
+            head: headModel,
+            headInputSize: hIn,
+            headOutputSize: hOut,
+          );
+        } finally {
+          head.close();
         }
+      } catch (_) {
+        // A head that won't run is ignored: the encoder alone stays INCONCLUSIVE.
       }
-      return Uint8List.sublistView(bytes, 44);
     }
-    return bytes;
-  }
-
-  List<double> _pcm16ToFloat(Uint8List bytes) {
-    if (bytes.length < 2) return const [];
-    final bd = ByteData.sublistView(bytes);
-    final out = <double>[];
-    final limit = bytes.length - (bytes.length % 2);
-    for (var i = 0; i < limit; i += 2) {
-      out.add(bd.getInt16(i, Endian.little) / 32768.0);
-    }
-    return out;
+    return OperaCeModels(
+      encoder: encoderModel,
+      encoderInputSize: inSize,
+      encoderOutputSize: outSize,
+    );
+  } finally {
+    encoder.close();
   }
 }
 
-class _OperaPending implements YamnetClassifier {
-  @override
-  Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async {
+ScreeningResult _classifyInBackground(OperaCeModels models, Uint8List pcmBytes) {
+  final samples = pcm16ToFloat(stripWavHeader(pcmBytes));
+  if (samples.isEmpty) {
+    return ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: 'Empty audio — use clinical judgment',
+      source: 'opera_ce',
+      modelVersion: OperaCeClassifierIo.modelVersionEncoderOnly,
+    );
+  }
+
+  final mel = OperaCeMel.melForEncoder(samples);
+  final input = List<double>.filled(models.encoderInputSize, 0.0);
+  final n = mel.length < models.encoderInputSize ? mel.length : models.encoderInputSize;
+  for (var i = 0; i < n; i++) {
+    input[i] = mel[i];
+  }
+  final encoder = Interpreter.fromBuffer(models.encoder);
+  final List<double> embedding;
+  try {
+    final encoderOutput = singleBatchOutput(models.encoderOutputSize);
+    encoder.run(input, encoderOutput);
+    embedding = encoderOutput[0];
+  } finally {
+    encoder.close();
+  }
+
+  final headModel = models.head;
+  final headInputSize = models.headInputSize;
+  final headOutputSize = models.headOutputSize;
+  if (headModel == null || headInputSize == null || headOutputSize == null) {
     return ScreeningResult(
       label: 'INCONCLUSIVE',
       confidence: 0.0,
       reason:
-          'opera_ce encoder pack not installed — use MOEWS and clinical judgment',
+          'OPERA-CE encoder OK; classifier head not trained — use MOEWS and clinical judgment',
       source: 'opera_ce',
-      modelVersion: 'opera_ce-pending',
+      modelVersion: OperaCeClassifierIo.modelVersionEncoderOnly,
     );
   }
+
+  final headInput = List<double>.filled(headInputSize, 0.0);
+  final copy = embedding.length < headInputSize ? embedding.length : headInputSize;
+  for (var i = 0; i < copy; i++) {
+    headInput[i] = embedding[i];
+  }
+  final head = Interpreter.fromBuffer(headModel);
+  try {
+    final headOutput = singleBatchOutput(headOutputSize);
+    head.run(headInput, headOutput);
+    return mapOperaCeHeadToResult(headOutput[0]);
+  } finally {
+    head.close();
+  }
+}
+
+/// OPERA-CE can't run here, for the reason in [result].
+class OperaCeUnavailable implements YamnetClassifier {
+  OperaCeUnavailable(this.result);
+
+  final ScreeningResult result;
+
+  @override
+  Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async => result;
+
+  @override
+  void cancel() {}
 
   @override
   Future<void> dispose() async {}

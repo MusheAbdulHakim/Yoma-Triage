@@ -34,6 +34,9 @@ class OperaCeClassifierStub implements YamnetClassifier {
   }
 
   @override
+  void cancel() {}
+
+  @override
   Future<void> dispose() async {}
 }
 

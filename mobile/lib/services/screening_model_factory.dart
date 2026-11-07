@@ -24,6 +24,9 @@ class PackPendingClassifier implements YamnetClassifier {
   }
 
   @override
+  void cancel() {}
+
+  @override
   Future<void> dispose() async {}
 }
 
@@ -34,6 +37,9 @@ class _StubClassifier implements YamnetClassifier {
   }
 
   @override
+  void cancel() {}
+
+  @override
   Future<void> dispose() async {}
 }
 
@@ -42,6 +48,9 @@ class _MoewsOnlyClassifier implements YamnetClassifier {
   Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async {
     return moewsOnlyResult();
   }
+
+  @override
+  void cancel() {}
 
   @override
   Future<void> dispose() async {}

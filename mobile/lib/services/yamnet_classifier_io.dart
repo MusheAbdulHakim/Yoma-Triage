@@ -3,65 +3,37 @@ import 'dart:typed_data';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:tflite_flutter/tflite_flutter.dart';
 
+import 'audio_pcm.dart';
+import 'background_job.dart';
 import 'screening_result.dart';
 import 'tflite_output.dart';
 import 'yamnet_classifier_base.dart';
 
 /// Native (Android/iOS): real YAMNet when the asset loads and tensors match;
-/// otherwise INCONCLUSIVE. The output tensor is `[1, N]`, so the output buffer
-/// must be nested — `tflite_flutter` rejects a flat list.
+/// otherwise INCONCLUSIVE.
+///
+/// Inference runs in a background isolate ([BackgroundJob]), never on the main thread:
+/// a full capture takes several seconds, and a blocked main thread freezes the screen and
+/// makes Android report the app as not responding.
 class YamnetClassifierIo implements YamnetClassifier {
-  YamnetClassifierIo._live(
-      this._interpreter, this._inputSize, this._outputSize);
+  YamnetClassifierIo._live(this._model, this._inputSize, this._outputSize);
 
-  final Interpreter _interpreter;
+  static const asset = 'assets/models/yamnet.tflite';
+
+  /// The model file, handed to each background isolate, which loads its own interpreter.
+  final Uint8List _model;
   final int _inputSize;
   final int _outputSize;
-
-  /// AudioSet YAMNet class indices for cough / wheeze / breathing / gasp.
-  /// See yamnet_class_map.csv (Google AudioSet).
-  static const _respiratoryClassIndices = <int>{
-    36, // Breathing
-    37, // Wheeze
-    39, // Gasp
-    40, // Pant
-    41, // Snort
-    42, // Cough
-  };
+  BackgroundJob<ScreeningResult>? _job;
 
   static Future<YamnetClassifier> create() async {
     try {
-      await rootBundle.load('assets/models/yamnet.tflite');
-      final interpreter =
-          await Interpreter.fromAsset('assets/models/yamnet.tflite');
-      final inTensors = interpreter.getInputTensors();
-      final outTensors = interpreter.getOutputTensors();
-      if (inTensors.isEmpty || outTensors.isEmpty) {
-        interpreter.close();
-        return _UnavailableClassifier();
-      }
-      final inputSize = inTensors.first.shape.isEmpty
-          ? 15600
-          : inTensors.first.shape.reduce((a, b) => a * b);
-      final outputSize = outTensors.first.shape.isEmpty
-          ? 521
-          : outTensors.first.shape.reduce((a, b) => a * b);
-      if (inputSize <= 0 || outputSize <= 0) {
-        interpreter.close();
-        return _UnavailableClassifier();
-      }
-      // Probe once with zeros — if the native run fails, report unavailable.
-      try {
-        final probeIn = List<double>.filled(inputSize, 0.0);
-        final probeOut = singleBatchOutput(outputSize);
-        interpreter.run(probeIn, probeOut);
-      } catch (_) {
-        try {
-          interpreter.close();
-        } catch (_) {}
-        return _UnavailableClassifier();
-      }
-      return YamnetClassifierIo._live(interpreter, inputSize, outputSize);
+      final data = await rootBundle.load(asset);
+      final model = data.buffer.asUint8List(data.offsetInBytes, data.lengthInBytes);
+      // Loading and the first run happen off the main thread too.
+      final (inputSize, outputSize) =
+          await BackgroundJob.start(() => _probeYamnet(model), name: 'yamnet-load').result;
+      return YamnetClassifierIo._live(model, inputSize, outputSize);
     } catch (_) {
       return _UnavailableClassifier();
     }
@@ -69,129 +41,179 @@ class YamnetClassifierIo implements YamnetClassifier {
 
   @override
   Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async {
+    final job = _startClassifying(_model, _inputSize, _outputSize, pcmBytes);
+    _job = job;
     try {
-      final samples = _pcm16ToFloat(_stripWavHeader(pcmBytes));
-      if (samples.isEmpty) {
-        return ScreeningResult(
-          label: 'INCONCLUSIVE',
-          confidence: 0.0,
-          reason: 'Empty audio — use clinical judgment',
-          source: 'yamnet',
-          modelVersion: 'yamnet-audioset-v0',
-        );
-      }
-
-      var maxAbnormal = 0.0;
-      var sawRespiratory = false;
-      var offset = 0;
-      final input = List<double>.filled(_inputSize, 0.0);
-      final output = singleBatchOutput(_outputSize);
-
-      while (offset + _inputSize <= samples.length) {
-        for (var i = 0; i < _inputSize; i++) {
-          input[i] = samples[offset + i];
-        }
-        _interpreter.run(input, output);
-        final abnormal = _respiratoryAbnormalScore(output[0]);
-        if (abnormal != null) {
-          sawRespiratory = true;
-          if (abnormal > maxAbnormal) maxAbnormal = abnormal;
-        }
-        offset += _inputSize ~/ 2;
-      }
-
-      if (offset == 0) {
-        for (var i = 0; i < _inputSize; i++) {
-          input[i] = i < samples.length ? samples[i] : 0.0;
-        }
-        _interpreter.run(input, output);
-        final abnormal = _respiratoryAbnormalScore(output[0]);
-        if (abnormal != null) {
-          sawRespiratory = true;
-          maxAbnormal = abnormal;
-        }
-      }
-
-      if (!sawRespiratory) {
-        return ScreeningResult(
-          label: 'INCONCLUSIVE',
-          confidence: 0.0,
-          reason:
-              'No respiratory-class evidence — use MOEWS and clinical judgment',
-          source: 'yamnet',
-          modelVersion: 'yamnet-audioset-v0',
-        );
-      }
-
-      return mapYamnetToResult(abnormalScore: maxAbnormal);
+      return await job.result;
+    } on JobCancelled {
+      return cancelledResult();
     } catch (_) {
       return unavailableResult();
+    } finally {
+      if (identical(_job, job)) _job = null;
     }
-  }
-
-  double? _respiratoryAbnormalScore(List<double> scores) {
-    if (scores.isEmpty) return null;
-
-    var maxRespiratory = 0.0;
-    for (final idx in _respiratoryClassIndices) {
-      if (idx < scores.length && scores[idx] > maxRespiratory) {
-        maxRespiratory = scores[idx];
-      }
-    }
-    // Do not fall back to top-5 AudioSet classes — unrelated labels must not
-    // drive clinical-looking GREEN/RED.
-    if (maxRespiratory > 0) return maxRespiratory;
-    return null;
-  }
-
-  /// Skip RIFF/WAV header if present so PCM samples start correctly.
-  Uint8List _stripWavHeader(Uint8List bytes) {
-    if (bytes.length > 44 &&
-        bytes[0] == 0x52 &&
-        bytes[1] == 0x49 &&
-        bytes[2] == 0x46 &&
-        bytes[3] == 0x46) {
-      // Find 'data' chunk.
-      for (var i = 12; i + 8 < bytes.length; i++) {
-        if (bytes[i] == 0x64 &&
-            bytes[i + 1] == 0x61 &&
-            bytes[i + 2] == 0x74 &&
-            bytes[i + 3] == 0x61) {
-          final dataStart = i + 8;
-          if (dataStart < bytes.length) {
-            return Uint8List.sublistView(bytes, dataStart);
-          }
-        }
-      }
-      return Uint8List.sublistView(bytes, 44);
-    }
-    return bytes;
-  }
-
-  List<double> _pcm16ToFloat(Uint8List bytes) {
-    if (bytes.length < 2) return const [];
-    final bd = ByteData.sublistView(bytes);
-    final out = <double>[];
-    final limit = bytes.length - (bytes.length % 2);
-    for (var i = 0; i < limit; i += 2) {
-      final sample = bd.getInt16(i, Endian.little);
-      out.add(sample / 32768.0);
-    }
-    return out;
   }
 
   @override
-  Future<void> dispose() async {
-    try {
-      _interpreter.close();
-    } catch (_) {}
+  void cancel() => _job?.cancel();
+
+  @override
+  Future<void> dispose() async => cancel();
+}
+
+/// Top level, so the closure sent to the isolate can't capture the classifier.
+BackgroundJob<ScreeningResult> _startClassifying(
+  Uint8List model,
+  int inputSize,
+  int outputSize,
+  Uint8List pcmBytes,
+) =>
+    BackgroundJob.start(
+      () => _classifyInBackground(model, inputSize, outputSize, pcmBytes),
+      name: 'yamnet',
+    );
+
+/// Loads the model and runs it once on silence. Returns the input and output sizes.
+(int, int) _probeYamnet(Uint8List model) {
+  final interpreter = Interpreter.fromBuffer(model);
+  try {
+    final inTensors = interpreter.getInputTensors();
+    final outTensors = interpreter.getOutputTensors();
+    if (inTensors.isEmpty || outTensors.isEmpty) {
+      throw StateError('YAMNet has no input or output tensor');
+    }
+    final inputSize = inTensors.first.shape.isEmpty
+        ? 15600
+        : inTensors.first.shape.reduce((a, b) => a * b);
+    final outputSize = outTensors.first.shape.isEmpty
+        ? 521
+        : outTensors.first.shape.reduce((a, b) => a * b);
+    if (inputSize <= 0 || outputSize <= 0) {
+      throw StateError('YAMNet tensor sizes are invalid');
+    }
+    interpreter.run(List<double>.filled(inputSize, 0.0), singleBatchOutput(outputSize));
+    return (inputSize, outputSize);
+  } finally {
+    interpreter.close();
   }
+}
+
+ScreeningResult _classifyInBackground(
+  Uint8List model,
+  int inputSize,
+  int outputSize,
+  Uint8List pcmBytes,
+) {
+  final interpreter = Interpreter.fromBuffer(model);
+  try {
+    final output = singleBatchOutput(outputSize);
+    return yamnetResultFromAudio(
+      pcmBytes,
+      inputSize: inputSize,
+      scoreWindow: (window) {
+        interpreter.run(window, output);
+        return output[0];
+      },
+    );
+  } finally {
+    interpreter.close();
+  }
+}
+
+/// AudioSet YAMNet class indices for cough / wheeze / breathing / gasp.
+/// See yamnet_class_map.csv (Google AudioSet).
+const yamnetRespiratoryClassIndices = <int>{
+  36, // Breathing
+  37, // Wheeze
+  39, // Gasp
+  40, // Pant
+  41, // Snort
+  42, // Cough
+};
+
+/// Scores the capture in half-overlapping windows of [inputSize] samples, and maps the
+/// strongest respiratory-class score to a result. [scoreWindow] runs the model on one
+/// window and returns its class scores.
+ScreeningResult yamnetResultFromAudio(
+  Uint8List pcmBytes, {
+  required int inputSize,
+  required List<double> Function(List<double> window) scoreWindow,
+}) {
+  final samples = pcm16ToFloat(stripWavHeader(pcmBytes));
+  if (samples.isEmpty) {
+    return ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: 'Empty audio — use clinical judgment',
+      source: 'yamnet',
+      modelVersion: 'yamnet-audioset-v0',
+    );
+  }
+
+  var maxAbnormal = 0.0;
+  var sawRespiratory = false;
+  var offset = 0;
+  final input = List<double>.filled(inputSize, 0.0);
+
+  void score() {
+    final abnormal = _respiratoryAbnormalScore(scoreWindow(input));
+    if (abnormal != null) {
+      sawRespiratory = true;
+      if (abnormal > maxAbnormal) maxAbnormal = abnormal;
+    }
+  }
+
+  while (offset + inputSize <= samples.length) {
+    for (var i = 0; i < inputSize; i++) {
+      input[i] = samples[offset + i];
+    }
+    score();
+    offset += inputSize ~/ 2;
+  }
+
+  // Shorter than one window: pad with silence and score it once.
+  if (offset == 0) {
+    for (var i = 0; i < inputSize; i++) {
+      input[i] = i < samples.length ? samples[i] : 0.0;
+    }
+    score();
+  }
+
+  if (!sawRespiratory) {
+    return ScreeningResult(
+      label: 'INCONCLUSIVE',
+      confidence: 0.0,
+      reason: 'No respiratory-class evidence — use MOEWS and clinical judgment',
+      source: 'yamnet',
+      modelVersion: 'yamnet-audioset-v0',
+    );
+  }
+
+  return mapYamnetToResult(abnormalScore: maxAbnormal);
+}
+
+double? _respiratoryAbnormalScore(List<double> scores) {
+  if (scores.isEmpty) return null;
+
+  var maxRespiratory = 0.0;
+  for (final idx in yamnetRespiratoryClassIndices) {
+    if (idx < scores.length && scores[idx] > maxRespiratory) {
+      maxRespiratory = scores[idx];
+    }
+  }
+  // Do not fall back to top-5 AudioSet classes — unrelated labels must not
+  // drive clinical-looking GREEN/RED.
+  if (maxRespiratory > 0) return maxRespiratory;
+  return null;
 }
 
 class _UnavailableClassifier implements YamnetClassifier {
   @override
   Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async =>
       unavailableResult();
+
+  @override
+  void cancel() {}
 
   @override
   Future<void> dispose() async {}

@@ -13,6 +13,9 @@ class YamnetClassifierStub implements YamnetClassifier {
       );
 
   @override
+  void cancel() {}
+
+  @override
   Future<void> dispose() async {}
 }
 
