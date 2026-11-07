@@ -385,7 +385,8 @@ async def test_offer_is_cancelled_once_another_driver_has_claimed(pg_sessions): 
         hospital = await queued_sms(session, "hospital_pre_arrival")
     assert {message.status for message in offers} == {"CANCELLED"}
     assert hospital[0].status == "SENT"
-    assert len(gateway.sent) == 1
+    # The hospital's notice and the CHO's "driver accepted"; no offer.
+    assert [phone for phone, _ in gateway.sent] == ["+233240000200", CHO_PHONE]
 
 
 # --- Nothing sensitive in logs ---------------------------------------------------

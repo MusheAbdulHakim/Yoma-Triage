@@ -110,13 +110,28 @@ def build_cho_escalation_message(*, referral_id: int, compound_id: int) -> str:
     )
 
 
+def vehicle_label(driver: Driver) -> str:
+    """'Motor-King, Red tricycle', or whichever part is known."""
+    return ", ".join(part for part in (driver.vehicle_type, driver.vehicle_desc) if part)
+
+
 def build_cho_late_accept_message(
-    *, referral_id: int, compound_id: int, driver_name: str, driver_phone: str
+    *, referral_id: int, compound_id: int, driver_name: str, driver_phone: str, vehicle: str = ""
 ) -> str:
     """Sent when a driver claims after the CHO was told to coordinate manually."""
+    with_vehicle = f", {vehicle}" if vehicle else ""
     return (
-        f"Yoma: Driver {driver_name} ({driver_phone}) accepted LATE for Ref #{referral_id} "
-        f"(CHPS #{compound_id}). Stand down manual transport if no longer needed."
+        f"Yoma: Driver {driver_name} ({driver_phone}{with_vehicle}) accepted LATE for "
+        f"Ref #{referral_id} (CHPS #{compound_id}). Stand down manual transport if no "
+        "longer needed."
+    )
+
+
+def build_cho_accept_message(*, referral_id: int, driver: Driver, facility_name: str) -> str:
+    """The routine news that transport is coming, to the CHO who sent the referral."""
+    return (
+        f"Yoma Triage: Driver {driver.name} accepted Ref #{referral_id} "
+        f"({vehicle_label(driver)}). Phone {driver.phone}. Going to {facility_name}."
     )
 
 
@@ -292,14 +307,15 @@ class DispatchOrchestrator:
         )
         self._record_stipend(session, dispatch, driver_id)
         set_availability(session, driver, ON_TRIP, actor="dispatch", dispatch_id=dispatch.id)
-        facility = await session.get(Facility, dispatch.facility_id)
+        facility = await session.get_one(Facility, dispatch.facility_id)
         dispatch.hospital_code = await new_hospital_code(session)
         await self.hospital.notify_pre_arrival(
             session, referral, driver, facility, dispatch.id, code=dispatch.hospital_code
         )
         if late:
             # To everyone: they all got the no-driver alert, so any of them may have
-            # started arranging transport that now needs standing down.
+            # started arranging transport that now needs standing down. It names the
+            # driver and vehicle, so the sender needs no second message.
             await enqueue_cho_alert(
                 session,
                 referral,
@@ -308,8 +324,19 @@ class DispatchOrchestrator:
                     compound_id=referral.chps_compound_id,
                     driver_name=driver.name,
                     driver_phone=driver.phone,
+                    vehicle=vehicle_label(driver),
                 ),
                 purpose="cho_late_accept",
+                dispatch_id=dispatch.id,
+            )
+        else:
+            await enqueue_cho_update(
+                session,
+                referral,
+                body=build_cho_accept_message(
+                    referral_id=referral.id, driver=driver, facility_name=facility.name
+                ),
+                purpose="cho_driver_accepted",
                 dispatch_id=dispatch.id,
             )
         dispatch.status = "HOSPITAL_NOTIFIED"
@@ -470,11 +497,25 @@ class DispatchOrchestrator:
         )
         await self._release_driver(session, dispatch)
         referral = await session.get_one(Referral, dispatch.referral_id)
+        facility = await session.get_one(Facility, dispatch.facility_id)
         await enqueue_cho_update(
             session,
             referral,
-            body=f"Yoma Triage: Patient arrived at hospital for referral #{referral.id}.",
+            body=(
+                f"Yoma Triage: Patient arrived at {facility.name} for referral #{referral.id}."
+            ),
             purpose="cho_arrival",
+            dispatch_id=dispatch.id,
+        )
+        code = f" (code {dispatch.hospital_code})" if dispatch.hospital_code else ""
+        enqueue_sms(
+            session,
+            recipient=facility.phone,
+            body=(
+                f"Yoma Triage: The driver reports the patient for referral #{referral.id}"
+                f"{code} has arrived at {facility.name}."
+            ),
+            purpose="hospital_arrival",
             dispatch_id=dispatch.id,
         )
         return "END Arrival confirmed. Referral complete."
