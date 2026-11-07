@@ -1186,6 +1186,9 @@ def main() -> int:
     all_passed = True
     apk: dict | None = None
     try:
+        # Build before any emulator boots: Gradle and an emulator together don't fit in memory.
+        if {"2", "timings"} & set(args.scenarios):
+            apk = build_release()
         for avd in args.avd or list(AVDS):
             device = Device(avd)
             CURRENT["device"] = device
