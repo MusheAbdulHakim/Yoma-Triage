@@ -1,10 +1,163 @@
 # Emulator verification pass
 
+Two passes are recorded here. **[Batch 5 rerun](#batch-5-rerun)** is the current result, on
+`fix/batch-5`, after the fixes for the bugs the first pass found. The
+**[original pass](#original-pass-testemulator-pass)** below it is kept as found, on
+`test/emulator-pass` at `9fe1d01`, because its bug list is what batch 5 fixed.
+
+## Batch 5 rerun
+
+Date: 2026-11-07. Branch `fix/batch-5`, app at `b3d3b2f` plus test-only commits up to `f046c2b`.
+Same AVDs, toolchain and mock backend as the original pass. The API 34 AVD now runs with 3 GB
+(see [Devices](#devices)).
+
+| # | Scenario | API 34 | API 24 (2 GB) |
+|---|----------|--------|---------------|
+| 1 | YAMNet on the device; OPERA-CE says it isn't in this build | PASS | PASS |
+| A1 | Screen keeps drawing and answering taps during analysis (new) | PASS | PASS |
+| 2 | Release: plain build refused, test build labelled, no OPERA-CE files, mic denied → INCONCLUSIVE, no ANR | PASS | PASS |
+| 3 | CHO setup | PASS | PASS |
+| 4 | Full referral, USSD accept and arrival | PASS | PASS |
+| 5 | Skip vitals | PASS | PASS |
+| 6 | Offline; after Call or SMS the CHO is asked first; without, the screen follows the send | PASS | PASS |
+| 7 | Stale referral prompt | PASS | PASS |
+| 8 | Backend restart mid-cascade | PASS | PASS |
+| 9 | 320×568 dp: screens 3–7 and Home with every warning | PASS | PASS |
+| 9+ | Home with every warning at the device's own size (411 / 360 dp) | PASS | PASS |
+
+**Where these results come from.** The full pass ran 14:20–16:00. It failed s2, s6 and the
+banner tests on both AVDs; each is explained below, and those scenarios were rerun after the
+fixes (16:04–17:50). Scenarios 1, A1, 3, 4, 5, 7, 8, timings and the 320 dp runs of 3, 4, 5 and
+7 are from the full pass. In the reruns, API 24's s7 and banner tests failed once because the
+host lost DNS and Gradle couldn't fetch a dependency, and s6 at 320 dp failed once because
+`uiautomator` returned a partial screen dump to the runner; both were rerun and passed, and the
+runner now retries a partial dump.
+
+**What the full pass found, and what was done:**
+
+1. **s2: the "TEST BUILD — not for patient use" label was drawn but missing from the
+   accessibility tree,** so TalkBack wouldn't read it. A real app bug: the route blocked the
+   semantics of what was painted before it. Fixed in `b3d3b2f`, with a widget test.
+2. **s6 expected the old behaviour.** The CHO taps Call and SMS while offline, so with B2 the
+   server now holds the referral and asks "Still needs transport?" instead of dispatching. The
+   test now checks that, answers Send now, and then queues a second referral with no Call or SMS
+   to check the screen moves on to drivers notified by itself (A4).
+3. **The banner tests never saw the catalog warning.** The harness "restarted" the app by
+   calling `main()` again, which kept Home's state. It now unmounts the app first.
+
+### Bugs from the original pass
+
+| Original bug | Batch 5 | On the emulators now |
+|---|---|---|
+| B2. Analysis blocks the main thread; ANR | A1, `cb946d1` | Longest block 194 ms (API 34) and 148 ms (API 24), against 5,810 and 10,618 ms before. A tap one second in is handled. No ANR in 6 probe runs per AVD, where API 34 had 7 in 8 |
+| B3. Banners push Emergency Referral off Home | A2, `f548e70` | Fully visible and tappable with every warning, open and closed, at 320 dp and native size on both |
+| B4. OPERA-CE "isn't installed" | A5, `bbafabe` | Not bundled; says "OPERA-CE is not included in this build" |
+| B5. Queued screen stale after an automatic send | A4, `cd9985a` | Follows the send to drivers notified, or to the question |
+| B6. Raw exception on the dispatch screen | A4 | Plain message with Call and SMS (s8) |
+| B7. Release defaults to development | A3, `25538ec`, `b3d3b2f` | A plain release refuses to build; the test release is labelled on every screen |
+| B8. 96.6 MiB APK | A5 | 25.1–33.6 MB per ABI; no OPERA-CE file |
+| B10. Raw microphone error | A4 | "Microphone permission is off." with the way to fix it |
+| B1 (build fix), B9, B11, B12 | not in batch 5 | Unchanged |
+
+### A1: responsiveness
+
+Test: `integration_test/s10_responsive_test.dart`, debug build, a full 15 s capture through the
+real YAMNet, with a spinner on screen, a 10 ms timer on the main isolate, and a tap one second in.
+The control runs the same screen, timer and tap without inference.
+
+| | API 34 | API 24 |
+|---|---|---|
+| Longest main-thread block, before A1 | 5,810 ms; tap not handled | 10,618 ms; tap not handled |
+| Longest main-thread block, after | **194 ms**; tap handled | **148 ms**; tap handled |
+| The control, no inference | 412 ms | 182 ms |
+| Frames drawn during analysis | 507 (18.8 per second) | 419 (32.2 per second) |
+| Analysis time with the spinner running | 26.9 s | 13.0 s |
+| Analysis time with nothing on screen (s1, 3 runs) | 5.5, 10.3, 6.8 s | 5.3–5.6 s |
+
+The remaining blocks are no longer than the control's, so they come from the test itself (frame
+pumps and the tap in a debug build), not inference. Analysis takes longer while the screen
+animates. These emulators render in software on the same CPU, which may explain it; only a phone
+can tell.
+
+### A2: Home with every warning
+
+`s9_home_banners_test.dart` raises all five warnings at once (failed, stale, expiring, retry, and
+a real stale catalog with the backend stopped), checks Emergency Referral with the banner closed
+and open, then taps it through the hit test and expects the referral form.
+
+| Screen | Usable height | Emergency Referral, closed and open |
+|---|---|---|
+| API 24, 320×568 dp | 24–520 dp | 96–160 dp |
+| API 24, 360×640 dp (native) | 24–592 dp | 96–160 dp |
+| API 34, 320×568 dp | 31–544 dp | 103–167 dp |
+| API 34, 411×914 dp (native) | 49–890 dp | 121–185 dp |
+
+It doesn't move when the banner opens or Home scrolls. Cosmetic: with the banner open, its
+header repeats the first card's title.
+
+![320 dp, closed](screenshots/b5_api24_320dp_banners_closed.png) ![320 dp, open](screenshots/b5_api24_320dp_banners_open.png) ![360 dp, closed](screenshots/b5_api24_360dp_banners_closed.png)
+
+### A3 and A5: release build
+
+- **Refused:** a release with no settings stops with "Refusing to build a release without
+  production settings", listing `APP_ENV`, `API_BASE_URL` and `API_KEY`.
+- **Test release** (`YOMA_TEST_RELEASE=true`, `http://10.0.2.2:8000`): red label on every
+  screen, read by the accessibility tree. Mic denied → INCONCLUSIVE; mic allowed → INCONCLUSIVE
+  from YAMNet. Demo strings absent from the compiled Dart.
+- **Sizes**, built with `--split-per-abi` and as a bundle:
+
+| Output | Bytes |
+|---|---|
+| `app-arm64-v8a-release.apk` | 30,101,519 |
+| `app-armeabi-v7a-release.apk` | 25,127,819 |
+| `app-x86_64-release.apk` | 33,603,765 |
+| `app-release.aab` | 64,285,672 |
+| Before: one APK | 101,275,955 |
+
+  No `opera_ce_*` file is in any of them. The largest entries left in the x86_64 APK are
+  `libflutter.so` 12.3 MB, the compiled Dart 5.9 MB, the TFLite runtime 5.0 MB, YAMNet 3.9 MB and
+  the unused TFLite GPU library 3.8 MB.
+
+![Labelled test release](screenshots/b5_api34_s2_release_home_labelled.png)
+
+### A4 and B2: scenario 6
+
+- Offline, the referral queues; Call and SMS open the dialler and Messages with the right number
+  and text, and no patient name.
+- When signal returns, nothing is tapped. The queue sends; the server stores the referral as
+  `AWAITING_CONFIRMATION` with no dispatch, because the CHO used Call or SMS (B2). The queued
+  screen moves to "Still needs transport?", which says "You used Call or SMS for this referral."
+  with Already handled chosen.
+- Send now dispatches, and the screen shows TIER1_NOTIFIED.
+- A second referral, queued offline with no Call or SMS, dispatches when signal returns, and the
+  queued screen moves on to TIER1_NOTIFIED by itself (A4).
+
+![Question after Call or SMS](screenshots/b5_api24_s6_manual_contact_question.png) ![Dispatched by itself](screenshots/b5_api24_s6_dispatched_by_itself.png)
+
+### Timings (full pass)
+
+| Measure | API 34 | API 24 |
+|---|---|---|
+| Cold start to first frame, release, 5 runs | median 1,738 ms | median 1,175 ms |
+| Cold start to Home visible, release (upper bound) | median 4,341 ms | median 2,946 ms |
+| Confirm → TIER1_NOTIFIED, release (upper bound) | median 3,375 ms | median 1,805 ms |
+| YAMNet load | 658 ms | 282 ms |
+| Stale prompt after reconnect | 137 ms | 137 ms |
+| Restart → TIER2 on screen | 7,620 ms | 6,801 ms |
+
+API 34 had 3 GB this time, against 4 GB in the original pass, which may explain its slower
+YAMNet load and its outlier capture time.
+
+---
+
+# Original pass (`test/emulator-pass`)
+
 Date: 2026-11-07. Base: `origin/main` at `9fe1d01` (batches 3 and 4 merged). Branch: `test/emulator-pass`.
 
 This pass added only tests, a runner script, this document and screenshots. One line of build
 config was added to fix a release-build failure: see [B1](#b1-release-build-fails-on-main-fixed-here-one-line).
-App behaviour is unchanged. Every other bug below is recorded for a later batch.
+App behaviour was unchanged. Every other bug below was recorded for a later batch, and batch 5
+fixed B2–B8 and B10 (see [the table above](#bugs-from-the-original-pass)).
 
 ## Summary
 
@@ -39,7 +192,7 @@ using software rendering (`-gpu swiftshader_indirect`).
 
 | AVD | Image | RAM | Screen | Notes |
 |-----|-------|-----|--------|-------|
-| `yoma_api34` | Pixel 6 profile, Android 14 (API 34) google_apis x86_64 | 4 GB, 4 cores | 1080×2400 at 420 dpi (411×914 dp) | Created with 2.5 GB, which gave a System UI ANR at boot; raised to 4 GB. |
+| `yoma_api34` | Pixel 6 profile, Android 14 (API 34) google_apis x86_64 | 4 GB, 4 cores (3 GB in the batch 5 rerun, set by the runner, so the host doesn't run out of memory) | 1080×2400 at 420 dpi (411×914 dp) | Created with 2.5 GB, which gave a System UI ANR at boot; raised to 4 GB. |
 | `yoma_api24_2gb` | Nexus 5 profile, Android 7.0 (API 24) google_apis x86_64 | 2 GB (2,049,864 kB) | 1080×1920 at 480 dpi (360×640 dp) | |
 
 Small-screen profile (scenario 9): `wm size 640x1136` and `wm density 320`, which gives 320×568 dp.
@@ -55,14 +208,16 @@ Africa's Talking traffic was sent.
 ## How to rerun
 
 ```bash
-python3 scripts/run_emulator_pass.py                       # everything, both AVDs (~50 min)
+python3 scripts/run_emulator_pass.py                       # everything, both AVDs (~1 h 40 min)
 python3 scripts/run_emulator_pass.py --avd yoma_api34 --scenarios 4 6
 python3 scripts/run_emulator_pass.py --scenarios 9          # 320 dp, screens 3–7 and the banner test
 ```
 
 Options:
-- `--scenarios` takes `1`–`9`, `banners` (320 dp), `banners_native` (the device's own size),
-  `timings`, or an integration test file name.
+- `--scenarios` takes `1`–`9`, `responsive` (A1), `banners` (320 dp), `banners_native` (the
+  device's own size), `timings`, or an integration test file name.
+- The release is built first, before any emulator boots, and Gradle is stopped before each
+  boot, so the two never share the host's memory.
 - `--keep-running` leaves the emulators up.
 
 Output goes to `mobile/build/emulator_pass/<avd>/`: `results.json`, one log per test, the
@@ -522,6 +677,7 @@ The pass ran against mock SMS only. Still to check with a sandbox or a live acco
   - `s7_stale_test.dart`
   - `s8_restart_test.dart`
   - `s9_home_banners_test.dart`
+  - `s10_responsive_test.dart` (added in batch 5)
   - `support/harness.dart`
 - `scripts/run_emulator_pass.py`: the one-command runner.
 - `mobile/pubspec.yaml`: adds `integration_test` (Flutter SDK) as a dev dependency.

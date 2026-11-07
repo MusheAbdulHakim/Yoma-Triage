@@ -5,9 +5,9 @@
 | Field | Value |
 |-------|-------|
 | **Document Title** | Yoma Triage: Intelligent Clinical Triage, Edge Computing Decision Support, and Resilient Multi-Channel Emergency Referral Orchestration Platform for Northern Ghana |
-| **Version** | 2.2 |
-| **Date** | 6 November 2026 |
-| **Status** | Working spec, kept in step with the code (branch `fix/batch-3`) |
+| **Version** | 2.3 |
+| **Date** | 7 November 2026 |
+| **Status** | Working spec, kept in step with the code (branch `fix/batch-5`) |
 | **Classification** | Internal / Hackathon Submission / Developer Reference |
 
 ## Reading This Document
@@ -948,9 +948,10 @@ When the system can't help, the CHO can still reach people (Principle 9).
 A referral that waited for hours shouldn't send a driver to a patient who has already left.
 
 - The app sends how long the referral waited (`queue_age_seconds`), measured with the phone's own clock and never as a timestamp. A clock set backwards reads as zero, so that referral dispatches at once.
-- A referral older than `STALE_AFTER_MINUTES` (placeholder 20) is stored as AWAITING_CONFIRMATION and nobody is told.
+- A referral older than `STALE_AFTER_MINUTES` (placeholder 20) is stored as AWAITING_CONFIRMATION and nobody is told. So is one, of any age, whose Call or SMS button the CHO tapped while it waited (`manual_contact`), because transport may already be coming.
 - The app asks "Still needs transport?" with Send now, Already handled and Cancel. If the CHO tapped Call or SMS for this referral, it starts on Already handled.
-- A CHO can cancel an active dispatch. This stops the cascade and late claims, and tells an accepted driver and the hospital. Before a driver accepts, neither has been told anything to stand down from, so no notice goes out. A completed dispatch can't be cancelled. The mock stipend ledger entry stays.
+- An AWAITING_CONFIRMATION referral nobody answers is closed after `EXPIRE_UNCONFIRMED_HOURS` (placeholder 24) on the server, as EXPIRED_UNCONFIRMED, by the cascade worker, with an audit row. An answer after that gets `REFERRAL_EXPIRED`; for Send now, the app says plainly that drivers were not told.
+- A CHO can cancel an active dispatch. This stops the cascade and late claims, and tells an accepted driver and the hospital. Before a driver accepts, neither has been told anything to stand down from, so no notice goes out. A completed dispatch can't be cancelled. The mock stipend ledger entry stays, marked CANCELLED.
 - A failed referral can be marked handled, which deletes the local record. Unsent, stale and failed records are deleted after `LOCAL_RECORD_TTL_HOURS` (placeholder 72), and only once the CHO has had `LOCAL_RECORD_WARNING_HOURS` (placeholder 12) of notice.
 - A refusal counts as final only if it carries a code defined in `src/api/errors.py`. Anything else, such as a captive portal's 401 or 403, keeps the referral and retries with a visible warning.
 
@@ -1313,6 +1314,10 @@ dependencies:
 - `offline_queue.dart` — Queues referrals when network unavailable
 
 **Architecture decision: Backend-mediated dispatch.** The mobile app never calls Africa's Talking directly. All SMS, Voice, and USSD interactions are handled by the backend. This centralizes state management, ensures the dispatch cascade is tracked in the database, and allows offline queueing to work correctly.
+
+**Responsiveness:** model inference runs in a background isolate, never on the main thread, so the screen keeps drawing and answering taps during analysis. The CHO can cancel it.
+
+**Release builds fail closed:** a release must be built with `APP_ENV=production`, an `https://` `API_BASE_URL` and an `API_KEY`, or it refuses to build, and refuses to start if one slips through. A release for a test server must say `YOMA_TEST_RELEASE=true` and is labelled on every screen. See `docs/deploy-environments.md`.
 
 **Offline behavior:**
 - AI inference runs entirely on-device (no network required)
