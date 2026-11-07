@@ -11,7 +11,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src.api.deps import require_webhook_secret
 from src.db.database import get_db
 from src.db.models import Dispatch, DispatchLog, Driver, Facility, Referral
-from src.services.outbox import enqueue_cho_update, enqueue_sms
+from src.services.dispatch_orchestrator import DispatchOrchestrator, DiversionError
+from src.services.outbox import enqueue_sms
 from src.utils.phones import normalize_ghana_phone
 
 router = APIRouter(prefix="/api/v1/sms", tags=["SMS Gateway"])
@@ -260,52 +261,25 @@ async def process_inbound_sms(
 
     # DIVERT
     dispatch = await _find_dispatch_for_sender(session, sender, dispatch_id)
-    referral = await session.get(Referral, dispatch.referral_id)
-    if not referral:
-        raise ValueError("Referral not found")
     await _assert_sender_authorized(session, sender, dispatch)
-    if dispatch.status not in ELIGIBLE_STATUSES:
-        raise ValueError("Hospital command not available for this dispatch status")
-
-    destination = await session.get(Facility, facility_id)
-    if not destination:
-        raise ValueError("Destination facility not found")
-    driver = await session.get(Driver, dispatch.driver_id) if dispatch.driver_id else None
-
-    referral.facility_id = destination.id
-    dispatch.facility_id = destination.id
-    dispatch.status = "DIVERTED"
-    session.add(
-        DispatchLog(
-            dispatch_id=dispatch.id,
-            action="hospital_divert",
-            target_phone=sender,
-            target_role="hospital",
-            response="DIVERTED",
-            metadata_json={"destination_facility_id": destination.id, "text": text},
-        )
-    )
-
-    message = (
-        f"Yoma Triage diversion: referral #{referral.id} destination changed to "
-        f"{destination.name}."
-    )
-    if driver:
-        enqueue_sms(
+    assert facility_id is not None
+    try:
+        dispatch = await DispatchOrchestrator().divert(
             session,
-            recipient=driver.phone,
-            body=message,
-            purpose="divert_driver",
-            dispatch_id=dispatch.id,
+            dispatch.id,
+            facility_id,
+            actor_phone=sender,
+            actor_role="hospital",
+            text=text,
         )
-    await enqueue_cho_update(
-        session, referral, body=message, purpose="divert_cho", dispatch_id=dispatch.id
-    )
+    except DiversionError as exc:
+        await session.rollback()
+        raise ValueError(str(exc)) from exc
     await session.commit()
     return {
         "status": "DIVERTED",
         "dispatch_id": dispatch.id,
-        "facility_id": destination.id,
+        "facility_id": dispatch.facility_id,
     }
 
 

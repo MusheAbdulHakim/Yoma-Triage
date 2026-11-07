@@ -11,6 +11,7 @@ ACTIVE_DISPATCH_STATUSES = frozenset(
         "ACCEPTED",
         "HOSPITAL_NOTIFIED",
         "HOSPITAL_CONFIRMED",
+        "DIVERTED",  # legacy rows only; see LEGACY_DIVERTED
     }
 )
 

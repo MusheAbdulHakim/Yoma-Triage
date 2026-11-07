@@ -75,8 +75,9 @@ async def test_full_flow_accept_confirm_and_divert(
     assert divert.json()["status"] == "DIVERTED"
     assert divert.json()["facility_id"] == 2
 
+    # BUG-5: the trip carries on, now waiting on the new facility.
     diverted = await client.get(f"/api/v1/dispatch/{dispatch2_id}")
-    assert diverted.json()["status"] == "DIVERTED"
+    assert diverted.json()["status"] == "HOSPITAL_NOTIFIED"
     assert diverted.json()["facility_id"] == 2
 
     referral = await client.get(f"/api/v1/referral/{referral_id}")

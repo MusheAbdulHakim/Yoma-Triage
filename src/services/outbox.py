@@ -55,6 +55,7 @@ PURPOSES = {
     "cho_arrival": Purpose("cho", "cho_arrival_notify", "cho_arrival_notify_failed"),
     "cho_late_accept": Purpose("cho", "cho_late_accept_notify", "cho_late_accept_notify_failed"),
     "divert_driver": Purpose("driver", "divert_notify", "divert_notify_failed"),
+    "divert_old_hospital": Purpose("hospital", "divert_notify", "divert_notify_failed"),
     "cancel_driver": Purpose("driver", "cancel_notify", "cancel_notify_failed"),
     "cancel_hospital": Purpose("hospital", "cancel_notify", "cancel_notify_failed"),
     "divert_cho": Purpose("cho", "divert_notify", "divert_notify_failed"),

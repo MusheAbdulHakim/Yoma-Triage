@@ -13,6 +13,8 @@ class HospitalNotifier:
         driver: Driver,
         facility: Facility,
         dispatch_id: int,
+        *,
+        diverted_from: str | None = None,
     ) -> None:
         """Queue the pre-arrival SMS in the caller's transaction."""
         token = referral.patient_hash[:12]
@@ -22,8 +24,10 @@ class HospitalNotifier:
             not_measured = "Vitals not taken\n"
         else:
             not_measured = f"Not measured: {', '.join(missing)}\n" if missing else ""
+        diverted = f"DIVERTED here from {diverted_from}\n" if diverted_from else ""
         message = (
             "YOMA TRIAGE EMERGENCY REFERRAL\n"
+            f"{diverted}"
             f"From compound #{referral.chps_compound_id}\n"
             f"Patient token: {token}\n"
             f"Condition: {referral.emergency_type}\n"

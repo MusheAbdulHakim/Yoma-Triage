@@ -1,13 +1,11 @@
 """Africa's Talking inbound SMS form webhook + bare CONFIRM replies."""
 from __future__ import annotations
 
-from unittest.mock import AsyncMock, MagicMock
-
 import pytest
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.db.models import Dispatch, Referral
-from tests.conftest import added_sms, queued_sms
+from tests.conftest import queued_sms
 
 
 @pytest.mark.asyncio
@@ -102,42 +100,6 @@ async def test_parse_confirmed_alias():
     assert _parse_command("confirmed") == ("CONFIRM", None, None)
     assert _parse_command("CONFIRM 9") == ("CONFIRM", 9, None)
     assert _parse_command("DIVERT 9 2") == ("DIVERT", 9, 2)
-
-
-@pytest.mark.asyncio
-async def test_divert_updates_destination_and_notifies(monkeypatch):
-    from src.api import sms_webhook
-
-    dispatch = MagicMock(id=11, referral_id=21, facility_id=1, status="ACCEPTED", driver_id=3)
-    referral = MagicMock(id=21, facility_id=1, patient_name="Ama", chps_compound_id=1, cho_id=1)
-    current_facility = MagicMock(id=1, phone="020 000 0001")
-    destination = MagicMock(id=2, phone="+233200000002", name="Alt Hospital")
-    sender = MagicMock(phone="+233200000001", active=True, compound_id=1)
-    driver = MagicMock(phone="+233200000003")
-    session = MagicMock()
-    session.get = AsyncMock(
-        side_effect=[
-            dispatch,  # find by id
-            referral,
-            current_facility,  # auth facility
-            destination,
-            driver,
-            sender,
-        ]
-    )
-    session.add = MagicMock()
-    session.commit = AsyncMock()
-
-    result = await sms_webhook.process_inbound_sms(
-        session, "+233 200 000 001", "DIVERT 11 2"
-    )
-
-    assert result["status"] == "DIVERTED"
-    assert referral.facility_id == 2
-    assert dispatch.status == "DIVERTED"
-    sms = added_sms(session)
-    assert {message.purpose for message in sms} == {"divert_driver", "divert_cho"}
-    assert all("Alt Hospital" in message.body or message.body for message in sms)
 
 
 @pytest.mark.asyncio

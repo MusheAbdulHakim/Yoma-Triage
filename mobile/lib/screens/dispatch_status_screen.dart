@@ -46,6 +46,10 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   String _detail = 'Waiting for dispatch…';
   String? _driverName;
   int? _etaMinutes;
+
+  /// Where the patient is going now, and where a hospital diverted them from.
+  String? _facilityName;
+  String? _divertedFrom;
   bool _terminal = false;
   bool _disposed = false;
   int _pollSeconds = 2;
@@ -60,7 +64,8 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
 
   bool _cancelling = false;
 
-  static const _terminalStates = {'COMPLETED', 'FAILED', 'DIVERTED', 'CANCELLED'};
+  /// A diversion only changes the destination, so the screen keeps following the trip.
+  static const _terminalStates = {'COMPLETED', 'FAILED', 'CANCELLED'};
 
   bool get _canCancel =>
       _dispatchId != null && _status != 'COMPLETED' && _status != 'CANCELLED';
@@ -141,6 +146,8 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       final status = (data['status'] as String?) ?? 'UNKNOWN';
       final driverName = data['driver_name'] as String?;
       final facilityId = data['facility_id'];
+      final facilityName = data['facility_name'] as String?;
+      final divertedFrom = data['diverted_from'] as String?;
       final etaRaw = data['eta_minutes'];
       final eta = etaRaw is int
           ? etaRaw
@@ -151,6 +158,8 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
         _unreachable = false;
         _status = status;
         if (facilityId is int) _facilityId = facilityId;
+        _facilityName = facilityName;
+        _divertedFrom = divertedFrom;
         _driverName = driverName;
         _etaMinutes = eta;
         final parts = <String>[
@@ -286,6 +295,24 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
                 fontWeight: FontWeight.w600,
                 color: YomaColors.brand,
               ),
+            ),
+          ],
+          if (_facilityName != null) ...[
+            const SizedBox(height: 12),
+            Text(
+              'Going to: $_facilityName',
+              key: const Key('dispatch_destination'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
+          ],
+          if (_divertedFrom != null) ...[
+            const SizedBox(height: 4),
+            Text(
+              'Diverted from $_divertedFrom by the hospital',
+              key: const Key('dispatch_diverted'),
+              textAlign: TextAlign.center,
+              style: const TextStyle(color: YomaColors.danger),
             ),
           ],
           const SizedBox(height: 8),

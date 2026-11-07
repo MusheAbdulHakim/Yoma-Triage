@@ -36,8 +36,13 @@ logger = logging.getLogger(__name__)
 CLAIMABLE = {"PENDING", "TIER1_NOTIFIED", "TIER2_NOTIFIED"}
 # A notified driver may still claim after the cascade gives up, within a time window.
 ACCEPT_ELIGIBLE = CLAIMABLE | {"FAILED"}
-ASSIGNED = {"ACCEPTED", "HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
-ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
+# Before batch 6 a diversion set this status and stranded the trip. Nothing sets it now;
+# rows that already have it are treated as an assigned trip, so they can still finish.
+LEGACY_DIVERTED = "DIVERTED"
+ASSIGNED = {"ACCEPTED", "HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED", LEGACY_DIVERTED}
+ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED", LEGACY_DIVERTED}
+# A hospital may send the patient elsewhere until they arrive, even after confirming.
+DIVERTABLE = ASSIGNED
 CANCELLED = "CANCELLED"
 NOT_CANCELLABLE = {"COMPLETED"}
 NEXT_ACTION_TIER_TIMEOUT = "tier_timeout"
@@ -47,6 +52,10 @@ ACCEPTED_REPLY = "END Accepted! Proceed to CHPS. (Fuel stipend: mock ledger unti
 
 # A stipend ledger entry for a dispatch the CHO cancelled. The row is kept.
 STIPEND_CANCELLED = "CANCELLED"
+
+class DiversionError(ValueError):
+    """A diversion that can't happen. The message is safe to send back by SMS."""
+
 
 class DispatchNotCancellableError(Exception):
     def __init__(self, status: str) -> None:
@@ -424,6 +433,105 @@ class DispatchOrchestrator:
         )
         return "END Arrival confirmed. Referral complete."
 
+    async def divert(
+        self,
+        session: AsyncSession,
+        dispatch_id: int,
+        destination_id: int,
+        *,
+        actor_phone: str,
+        actor_role: str,
+        text: str,
+    ) -> Dispatch:
+        """Change where the patient is going. The trip carries on to the new facility.
+
+        Everyone who acts on the destination hears in the same transaction: the new
+        facility gets the pre-arrival notice, the old one is told not to expect the
+        patient, and the driver and the CHO get the new destination.
+        """
+        dispatch: Dispatch | None = await session.scalar(_locked_dispatch(dispatch_id))
+        if dispatch is None:
+            raise DiversionError("Dispatch not found")
+        if dispatch.status not in DIVERTABLE or dispatch.driver_id is None:
+            raise DiversionError(
+                f"Referral can't be diverted now (status {dispatch.status})."
+            )
+        destination = await session.get(Facility, destination_id)
+        if destination is None:
+            raise DiversionError("Unknown facility")
+        if destination.id == dispatch.facility_id:
+            raise DiversionError(f"The patient is already going to {destination.name}.")
+
+        referral = await session.get_one(Referral, dispatch.referral_id)
+        origin = await session.get_one(Facility, dispatch.facility_id)
+        driver = await session.get_one(Driver, dispatch.driver_id)
+
+        referral.facility_id = destination.id
+        dispatch.facility_id = destination.id
+        # Waiting on the new facility's CONFIRM, as after the first notice.
+        dispatch.status = "HOSPITAL_NOTIFIED"
+        self._set_next_action(dispatch)
+        session.add(
+            DispatchLog(
+                dispatch_id=dispatch.id,
+                action="hospital_divert",
+                target_phone=actor_phone,
+                target_role=actor_role,
+                response="DIVERTED",
+                metadata_json={
+                    "from_facility_id": origin.id,
+                    "destination_facility_id": destination.id,
+                    "text": text,
+                },
+            )
+        )
+        await self._cancel_waiting_pre_arrival(session, dispatch.id, origin.phone)
+
+        self.hospital.notify_pre_arrival(
+            session, referral, driver, destination, dispatch.id, diverted_from=origin.name
+        )
+        enqueue_sms(
+            session,
+            recipient=origin.phone,
+            body=(
+                f"Yoma Triage: Referral #{referral.id} diverted to {destination.name}. "
+                "Do not expect this patient."
+            ),
+            purpose="divert_old_hospital",
+            dispatch_id=dispatch.id,
+        )
+        message = (
+            f"Yoma Triage diversion: referral #{referral.id} destination changed to "
+            f"{destination.name}."
+        )
+        enqueue_sms(
+            session,
+            recipient=driver.phone,
+            body=f"{message} Take the patient there.",
+            purpose="divert_driver",
+            dispatch_id=dispatch.id,
+        )
+        await enqueue_cho_update(
+            session, referral, body=message, purpose="divert_cho", dispatch_id=dispatch.id
+        )
+        return dispatch
+
+    @staticmethod
+    async def _cancel_waiting_pre_arrival(
+        session: AsyncSession, dispatch_id: int, phone: str | None = None
+    ) -> None:
+        """A notice not yet sent, to a facility that should no longer expect the patient."""
+        query = select(OutboundMessage).where(
+            OutboundMessage.dispatch_id == dispatch_id,
+            OutboundMessage.purpose == "hospital_pre_arrival",
+            OutboundMessage.status == MESSAGE_PENDING,
+        )
+        if phone is not None:
+            query = query.where(OutboundMessage.recipient == phone)
+        for message in await session.scalars(query):
+            message.status = MESSAGE_CANCELLED
+            message.next_attempt_at = None
+
     async def cancel_dispatch(
         self, session: AsyncSession, dispatch_id: int, cho_id: int
     ) -> Dispatch:
@@ -467,16 +575,7 @@ class DispatchOrchestrator:
             purpose="cancel_driver",
             dispatch_id=dispatch.id,
         )
-        waiting = await session.scalars(
-            select(OutboundMessage).where(
-                OutboundMessage.dispatch_id == dispatch.id,
-                OutboundMessage.purpose == "hospital_pre_arrival",
-                OutboundMessage.status == MESSAGE_PENDING,
-            )
-        )
-        for message in waiting:
-            message.status = MESSAGE_CANCELLED
-            message.next_attempt_at = None
+        await self._cancel_waiting_pre_arrival(session, dispatch.id)
         facility = await session.get_one(Facility, dispatch.facility_id)
         enqueue_sms(
             session,
