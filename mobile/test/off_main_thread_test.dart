@@ -52,6 +52,36 @@ class _SlowClassifier implements YamnetClassifier {
   Future<void> dispose() async {}
 }
 
+/// Stopping takes as long as the test says.
+class _SlowStopRecorder implements AudioRecorderService {
+  final stopped = Completer<Uint8List>();
+
+  @override
+  Future<void> start() async {}
+
+  @override
+  Future<Uint8List> stop() => stopped.future;
+
+  @override
+  Future<void> dispose() async {}
+}
+
+class _CountingClassifier implements YamnetClassifier {
+  var calls = 0;
+
+  @override
+  Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async {
+    calls++;
+    return unavailableResult();
+  }
+
+  @override
+  void cancel() {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
 class _FakeRecorder implements AudioRecorderService {
   @override
   Future<void> start() async {}
@@ -222,6 +252,20 @@ void main() {
   });
 
   group('ScreeningService cancel', () {
+    test('a cancel while recording is still stopping never starts the model', () async {
+      final recorder = _SlowStopRecorder();
+      final classifier = _CountingClassifier();
+      final service = ScreeningService(classifier: classifier, recorder: recorder);
+      final analysis = service.stopAndClassify();
+      await Future<void>.delayed(Duration.zero);
+      service.cancelAnalysis();
+      recorder.stopped.complete(_pcm(16000));
+
+      final result = await analysis;
+      expect(result.source, 'cancelled');
+      expect(classifier.calls, 0, reason: 'the model must not run after Cancel');
+    }, skip: ScreeningConfig.moewsOnly ? 'needs MOEWS_ONLY=false' : false);
+
     test('cancelling during analysis returns the cancelled result', () async {
       final classifier = _SlowClassifier();
       final service = ScreeningService(classifier: classifier, recorder: _FakeRecorder());
