@@ -59,7 +59,7 @@ Yoma Triage’s primary users are CHOs and Motor-King drivers, not families inst
 For frontline workers with limited literacy, the interface relies on:
 - High-contrast GREEN / YELLOW / RED risk cues rather than dense clinical text
 - Large touch targets and minimal typing
-- Numbered USSD menus (1 Accept, 2 Decline, 3 Confirm arrival) that work on basic phones
+- Numbered USSD menus that work on basic phones: open referrals picked by Ref number (accept or decline), confirm arrival, and availability (Available or Off duty)
 - Plain-language reasons for MOEWS alerts (which vitals triggered the score)
 For families and caregivers, the current design does not require them to operate complex software. The CHO explains the referral decision face-to-face. Family autonomy is respected: if a household refuses transport, the refusal is documented and care continues without coercion.
 Local-language support is part of the product roadmap for Northern Ghana (Dagbani and related languages): voice/IVR notifications, simple graphics, and caregiver updates in spoken language. At hackathon stage, the live demo is English CHO UI plus USSD; Dagbani voice recordings and full caregiver IVR are planned next, not claimed as already shipped. The principle is voice-first and icon-led for households, and CHO-mediated explanation until those channels are validated with communities.
@@ -145,7 +145,7 @@ In a second terminal, run the end-to-end judge timeline:
 ./venv/bin/python scripts/demo_flow.py
 ```
 
-The demo drives `http://127.0.0.1:8000`, creates critical referrals, simulates Ibrahim accepting and declining via USSD, verifies mock MoMo and hospital notification audit logs, then demonstrates hospital `CONFIRM` and `DIVERT` commands.
+The demo drives `http://127.0.0.1:8000`, creates critical referrals, simulates Ibrahim accepting and declining via USSD, verifies mock MoMo and hospital notification audit logs, then demonstrates hospital `CONFIRM` and `DIVERT` replies, quoting the dispatch code, and a diversion followed through to arrival at the new facility.
 
 ## Flutter CHO app (Android · iOS · web)
 

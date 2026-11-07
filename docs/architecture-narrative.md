@@ -23,12 +23,13 @@ sequenceDiagram
     App->>API: POST /api/v1/referral (SHA-256 patient token)
     API->>API: MOEWS scoring (LangGraph clinical path)
     API->>AT: Tier-1 driver SMS cascade
-    Driver->>API: USSD *123# → Accept (1)
+    Driver->>API: USSD *123# → 1, Ref, 1 (accept that referral)
     API->>API: Mock MoMo fuel stipend (30%)
     API->>AT: Hospital pre-arrival SMS (patient token only)
-    Hospital->>API: SMS CONFIRM {dispatch_id}
-    Driver->>API: USSD → Confirm arrival (3)
-    API->>AT: CHO arrival notification
+    API->>AT: CHO SMS: driver, vehicle, phone
+    Hospital->>API: SMS CONFIRM {code}
+    Driver->>API: USSD → 2, 1 (confirm arrival)
+    API->>AT: CHO and hospital arrival notifications
     API->>App: Dispatch status COMPLETED
 ```
 
@@ -62,20 +63,23 @@ sequenceDiagram
 ### 5. Driver USSD menu
 
 ```
-Yoma Triage Emergency Referral
-1. Accept
-2. Decline
-3. Confirm arrival
+Yoma Triage (AVAILABLE)
+1. Open referrals (2)
+2. Confirm arrival
+3. Availability
 ```
 
-- Accept triggers mock **MoMo** fuel stipend logging (real MTN integration deferred; `MOMO_PRIMARY_KEY` empty = mock).
-- Decline escalates to the next tier after USSD response returns (non-blocking).
-- Arrival confirmation moves dispatch to `COMPLETED` and notifies the CHO.
+- Open referrals lists the driver's offers by Ref number. Typing a Ref shows its emergency, compound, destination and age, with 1 Accept and 2 Decline. Every action names its referral (`src/api/ussd.py` has the full map).
+- Accept marks the driver ON_TRIP, triggers mock **MoMo** fuel stipend logging (real MTN integration deferred; `MOMO_PRIMARY_KEY` empty = mock), and texts the CHO. An ON_TRIP driver is offered nothing else.
+- Decline escalates to the next tier once the tier has no one left to answer.
+- Arrival confirmation applies to the driver's own trip, moves the dispatch to `COMPLETED`, frees the driver, and notifies the CHO and the hospital.
+- Availability lets the driver go Available or Off duty.
 
 ### 6. Hospital SMS
 
 - Pre-arrival alert includes compound, condition, severity, driver name, and **patient token prefix** — never the patient's name.
-- Hospital replies `CONFIRM {dispatch_id}` or `DIVERT {dispatch_id} {facility_id}` via inbound SMS webhook.
+- The alert ends with a random four-digit code. Hospital replies `CONFIRM {code}` or `DIVERT {code} {facility_code}` via the inbound SMS webhook; the alert lists the three nearest facilities' codes. Only the destination facility's registered phone can act.
+- A diversion changes the destination; the trip carries on. The new facility gets the alert and a new code, and the old one is told not to expect the patient.
 
 ### 7. Messaging gateway
 

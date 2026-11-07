@@ -5,9 +5,9 @@
 | Field | Value |
 |-------|-------|
 | **Document Title** | Yoma Triage: Intelligent Clinical Triage, Edge Computing Decision Support, and Resilient Multi-Channel Emergency Referral Orchestration Platform for Northern Ghana |
-| **Version** | 2.3 |
+| **Version** | 2.4 |
 | **Date** | 7 November 2026 |
-| **Status** | Working spec, kept in step with the code (branch `fix/batch-5`) |
+| **Status** | Working spec, kept in step with the code (branch `fix/batch-6`) |
 | **Classification** | Internal / Hackathon Submission / Developer Reference |
 
 ## Reading This Document
@@ -25,8 +25,8 @@ This spec describes where the product is going, and notes state what exists toda
 | Offline manual fallback (Call and SMS buttons) | Built | §7.9 |
 | SMS cascade, surviving restarts | Built, SMS tiers only | §7.2.1, §10.8 |
 | Transactional SMS outbox | Built | §10.8 |
-| USSD accept, decline, arrival | Built | §7.2.2 |
-| Hospital pre-arrival SMS, CONFIRM, DIVERT | Built with gaps | §7.3 |
+| USSD accept, decline, arrival, availability | Built | §7.2.2, §7.2.3 |
+| Hospital pre-arrival SMS, CONFIRM, DIVERT, arrival SMS | Built; no reason or new ETA on DIVERT | §7.3 |
 | RAG and LLM | Removed from the request path, disabled | §10.9 |
 | Acoustic screening | Built, off by default, not validated, not confirmed on a device | §7.1.1 |
 | Voice calls and Dagbani | Not built | §7.5 |
@@ -719,7 +719,7 @@ T+450 seconds: No response → CHO notified: "No driver available — coordinate
 
 ### 7.2.2 Driver Response
 
-> **Status:** USSD offers Accept, Decline and Confirm arrival, and needs an exact 1, 2 or 3. **Not built:** the Delay option, and the CHO and patient SMS on accept (the CHO sees it in the app). A driver who was notified stays eligible while the dispatch is unclaimed. A claim after the cascade has failed is accepted for 45 minutes from dispatch start, and the CHO is told by SMS.
+> **Status:** the USSD root menu is 1 Open referrals, 2 Confirm arrival, 3 Availability. Open referrals lists the driver's offers by Ref number, oldest first; the driver types a Ref to see its emergency type, compound, destination and age, then 1 Accept or 2 Decline. Every action names its referral, never "the newest". Confirm arrival applies only to the driver's own trip. The offer SMS says which keys to press. Accepting sends the CHO who referred an SMS with the driver's name, vehicle and phone. **Not built:** the Delay option, and the patient SMS on accept. A driver who was notified stays eligible while the dispatch is unclaimed, including after declining. A claim after the cascade has failed is accepted for 45 minutes from dispatch start, and every CHO at the compound is told by SMS instead.
 
 Drivers respond via USSD:
 
@@ -750,7 +750,7 @@ Drivers respond via USSD:
 
 ### 7.2.3 Driver Pool Management
 
-> **Not built:** driver registration, adding and removing drivers from the app, and setting availability by USSD. Drivers are loaded by seed data, and availability can only be set through the API. Accepting does not mark a driver On Trip.
+> **Status:** accepting marks the driver On Trip; arrival or cancellation marks them Available again (a driver who went Off Duty mid-trip stays Off Duty). An On Trip driver gets no offers and can't claim another dispatch. Drivers set Available or Off Duty from the USSD Availability menu, or through the API; not while on a trip. Every change is in `audit_logs`. **Not built:** driver registration, and adding and removing drivers from the app. Drivers are loaded by seed data.
 
 **Registration:**
 - Motor-King drivers register at the CHPS compound with: name, phone, vehicle type, vehicle description, license plate (if any)
@@ -780,7 +780,7 @@ For personal emergency contacts:
 
 ### 7.3.1 Pre-Arrival Notification
 
-> **Status:** sent through the outbox when a driver accepts. It carries a patient token instead of the name, and has no age, ETA or AI screen. It lists any vitals not measured, or says "Vitals not taken".
+> **Status:** sent through the outbox when a driver accepts, and to the new facility after a diversion, marked as diverted. It carries a patient token instead of the name, and has no age, ETA or AI screen. It lists any vitals not measured, or says "Vitals not taken". It ends with the dispatch's four-digit code, how to reply, and the codes of the three nearest other facilities.
 
 When a driver accepts the dispatch, the system automatically sends an SMS to the receiving hospital:
 
@@ -799,7 +799,7 @@ Time: [Current time]
 
 ### 7.3.2 Hospital Confirmation
 
-> **Status:** CONFIRM works. DIVERT needs numeric IDs (`DIVERT <dispatch> <facility>`) and takes no reason. **Not built:** a new ETA, and notifying the new hospital. A driver's phone can currently send these commands, and a driver can't confirm arrival after a diversion.
+> **Status:** replies must quote the dispatch's code: `CONFIRM 4821`, `DIVERT 4821 7`, where 7 is a facility code from the notice. Only the registered phone of the facility the patient is going to can act; anyone else is told so, and the attempt is logged with their real role. Every mistake gets an SMS reply saying what was wrong. A diversion, also after CONFIRM, only changes the destination: the new facility gets the notice and a new code, the old one is told not to expect the patient, the driver and CHO get the new destination, and arrival at the new facility completes the trip. **Not built:** a reason on DIVERT, and a new ETA.
 
 The hospital receives the SMS and can reply:
 - `CONFIRM` — We are prepared for this patient
@@ -811,7 +811,7 @@ If DIVERT:
 
 ### 7.3.3 Arrival Confirmation
 
-> **Not built:** the confirmation SMS to the hospital. The CHO is told.
+> **Status:** built. Arrival is confirmed from the USSD menu (2, then 1). The CHO who referred and the facility the patient reached are both told by SMS. The patient is identified by token and referral number, never by name.
 
 When the driver arrives at the hospital:
 1. Driver dials `*XXX#` (USSD)
@@ -1782,7 +1782,7 @@ LESSON: The system degrades gracefully. CHO can always act manually.
 
 ## Journey 4: Hospital Rejects Referral
 
-> **Status:** the new hospital isn't notified automatically, and there is no new ETA (§7.3.2).
+> **Status:** the new hospital is notified automatically and the trip completes there; there is no reason or new ETA yet (§7.3.2).
 
 ```
 10:00 — CHO Fatima triggers referral for neonatal sepsis

@@ -52,12 +52,14 @@ Yoma Triage also accepts snake_case aliases for local demos.
 
 | `text` | Response |
 |--------|----------|
-| `""` (first dial) | `CON` menu: Accept / Decline / Confirm arrival |
-| `1` or `…*1` | Accept active dispatch → `END …` |
-| `2` or `…*2` | Decline → `END …` (escalate in background) |
-| `3` or `…*3` | Confirm arrival → `END …` |
+| `""` (first dial) | `CON` root: 1 Open referrals, 2 Confirm arrival, 3 Availability |
+| `1` | `CON` the driver's open referrals, by Ref number |
+| `1*<ref>` | `CON` that referral: emergency, compound, destination, age; 1 Accept, 2 Decline |
+| `1*<ref>*1` / `1*<ref>*2` | Accept / decline that referral → `END …` |
+| `2`, then `2*1` | The driver's own trip, then confirm arrival → `END …` |
+| `3`, then `3*1` / `3*2` | Availability, then Available / Off duty → `END …` |
 
-Heavy work (MoMo mock, hospital SMS) runs in FastAPI `BackgroundTasks` so the USSD reply stays under the 10s budget.
+`src/api/ussd.py` has the full map. No external call happens inside a USSD request: every SMS goes to the outbox, so the reply stays under the 10s budget.
 
 ### Smoke test
 
@@ -72,11 +74,11 @@ curl -X POST "${PUBLIC_BASE_URL}/ussd/callback" \
   -H "ngrok-skip-browser-warning: 1" \
   -d "sessionId=ATUid_test&serviceCode=%2A384%2A99193%23&phoneNumber=%2B233240000001&text="
 
-# Accept
+# Accept Ref 12 (1, then the Ref number, then 1; * is %2A)
 curl -X POST "${PUBLIC_BASE_URL}/ussd/callback" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -H "ngrok-skip-browser-warning: 1" \
-  -d "sessionId=ATUid_test&serviceCode=%2A384%2A99193%23&phoneNumber=%2B233240000001&text=1"
+  -d "sessionId=ATUid_test&serviceCode=%2A384%2A99193%23&phoneNumber=%2B233240000001&text=1%2A12%2A1"
 ```
 
 Set `AT_USSD_SERVICE_CODE` in `.env` to the same shortcode registered in AT (sandbox or production). Change production codes there — do not hardcode them in Python.
@@ -97,20 +99,21 @@ The handler accepts both form (AT) and JSON (local demos):
 
 | Client | Body | Success response | Failure response |
 |--------|------|------------------|------------------|
-| Africa’s Talking | `application/x-www-form-urlencoded` | plain `GOOD` (including “no open” / already confirmed after status SMS) | plain `BAD …` only for unparseable text |
-| curl / demos | JSON `{"from":"+233…","text":"CONFIRM 12"}` | JSON status payload | HTTP 4xx JSON |
+| Africa’s Talking | `application/x-www-form-urlencoded` | plain `GOOD`, for every reply it could read, including rejected ones | `BAD` only with no sender |
+| curl / demos | JSON `{"from":"+233…","text":"CONFIRM 4821"}` | JSON with `status` (`CONFIRMED`, `DIVERTED`, or why not) | HTTP 400 only with no sender |
 
-Bare `confirmed` with no open dispatch (or already confirmed / en route) sends a **status SMS back to the sender only**, then returns `GOOD` to AT.
+Every reply, accepted or not, gets an SMS back to the sender saying what happened.
 
 ### Accepted reply text
 
+The hospital's notice ends with the dispatch's four-digit code and the codes of the three nearest facilities.
+
 | Text | Meaning |
 |------|---------|
-| `confirmed` / `CONFIRM` / `YES` / `OK` | Confirm the latest open dispatch for this sender’s facility or driver phone |
-| `CONFIRM <dispatch_id>` | Confirm a specific dispatch |
-| `DIVERT <dispatch_id> <facility_id>` | Divert to another facility |
+| `CONFIRM <code>` (also `CONFIRMED`, `YES`, `OK`) | We are ready for this patient |
+| `DIVERT <code> <facility code>` | Send the patient to that facility instead; allowed until arrival |
 
-Eligible dispatch statuses: `ACCEPTED`, `HOSPITAL_NOTIFIED`.
+Only the registered phone of the facility the patient is going to can act. Other replies get: code missing (`NEED_CODE`), unknown code, not a referral for this number, unknown facility (with the list), or already confirmed / complete.
 
 ### Smoke test (replay AT form)
 
@@ -120,10 +123,10 @@ export PUBLIC_BASE_URL="$(curl -sS http://127.0.0.1:8000/ | python3 -c 'import s
 curl -X POST "${PUBLIC_BASE_URL}/api/v1/sms/inbound" \
   -H "Content-Type: application/x-www-form-urlencoded" \
   -H "ngrok-skip-browser-warning: 1" \
-  -d "linkId=test&text=confirmed&to=99193&id=msg-1&date=2026-07-27+17%3A41%3A41&from=%2B233542441933"
+  -d "linkId=test&text=CONFIRM+4821&to=99193&id=msg-1&date=2026-07-27+17%3A41%3A41&from=%2B233542441933"
 ```
 
-Expect `GOOD` when that MSISDN matches a facility or driver on an eligible open dispatch; otherwise `BAD No open dispatch found for this sender`.
+Expect `GOOD`, and an SMS back: "Confirmed …" when that MSISDN is the facility for the open dispatch with code 4821, otherwise the reason it wasn't.
 
 ## Outbound SMS
 
