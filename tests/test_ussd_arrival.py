@@ -1,4 +1,4 @@
-"""Driver arrival confirmation via USSD option 3."""
+"""Driver arrival confirmation via USSD (2, then 1)."""
 from __future__ import annotations
 
 import pytest
@@ -109,15 +109,14 @@ async def test_duplicate_arrival_is_idempotent(db_session, seeded_db):
 
 
 @pytest.mark.asyncio
-async def test_ussd_option_three_completes_dispatch(
+async def test_ussd_confirm_arrival_completes_dispatch(
     db_session, seeded_db, monkeypatch
 ):
     from src.api.ussd import process_ussd
 
     dispatch = await _seed_arrival_dispatch(db_session, status="HOSPITAL_CONFIRMED")
 
-    response = await process_ussd(db_session, "+233240000001", "3"
-    )
+    response = await process_ussd(db_session, "+233240000001", "2*1")
     await db_session.refresh(dispatch)
 
     assert b"Arrival confirmed" in response.body
@@ -125,17 +124,18 @@ async def test_ussd_option_three_completes_dispatch(
 
 
 @pytest.mark.asyncio
-async def test_ussd_option_three_rejects_unassigned_driver(
+async def test_ussd_confirm_arrival_ignores_another_drivers_trip(
     db_session, seeded_db, monkeypatch
 ):
     from src.api.ussd import process_ussd
 
-    await _seed_arrival_dispatch(db_session, status="HOSPITAL_CONFIRMED", driver_id=1)
+    dispatch = await _seed_arrival_dispatch(db_session, status="HOSPITAL_CONFIRMED", driver_id=1)
 
-    response = await process_ussd(db_session, "+233240000002", "3"
-    )
+    response = await process_ussd(db_session, "+233240000002", "2*1")
 
-    assert b"not assigned" in response.body.lower() or b"No active dispatch" in response.body
+    assert response.body == b"END You have no trip to confirm."
+    await db_session.refresh(dispatch)
+    assert dispatch.status == "HOSPITAL_CONFIRMED"
 
 
 @pytest.mark.asyncio

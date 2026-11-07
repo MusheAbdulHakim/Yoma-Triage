@@ -29,7 +29,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from src import parameters
 from src.config import settings
 from src.db.database import async_session
-from src.db.models import Cho, Dispatch, DispatchLog, OutboundMessage, Referral
+from src.db.models import Cho, Dispatch, DispatchLog, Driver, OutboundMessage, Referral
 from src.services.messaging_gateway import MessagingGateway
 
 logger = logging.getLogger(__name__)
@@ -289,13 +289,19 @@ class OutboxSender:
 
     @staticmethod
     async def _offer_is_stale(session: AsyncSession, row: OutboundMessage) -> bool:
-        """Don't tell a driver about an emergency someone else has already taken."""
+        """Don't offer an emergency someone has already taken, or to a driver who is now
+        on a trip or off duty."""
         if row.purpose != "driver_offer" or row.dispatch_id is None:
             return False
         from src.services.dispatch_orchestrator import ACCEPT_ELIGIBLE
 
         dispatch = await session.get(Dispatch, row.dispatch_id)
-        return dispatch is not None and dispatch.status not in ACCEPT_ELIGIBLE
+        if dispatch is not None and dispatch.status not in ACCEPT_ELIGIBLE:
+            return True
+        availability = await session.scalar(
+            select(Driver.availability).where(Driver.phone == row.recipient)
+        )
+        return availability is not None and availability != "AVAILABLE"
 
     async def _send(self, message: _Claimed) -> dict[str, Any]:
         """Runs with no transaction open and no row locked."""

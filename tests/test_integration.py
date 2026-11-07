@@ -28,7 +28,7 @@ async def test_full_flow_accept_confirm_and_divert(
             "session_id": "sess-1",
             "service_code": "*123#",
             "phone_number": "+233240000001",
-            "text": "1",
+            "text": f"1*{referral_id}*1",
         },
     )
     assert accept.status_code == 200
@@ -56,14 +56,16 @@ async def test_full_flow_accept_confirm_and_divert(
     create2 = await client.post("/api/v1/referral", json=payload2)
     assert create2.status_code == 201
     dispatch2_id = create2.json()["dispatch"]["id"]
+    referral2_id = create2.json()["referral"]["id"]
 
     accept2 = await client.post(
         "/ussd/callback",
         data={
             "session_id": "sess-2",
             "service_code": "*123#",
-            "phone_number": "+233240000001",
-            "text": "1",
+            # Driver 1 is on the first trip, so driver 2 takes this one.
+            "phone_number": "+233240000002",
+            "text": f"1*{referral2_id}*1",
         },
     )
     assert accept2.status_code == 200

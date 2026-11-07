@@ -17,7 +17,7 @@ def test_tier1_motor_king_offer_message():
     )
     assert "Motor-King" in msg
     assert "Ref #42" in msg
-    assert "*384*99193#" in msg
+    assert "Dial *384*99193# to ACCEPT: 1, then 42, then 1." in msg
     assert "CHPS #1" in msg
 
 
@@ -42,7 +42,7 @@ def test_offer_message_without_configured_code_keeps_generic_ussd():
         vehicle_label="Motor-King",
         ussd_code="",
     )
-    assert "Dial USSD to ACCEPT." in msg
+    assert "Dial USSD to ACCEPT: 1, then 7, then 1." in msg
 
 
 def test_tier3_cho_nas_escalation_message():
