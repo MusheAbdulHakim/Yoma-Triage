@@ -60,6 +60,7 @@ The first matching row applies. Only measured vitals are scored.
 | Shortest tier wait allowed in the field | 60 | seconds | Staging and production refuse to start below this | Engineering placeholder (batch 1) | |
 | Late-claim window | 45 | minutes | How long after dispatch start a notified driver can still claim a failed dispatch. `LATE_CLAIM_WINDOW_MINUTES` overrides it | Product owner (batch 2) | |
 | Stale queued referral | 20 | minutes | A referral that waited longer than this on the phone isn't dispatched until the CHO says it's still needed. `STALE_AFTER_MINUTES` overrides it | Engineering placeholder (batch 4) | |
+| Unanswered stale referral expires | 24 | hours | A stale referral the CHO hasn't answered is closed after this long on the server, as `EXPIRED_UNCONFIRMED`, with an audit row. Drivers were never told about it. `EXPIRE_UNCONFIRMED_HOURS` overrides it | Engineering placeholder (batch 5) | |
 | Cascade worker poll interval | 5 | seconds | How often overdue cascade steps are looked for, so a tier can run up to this much late. `WORKER_POLL_SECONDS` overrides it | Product owner (batch 2, B2) | |
 | SMS outbox poll interval | 2 | seconds | How often waiting SMS are sent, so an SMS can leave up to this much after its commit. `OUTBOX_POLL_SECONDS` overrides it | Engineering placeholder (batch 2, B3) | |
 | SMS send attempts before giving up | 5 | attempts | After this, the message is marked failed. If it was to a driver or hospital, the CHO is alerted | Engineering placeholder (batch 2, B3) | |

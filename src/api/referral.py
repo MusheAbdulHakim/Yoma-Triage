@@ -30,6 +30,7 @@ from src.db.models import (
     Referral,
 )
 from src.services.dispatch_orchestrator import DispatchNotCancellableError, DispatchOrchestrator
+from src.services.referral_expiry import EXPIRED_UNCONFIRMED
 from src.tools.clinical_summary import build_clinical_summary
 from src.tools.moews_calculator import missing_vitals, score_vitals
 from src.tools.sms_codec import encode_referral_payload_or_none
@@ -377,6 +378,14 @@ async def resolve_referral(
         if payload.action == "send_now":
             await DispatchOrchestrator().initiate_dispatch(session, referral.id)
         await session.commit()
+    elif referral.status == EXPIRED_UNCONFIRMED:
+        raise ApiError(
+            status.HTTP_409_CONFLICT,
+            errors.REFERRAL_EXPIRED,
+            f"This referral was closed after {settings.EXPIRE_UNCONFIRMED_HOURS:g} hours "
+            "without an answer. Drivers were not told. If transport is still needed, start "
+            "a new Emergency Referral or phone a driver now.",
+        )
     elif referral.status != outcome:
         raise ApiError(
             status.HTTP_409_CONFLICT,

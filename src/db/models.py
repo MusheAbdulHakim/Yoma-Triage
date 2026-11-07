@@ -76,7 +76,7 @@ class Referral(Base):
     risk_level: Mapped[str] = mapped_column(String(32), default="UNKNOWN")
     clinical_summary: Mapped[str | None] = mapped_column(Text, nullable=True)
     compressed_sms_payload: Mapped[str | None] = mapped_column(String(256), nullable=True)
-    # CONFIRMED|AWAITING_CONFIRMATION|MANUALLY_HANDLED|CANCELLED
+    # CONFIRMED|AWAITING_CONFIRMATION|MANUALLY_HANDLED|CANCELLED|EXPIRED_UNCONFIRMED
     status: Mapped[str] = mapped_column(String(32), default="CREATED")
     vitals_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     client_request_id: Mapped[str | None] = mapped_column(String(36), unique=True, nullable=True)

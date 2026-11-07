@@ -54,6 +54,10 @@ PLACEHOLDER_ETA_MINUTES = 30
 # A referral that waited longer than this on the phone isn't dispatched until the CHO says
 # it's still needed. STALE_AFTER_MINUTES can be overridden by an environment variable.
 STALE_AFTER_MINUTES = 20
+# A stale referral the CHO never answers is closed after this long on the server, as
+# EXPIRED_UNCONFIRMED, by the cascade worker. Drivers were never told about it.
+# EXPIRE_UNCONFIRMED_HOURS can be overridden by an environment variable.
+EXPIRE_UNCONFIRMED_HOURS = 24
 # How often the worker looks for overdue cascade steps. WORKER_POLL_SECONDS overrides it.
 WORKER_POLL_SECONDS = 5
 

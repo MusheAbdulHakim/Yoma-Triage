@@ -349,6 +349,65 @@ void main() {
     });
   });
 
+  group('a referral the server closed after waiting unanswered (B4)', () {
+    const expired = '{"detail":"This referral was closed after 24 hours without an answer. '
+        'Drivers were not told. If transport is still needed, start a new Emergency Referral '
+        'or phone a driver now.","code":"REFERRAL_EXPIRED"}';
+
+    Future<void> pumpExpired(WidgetTester tester) async {
+      useTallScreen(tester);
+      final api = _Server();
+      await tester.runAsync(() async {
+        await enqueueAged(const Duration(minutes: 30));
+        await queue.flush(api);
+      });
+      api.resolveError = ApiException(409, expired);
+      await tester.pumpWidget(
+        MaterialApp(home: StaleReferralScreen(queue: queue, api: api)),
+      );
+      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+    }
+
+    Future<void> choose(WidgetTester tester, String action) async {
+      await tester.tap(find.byKey(Key('stale_${action}_$_id')));
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('stale_confirm_$_id')));
+    }
+
+    testWidgets('Send now says drivers were not told, and waits to be read', (tester) async {
+      await pumpExpired(tester);
+      await choose(tester, 'send_now');
+      await pumpUntil(tester, find.byKey(const Key('stale_expired_message')));
+
+      expect(find.text('Drivers were not told'), findsOneWidget);
+      expect(find.textContaining('start a new Emergency Referral'), findsOneWidget);
+      // Still on this phone until the CHO has read it.
+      await tester.runAsync(() async {
+        expect(await queue.needsConfirmation(), hasLength(1));
+      });
+
+      await tester.tap(find.byKey(const Key('stale_expired_ok')));
+      await settle(tester);
+      await tester.runAsync(() async {
+        expect(await queue.needsConfirmation(), isEmpty);
+      });
+      expect(find.byType(DispatchStatusScreen), findsNothing);
+    });
+
+    for (final action in ['already_handled', 'cancel']) {
+      testWidgets('$action needs no message: nobody was told anyway', (tester) async {
+        await pumpExpired(tester);
+        await choose(tester, action);
+        await settle(tester);
+
+        expect(find.byKey(const Key('stale_expired_message')), findsNothing);
+        await tester.runAsync(() async {
+          expect(await queue.needsConfirmation(), isEmpty);
+        });
+      });
+    }
+  });
+
   group('how the prompt is reached', () {
     testWidgets('Home opens it when a stale referral arrives', (tester) async {
       useTallScreen(tester);

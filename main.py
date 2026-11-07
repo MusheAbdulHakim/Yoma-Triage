@@ -23,7 +23,15 @@ from src.config import settings
 from src.db.database import init_db
 from src.services.dispatch_orchestrator import DispatchOrchestrator
 from src.services.outbox import OutboxSender
+from src.services.referral_expiry import expire_unconfirmed_referrals
 from src.services.workers import run_worker_loop
+
+
+async def run_cascade_work() -> None:
+    """One poll of the cascade worker: overdue dispatch steps, then unanswered stale
+    referrals past EXPIRE_UNCONFIRMED_HOURS."""
+    await DispatchOrchestrator().process_due_dispatches()
+    await expire_unconfirmed_referrals()
 
 
 @asynccontextmanager
@@ -37,7 +45,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(
             run_worker_loop(
                 "cascade",
-                DispatchOrchestrator().process_due_dispatches,
+                run_cascade_work,
                 settings.WORKER_POLL_SECONDS,
                 stop_workers,
             )
