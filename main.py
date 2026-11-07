@@ -13,7 +13,9 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.catalog import router as catalog_router
+from src.api.cho import router as cho_router
 from src.api.driver import router as driver_router
+from src.api.errors import install_error_handlers
 from src.api.referral import router as referral_router
 from src.api.sms_webhook import router as sms_router
 from src.api.ussd import router as ussd_router
@@ -43,7 +45,7 @@ async def lifespan(app: FastAPI):
         asyncio.create_task(
             run_worker_loop(
                 "sms-outbox",
-                OutboxSender().run_once,
+                OutboxSender().drain,
                 settings.OUTBOX_POLL_SECONDS,
                 stop_workers,
             )
@@ -70,6 +72,7 @@ app = FastAPI(
     lifespan=lifespan,
     **_docs_urls,
 )
+install_error_handlers(app)
 
 app.add_middleware(
     CORSMiddleware,
@@ -85,6 +88,7 @@ app.include_router(referral_router)
 app.include_router(sms_router)
 app.include_router(driver_router)
 app.include_router(catalog_router)
+app.include_router(cho_router)
 
 
 @app.get("/")

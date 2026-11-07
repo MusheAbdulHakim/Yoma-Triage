@@ -10,6 +10,7 @@ import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
+import 'helpers/cho_helper.dart';
 
 /// Records what would be sent, then fails so the test ends on the queued screen
 /// rather than on the live-polling dispatch screen.
@@ -38,7 +39,7 @@ void main() {
     rootBundle.clear();
     dbDir = Directory.systemTemp.createTempSync('yoma_skip');
     addTearDown(() => dbDir.deleteSync(recursive: true));
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(registeredChoPrefs());
     api = _RecordingApi();
     queue = OfflineQueue(
       databaseFactoryOverride: databaseFactoryFfi,
@@ -125,7 +126,7 @@ void main() {
     await chooseType(tester);
 
     await tester.tap(find.byKey(_skip));
-    await tester.pump();
+    await pumpUntil(tester, find.byKey(const Key('referral_skip_error')));
 
     expect(
       find.text('Tap above to choose the receiving facility first'),
@@ -188,6 +189,7 @@ void main() {
         chpsCompoundId: 1,
         facilityId: 1,
         patientHash: 'h',
+        choPhone: '+233240000100',
         emergencyType: 'pph',
         vitals: const {},
         vitalsTaken: false,
@@ -205,6 +207,7 @@ void main() {
       chpsCompoundId: 1,
       facilityId: 1,
       patientHash: 'h',
+      choPhone: '+233240000100',
       emergencyType: 'pph',
       vitals: const {'systolic_bp': 120},
     ).toJson();

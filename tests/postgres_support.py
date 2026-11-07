@@ -27,7 +27,7 @@ from sqlalchemy.ext.asyncio import AsyncSession, async_sessionmaker, create_asyn
 from sqlalchemy.pool import NullPool
 
 from src.db.database import Base, get_db
-from src.db.models import CHPSCompound, Driver, Facility
+from src.db.models import Cho, CHPSCompound, Driver, Facility
 
 DRIVER_PHONES = {1: "+233240000001", 2: "+233240000002"}
 FALLBACK_DRIVER_ID = 3
@@ -119,6 +119,7 @@ async def pg_sessions(postgres_url, monkeypatch):  # noqa: F811
         session.add(CHPSCompound(id=1, name="CHPS", zone="Z", cho_phone=CHO_PHONE))
         session.add(Facility(id=1, name="Hospital", phone="+233240000200", district="D"))
         await session.flush()
+        session.add(Cho(name="CHO", phone=CHO_PHONE, compound_id=1))
         for driver_id, phone in DRIVER_PHONES.items():
             session.add(
                 Driver(

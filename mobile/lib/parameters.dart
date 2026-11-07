@@ -75,6 +75,9 @@ abstract final class Parameters {
   static const moewsRedTotal = 5;
   static const moewsYellowTotal = 3;
 
+  // Queue. A referral older than this waits for the CHO to say it's still needed.
+  static const staleAfterMinutes = 20;
+
   // Acoustic screening (app only).
   static const acousticRedAbove = 0.7;
   static const acousticInconclusiveBelow = 0.5;
@@ -86,6 +89,11 @@ abstract final class Parameters {
   static const deviceHeartRateMax = 250;
   static const deviceSpo2Min = 50;
   static const deviceSpo2Max = 100;
+
+  // Records on this phone. Unsent or refused referrals are deleted after the TTL, and
+  // only after the CHO has had at least the warning period's notice (app only).
+  static const localRecordTtlHours = 72;
+  static const localRecordWarningHours = 12;
 
   // Facility catalog (app only).
   static const catalogStaleAfterDays = 30;

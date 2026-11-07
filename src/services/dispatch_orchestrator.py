@@ -16,7 +16,6 @@ from src import parameters
 from src.config import settings
 from src.db.database import async_session
 from src.db.models import (
-    CHPSCompound,
     Dispatch,
     DispatchLog,
     Driver,
@@ -27,8 +26,10 @@ from src.db.models import (
 )
 from src.services.driver_pool import DriverPoolManager
 from src.services.hospital_notifier import HospitalNotifier
+from src.services.outbox import CANCELLED as MESSAGE_CANCELLED
 from src.services.outbox import FAILED as MESSAGE_FAILED
-from src.services.outbox import enqueue_sms
+from src.services.outbox import PENDING as MESSAGE_PENDING
+from src.services.outbox import enqueue_cho_alert, enqueue_cho_update, enqueue_sms
 
 logger = logging.getLogger(__name__)
 
@@ -37,9 +38,17 @@ CLAIMABLE = {"PENDING", "TIER1_NOTIFIED", "TIER2_NOTIFIED"}
 ACCEPT_ELIGIBLE = CLAIMABLE | {"FAILED"}
 ASSIGNED = {"ACCEPTED", "HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
 ARRIVAL_ELIGIBLE = {"HOSPITAL_NOTIFIED", "HOSPITAL_CONFIRMED"}
+CANCELLED = "CANCELLED"
+NOT_CANCELLABLE = {"COMPLETED"}
 NEXT_ACTION_TIER_TIMEOUT = "tier_timeout"
 FUEL_STIPEND_GHS = parameters.FUEL_STIPEND_GHS
 ACCEPTED_REPLY = "END Accepted! Proceed to CHPS. (Fuel stipend: mock ledger until MoMo is live.)"
+
+
+class DispatchNotCancellableError(Exception):
+    def __init__(self, status: str) -> None:
+        super().__init__(status)
+        self.status = status
 
 
 def _locked_dispatch(dispatch_id: int):
@@ -156,10 +165,9 @@ class DispatchOrchestrator:
         # Tier three is intentionally a CHO manual-coordination notification,
         # never an attempt to contact an emergency contact.
         if tier >= 3 or (tier == 2 and not candidates):
-            compound = await session.get(CHPSCompound, referral.chps_compound_id)
-            enqueue_sms(
+            await enqueue_cho_alert(
                 session,
-                recipient=compound.cho_phone,
+                referral,
                 body=build_cho_escalation_message(
                     referral_id=referral.id,
                     compound_id=referral.chps_compound_id,
@@ -219,7 +227,7 @@ class DispatchOrchestrator:
         if late and not _late_claim_open(dispatch):
             return "END Dispatch not available."
 
-        referral = await session.get(Referral, dispatch.referral_id)
+        referral = await session.get_one(Referral, dispatch.referral_id)
         candidates = await self.pool.get_candidates(
             session,
             referral.chps_compound_id,
@@ -248,10 +256,11 @@ class DispatchOrchestrator:
         facility = await session.get(Facility, dispatch.facility_id)
         self.hospital.notify_pre_arrival(session, referral, driver, facility, dispatch.id)
         if late:
-            compound = await session.get(CHPSCompound, referral.chps_compound_id)
-            enqueue_sms(
+            # To everyone: they all got the no-driver alert, so any of them may have
+            # started arranging transport that now needs standing down.
+            await enqueue_cho_alert(
                 session,
-                recipient=compound.cho_phone,
+                referral,
                 body=build_cho_late_accept_message(
                     referral_id=referral.id,
                     compound_id=referral.chps_compound_id,
@@ -374,16 +383,80 @@ class DispatchOrchestrator:
                 metadata_json={"driver_id": driver_id},
             )
         )
-        referral = await session.get(Referral, dispatch.referral_id)
-        compound = await session.get(CHPSCompound, referral.chps_compound_id)
-        enqueue_sms(
+        referral = await session.get_one(Referral, dispatch.referral_id)
+        await enqueue_cho_update(
             session,
-            recipient=compound.cho_phone,
+            referral,
             body=f"Yoma Triage: Patient arrived at hospital for referral #{referral.id}.",
             purpose="cho_arrival",
             dispatch_id=dispatch.id,
         )
         return "END Arrival confirmed. Referral complete."
+
+    async def cancel_dispatch(
+        self, session: AsyncSession, dispatch_id: int, cho_id: int
+    ) -> Dispatch:
+        """Stop the cascade, in one transaction with telling whoever was already told.
+
+        Offers still waiting in the outbox are dropped when the sender reaches them. Only
+        an accepted driver and that dispatch's hospital get a notice, because nobody else
+        has been told anything they would act on: the hospital hears about a referral
+        only once a driver accepts.
+        """
+        dispatch: Dispatch | None = await session.scalar(_locked_dispatch(dispatch_id))
+        if dispatch is None:
+            raise ValueError(f"dispatch {dispatch_id} not found")
+        if dispatch.status == CANCELLED:
+            return dispatch
+        if dispatch.status in NOT_CANCELLABLE:
+            raise DispatchNotCancellableError(dispatch.status)
+
+        dispatch.status = CANCELLED
+        self._set_next_action(dispatch)
+        referral = await session.get_one(Referral, dispatch.referral_id)
+        referral.status = CANCELLED
+        session.add(
+            DispatchLog(
+                dispatch_id=dispatch.id,
+                action="dispatch_cancelled",
+                target_role="cho",
+                response=CANCELLED,
+                metadata_json={"cho_id": cho_id, "driver_id": dispatch.driver_id},
+            )
+        )
+        if dispatch.driver_id is None:
+            return dispatch
+
+        driver = await session.get_one(Driver, dispatch.driver_id)
+        enqueue_sms(
+            session,
+            recipient=driver.phone,
+            body=f"Yoma: Ref #{referral.id} was CANCELLED by the CHO. Please stand down.",
+            purpose="cancel_driver",
+            dispatch_id=dispatch.id,
+        )
+        waiting = await session.scalars(
+            select(OutboundMessage).where(
+                OutboundMessage.dispatch_id == dispatch.id,
+                OutboundMessage.purpose == "hospital_pre_arrival",
+                OutboundMessage.status == MESSAGE_PENDING,
+            )
+        )
+        for message in waiting:
+            message.status = MESSAGE_CANCELLED
+            message.next_attempt_at = None
+        facility = await session.get_one(Facility, dispatch.facility_id)
+        enqueue_sms(
+            session,
+            recipient=facility.phone,
+            body=(
+                f"Yoma Triage: Referral #{referral.id} was CANCELLED by the CHO. "
+                "Do not expect this patient from this dispatch."
+            ),
+            purpose="cancel_hospital",
+            dispatch_id=dispatch.id,
+        )
+        return dispatch
 
     async def _perform_next_action(self, session: AsyncSession, dispatch: Dispatch) -> None:
         """Re-checks the state it holds the lock on, so a repeat run changes nothing."""

@@ -124,6 +124,14 @@ ENVIRONMENT=development
 
 Outside development the API doesn't create tables, so run `alembic upgrade head` first.
 
+Register each CHO before they set up the app. This works in every environment and needs only `DATABASE_URL`:
+
+```bash
+./venv/bin/python -m src.admin.add_cho --name "Abiba" --phone 0240000100 --compound-id 1
+./venv/bin/python -m src.admin.deactivate_cho --phone 0240000100
+./venv/bin/python -m src.admin.move_cho --phone 0240000100 --compound-id 2
+```
+
 Seed the demo data, then start the API in one terminal:
 
 ```bash

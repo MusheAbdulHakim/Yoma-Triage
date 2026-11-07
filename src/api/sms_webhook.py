@@ -10,8 +10,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import require_webhook_secret
 from src.db.database import get_db
-from src.db.models import CHPSCompound, Dispatch, DispatchLog, Driver, Facility, Referral
-from src.services.outbox import enqueue_sms
+from src.db.models import Dispatch, DispatchLog, Driver, Facility, Referral
+from src.services.outbox import enqueue_cho_update, enqueue_sms
 from src.utils.phones import normalize_ghana_phone
 
 router = APIRouter(prefix="/api/v1/sms", tags=["SMS Gateway"])
@@ -270,7 +270,6 @@ async def process_inbound_sms(
     destination = await session.get(Facility, facility_id)
     if not destination:
         raise ValueError("Destination facility not found")
-    compound = await session.get(CHPSCompound, referral.chps_compound_id)
     driver = await session.get(Driver, dispatch.driver_id) if dispatch.driver_id else None
 
     referral.facility_id = destination.id
@@ -299,14 +298,9 @@ async def process_inbound_sms(
             purpose="divert_driver",
             dispatch_id=dispatch.id,
         )
-    if compound:
-        enqueue_sms(
-            session,
-            recipient=compound.cho_phone,
-            body=message,
-            purpose="divert_cho",
-            dispatch_id=dispatch.id,
-        )
+    await enqueue_cho_update(
+        session, referral, body=message, purpose="divert_cho", dispatch_id=dispatch.id
+    )
     await session.commit()
     return {
         "status": "DIVERTED",

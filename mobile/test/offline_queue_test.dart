@@ -31,6 +31,7 @@ ReferralRequest _sample({required String id}) => ReferralRequest(
       chpsCompoundId: 1,
       facilityId: 1,
       patientHash: 'a' * 64,
+      choPhone: '+233240000100',
       emergencyType: 'respiratory_distress',
       vitals: {
         'systolic_bp': 70,

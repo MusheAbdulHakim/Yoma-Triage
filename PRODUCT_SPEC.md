@@ -5,10 +5,45 @@
 | Field | Value |
 |-------|-------|
 | **Document Title** | Yoma Triage: Intelligent Clinical Triage, Edge Computing Decision Support, and Resilient Multi-Channel Emergency Referral Orchestration Platform for Northern Ghana |
-| **Version** | 2.0 |
-| **Date** | 23 July 2026 |
-| **Status** | Final Draft for UNICEF StartUp Lab Hackathon |
+| **Version** | 2.2 |
+| **Date** | 6 November 2026 |
+| **Status** | Working spec, kept in step with the code (branch `fix/batch-3`) |
 | **Classification** | Internal / Hackathon Submission / Developer Reference |
+
+## Reading This Document
+
+This spec describes where the product is going, and notes state what exists today. Notes marked **Not built** describe features that have no code yet. Notes marked **Open decision** are waiting on a human decision. Text without a note is intended behaviour, but only the table below and the notes are statements about the current code.
+
+### Current Status
+
+| Area | Status | Details |
+|---|---|---|
+| MOEWS scoring, Incomplete result | Built | §9.3 |
+| Emergency: skip vitals | Built | §7.1.3 |
+| CHO registration and administration | Built, no OTP yet | §7.8 |
+| Stale queued referrals, cancelling a dispatch | Built | §7.10 |
+| Offline manual fallback (Call and SMS buttons) | Built | §7.9 |
+| SMS cascade, surviving restarts | Built, SMS tiers only | §7.2.1, §10.8 |
+| Transactional SMS outbox | Built | §10.8 |
+| USSD accept, decline, arrival | Built | §7.2.2 |
+| Hospital pre-arrival SMS, CONFIRM, DIVERT | Built with gaps | §7.3 |
+| RAG and LLM | Removed from the request path, disabled | §10.9 |
+| Acoustic screening | Built, off by default, not validated, not confirmed on a device | §7.1.1 |
+| Voice calls and Dagbani | Not built | §7.5 |
+| Personal emergency contacts tier | Not built | §7.7 |
+| Offline SMS referral (compressed payload) | Not built | §10.5 |
+| Real MoMo, 70% payout, fares | Not built; mock ledger only | §7.4 |
+| Outcome recording, adverse outcome flow | Not built | §9.6 |
+| Caregiver refusal documentation | Not built | Journey 5 |
+| On-device SLM | Not built | §8.2 |
+| Encryption on the device, certificate pinning | Not built | §11.4 |
+
+### Open Decisions
+
+- **Pilot scope, paediatric or obstetric:** the MOEWS bands are adult obstetric, but Part VII targets children under 5. A healthy toddler or newborn can score RED, and the app doesn't record age. Decide whether children use a separate scale or stay out of the pilot.
+- **Acoustic screening in the pilot:** it is off by default. Decide whether it is in the pilot at all, which depends on a validated model and possibly chest-contact hardware.
+
+Clinical and operational values are unapproved placeholders until `docs/PARAMETERS_SIGNOFF.md` is signed.
 
 ---
 
@@ -486,7 +521,7 @@ No follow-up mechanism
 
 Yoma Triage is the intelligent coordination layer between frontline detection and definitive care.
 
-It is not a diagnostic system. It does not tell the CHO what disease the child has. It provides a screening signal — Normal or Code Red — that helps the CHO make a faster, more confident referral decision.
+It is not a diagnostic system. It does not tell the CHO what disease the child has. It provides a risk result from vital signs (Red, Yellow, Green or Incomplete) that helps the CHO make a faster, more confident referral decision. Where acoustic screening is enabled, it adds an advisory signal of Code Red or Inconclusive. It never reports "Normal".
 
 It is not an ambulance service. It does not own vehicles or employ drivers. It coordinates existing community transport resources — Motor-King drivers, volunteer drivers, personal contacts — through a structured dispatch system that works over SMS and voice.
 
@@ -496,9 +531,9 @@ It is not a replacement for clinical judgment. The CHO remains the decision-make
 
 Yoma Triage addresses the two failures that kill children in Northern Ghana:
 
-1. **Detection failure** — By providing acoustic respiratory screening that runs on a smartphone, Yoma Triage helps CHOs detect breathing distress earlier than visual observation alone.
+1. **Detection failure** — By scoring vital signs consistently on a smartphone, Yoma Triage helps CHOs recognise deterioration earlier, without connectivity. Acoustic respiratory screening is a possible addition (see Open Decisions).
 
-2. **Transport failure** — By providing a cascading dispatch system that works over SMS and voice, Yoma Triage ensures that when a referral is needed, transport is arranged in minutes, not hours.
+2. **Transport failure** — By providing a cascading dispatch system that works over SMS (voice is not built yet), Yoma Triage ensures that when a referral is needed, transport is arranged in minutes, not hours.
 
 ## What Yoma Triage Does Not Solve
 
@@ -511,7 +546,9 @@ Yoma Triage does not solve:
 
 Yoma Triage focuses on the narrow, addressable gap between detection and transport. Everything else is outside its scope.
 
-**Critical design choice:** Yoma Triage respects patient and family autonomy. If a family refuses transport, the system documents the refusal but never forces referral. The CHO manages the relationship, provides health education, and remains available if the family changes their mind. See Journey 5 in Part XII for a detailed scenario.
+> **Open decision:** whether the pilot covers children, obstetric emergencies, or both. See Open Decisions at the top of this document.
+
+**Critical design choice:** Yoma Triage respects patient and family autonomy. If a family refuses transport, the system documents the refusal but never forces referral. The CHO manages the relationship, provides health education, and remains available if the family changes their mind. See Journey 5 in Part XII for a detailed scenario. Documenting the refusal is not built yet.
 
 ---
 
@@ -522,6 +559,8 @@ Yoma Triage focuses on the narrow, addressable gap between detection and transpo
 Yoma Triage must work with no internet connectivity. The acoustic AI runs entirely on-device. The dispatch system operates via SMS and USSD, which work on 2G networks. The backend syncs when connectivity is available but never requires it for core functionality.
 
 **Test:** Would this work in a CHPS compound in Karaga district where the only connectivity is 2G and the power goes out twice a day?
+
+> **Status:** MOEWS works offline, referrals queue, and the Call and SMS buttons (§7.9) work with no network. A referral can't reach the backend or dispatch without data, because SMS referral (§10.5) is not built. The app says so and points the CHO to the buttons.
 
 ## Principle 2: AI Assists, Never Replaces
 
@@ -547,6 +586,8 @@ Voice notifications are not a fallback — they are the primary interface for dr
 
 **Test:** Can Ibrahim, driving his Motor-King with the phone in his pocket, understand the emergency alert without looking at the screen?
 
+> **Not built:** voice notifications. Drivers are alerted by SMS only.
+
 ## Principle 6: SMS/USSD as the Backbone
 
 SMS and USSD work on every phone, on every network, in every village. They are the most reliable communication channels in Northern Ghana. Yoma Triage builds on them, not around them.
@@ -558,6 +599,8 @@ SMS and USSD work on every phone, on every network, in every village. They are t
 Collect only what is necessary for the referral to succeed. Patient name and phone number. Location. Severity. Driver information. Transport cost. Nothing more. No diagnosis. No clinical notes. No medical history.
 
 **Test:** If this data were leaked, would it cause harm? If yes, don't collect it.
+
+> **Status:** the patient's name is not stored or sent; a random token is used. See §11.3.
 
 ## Principle 8: Explainable AI
 
@@ -571,6 +614,8 @@ When any component fails — network, AI, dispatch — the system degrades grace
 
 **Test:** If Yoma Triage's servers go down tomorrow, does the CHPS compound's emergency referral process revert to today's manual system — or does it break entirely?
 
+> **Status:** the Call and SMS buttons in §7.9 are this fallback.
+
 ---
 
 # PART VII — Functional Specification
@@ -578,6 +623,8 @@ When any component fails — network, AI, dispatch — the system degrades grace
 ## 7.1 Referral Initiation
 
 ### 7.1.1 Acoustic Screening (Breathe)
+
+> **Status:** off by default (`MOEWS_ONLY=true`), with Screen Breathing hidden and Record Vitals in its place. Not clinically validated, and YAMNet inference has not been confirmed on a physical device. The app records 15 seconds by default, not 60; see `docs/PARAMETERS_SIGNOFF.md`.
 
 **Trigger:** CHO suspects respiratory distress in a child under 5.
 
@@ -588,23 +635,26 @@ When any component fails — network, AI, dispatch — the system degrades grace
 4. App records 60 seconds of audio
 5. On-device AI (YAMNet or HeAR event detector) analyzes the audio
 6. App displays result:
-   - **GREEN: Normal** — Breathing sounds within normal range. Continue monitoring.
-   - **RED: Code Red** — Abnormal breathing pattern detected. Consider referral.
-7. CHO reviews the AI's reasoning: "Faster than normal rate detected" / "Wheezing sounds detected"
+   - **RED: Code Red** — Respiratory sounds detected (score above 0.7). Consider referral.
+   - **INCONCLUSIVE** — Anything else: "Inconclusive — use clinical judgment".
+   - YAMNet never reports GREEN or "Normal". Its score measures whether a respiratory sound event was detected, not whether breathing is normal, so a low score means only that nothing was detected. A GREEN would require a separately validated model that actually measures normal breathing.
+7. CHO reviews the AI's reasoning
 8. CHO decides: Refer or Continue Monitoring
 9. If Refer: CHO confirms referral, triggering dispatch
 
 **Technical details:**
 - Audio recorded at 16kHz, mono, PCM format
 - YAMNet processes 0.975-second windows continuously
-- Classification: normal breathing, wheeze, crackle, stridor
-- Confidence threshold: >0.7 for Code Red
+- Detection: AudioSet sound classes only (breathing, wheeze, gasp, pant, snort, cough). YAMNet has no "normal breathing" or stridor class, and its "Crackle" class is a general sound, not a lung sound
+- Thresholds: above 0.7 is Code Red; everything else is Inconclusive
+- Acoustic screening is off by default (`MOEWS_ONLY=true`) until a model is clinically validated
 - Entire process runs on-device — no internet required
 - Model size: 4.13 MB (YAMNet) or 5-10 MB (HeAR event detector)
 
 **Safety guardrails:**
 - AI output is advisory only — CHO makes the referral decision
-- If AI confidence is below 0.5, app displays "Inconclusive — use clinical judgment"
+- If the score is below 0.5, app displays "Inconclusive — use clinical judgment"
+- Any load, inference or microphone failure also returns Inconclusive, never GREEN
 - App never overrides CHO decision
 - If app crashes during recording, CHO can restart — no data loss
 
@@ -625,9 +675,22 @@ For cases where the acoustic screening is not applicable (maternal hemorrhage, n
 
 This ensures Yoma Triage is useful beyond respiratory screening.
 
+> **Status:** the app offers respiratory distress, postpartum hemorrhage, neonatal asphyxia and eclampsia. It has no neonatal sepsis, severe malaria or "Other" option, though the API accepts them. The patient's name stays on the phone, and the form also asks for vitals, each typed or marked Not measured. Every referral carries the CHO's phone (§7.8).
+
+### 7.1.3 Emergency: Skip Vitals
+
+A CHO alone with a haemorrhage needs to dispatch in seconds. The referral screen has an **Emergency: skip vitals** button at the top that needs only the emergency type and facility.
+
+- The referral is sent with `vitals_taken=false` and risk UNKNOWN. The backend dispatches immediately.
+- The hospital SMS says "Vitals not taken".
+- Dispatch is never gated on MOEWS anywhere. Every risk level dispatches, and the result screen always offers a referral.
+- With no data connection the referral is queued, and the screen says so and shows the Call and SMS buttons (§7.9).
+
 ## 7.2 Transport Brokerage
 
 ### 7.2.1 Cascade Dispatch
+
+> **Status:** built as Motor-King SMS, then fallback-driver SMS, then a CHO manual notice, with a 90-second default per tier. Timing is stored in the database and survives restarts (§10.8). The voice steps and the personal-contact step below are not built.
 
 When a referral is triggered, the system executes a cascading dispatch sequence:
 
@@ -655,6 +718,8 @@ T+450 seconds: No response → CHO notified: "No driver available — coordinate
 - If no response after full cascade, CHO reverts to manual coordination
 
 ### 7.2.2 Driver Response
+
+> **Status:** USSD offers Accept, Decline and Confirm arrival, and needs an exact 1, 2 or 3. **Not built:** the Delay option, and the CHO and patient SMS on accept (the CHO sees it in the app). A driver who was notified stays eligible while the dispatch is unclaimed. A claim after the cascade has failed is accepted for 45 minutes from dispatch start, and the CHO is told by SMS.
 
 Drivers respond via USSD:
 
@@ -685,6 +750,8 @@ Drivers respond via USSD:
 
 ### 7.2.3 Driver Pool Management
 
+> **Not built:** driver registration, adding and removing drivers from the app, and setting availability by USSD. Drivers are loaded by seed data, and availability can only be set through the API. Accepting does not mark a driver On Trip.
+
 **Registration:**
 - Motor-King drivers register at the CHPS compound with: name, phone, vehicle type, vehicle description, license plate (if any)
 - Registration happens once — driver data is stored in the system
@@ -696,6 +763,8 @@ Drivers respond via USSD:
 - If all registered drivers are unavailable, system proceeds to fallback tier
 
 ### 7.2.4 Fallback Tiers
+
+> **Not built:** Tier 3, personal emergency contacts.
 
 **Tier 1: Motor-King drivers** (registered, trained, equipped)
 **Tier 2: Fallback drivers** (registered volunteers with personal vehicles)
@@ -710,6 +779,8 @@ For personal emergency contacts:
 ## 7.3 Hospital Handoff
 
 ### 7.3.1 Pre-Arrival Notification
+
+> **Status:** sent through the outbox when a driver accepts. It carries a patient token instead of the name, and has no age, ETA or AI screen. It lists any vitals not measured, or says "Vitals not taken".
 
 When a driver accepts the dispatch, the system automatically sends an SMS to the receiving hospital:
 
@@ -728,6 +799,8 @@ Time: [Current time]
 
 ### 7.3.2 Hospital Confirmation
 
+> **Status:** CONFIRM works. DIVERT needs numeric IDs (`DIVERT <dispatch> <facility>`) and takes no reason. **Not built:** a new ETA, and notifying the new hospital. A driver's phone can currently send these commands, and a driver can't confirm arrival after a diversion.
+
 The hospital receives the SMS and can reply:
 - `CONFIRM` — We are prepared for this patient
 - `DIVERT` — Send to [alternative hospital] (with reason)
@@ -737,6 +810,8 @@ If DIVERT:
 - System notifies CHO: "Hospital diverting patient to [alternative]."
 
 ### 7.3.3 Arrival Confirmation
+
+> **Not built:** the confirmation SMS to the hospital. The CHO is told.
 
 When the driver arrives at the hospital:
 1. Driver dials `*XXX#` (USSD)
@@ -795,6 +870,8 @@ For the hackathon demo **and current code path**, the MoMo escrow is a **mock le
 
 ### 7.5.1 Purpose
 
+> **Not built:** all of §7.5. `initiate_voice` is a stub that nothing calls.
+
 Voice notifications ensure that users with low literacy or feature phones receive critical information in their local language.
 
 ### 7.5.2 Implementation
@@ -823,6 +900,8 @@ Using Africa's Talking Voice API:
 
 ## 7.6 Volunteer Fallback
 
+> **Status:** the fallback driver pool works. Adding contacts on the fly is not built.
+
 When no Motor-King drivers are available:
 1. System checks fallback driver pool (registered volunteers)
 2. If no fallback drivers: system checks personal emergency contacts
@@ -833,6 +912,8 @@ When no Motor-King drivers are available:
 
 ### 7.7.1 Purpose
 
+> **Not built:** all of §7.7. There is no contact model or tier.
+
 In emergencies, the patient's personal network is often the fastest source of transport. Yoma Triage allows CHOs to register personal emergency contacts for each patient.
 
 ### 7.7.2 Flow
@@ -842,6 +923,37 @@ In emergencies, the patient's personal network is often the fastest source of tr
 3. During cascade dispatch, if Motor-King and fallback drivers don't respond, system contacts personal contacts
 4. Personal contacts receive SMS: "EMERGENCY: [Patient] needs transport to hospital. Can you help?"
 
+## 7.8 CHO Registration
+
+Each phone belongs to a registered CHO and their compound. This is the identity that OTP will verify later; OTP itself is not built.
+
+- CHOs are registered with `python -m src.admin.add_cho`, which works in every environment and writes an audit log row.
+- On first run the app asks for the CHO's phone. The backend returns their compound if they are a registered, active CHO, or a clear error otherwise. There is no compound picker and no default compound.
+- Every referral includes `cho_phone`. The backend rejects a referral whose CHO is unknown, inactive or from another compound.
+- A phone that isn't set up can't send a referral, and it tells the CHO to call directly.
+- Every referral records the CHO who sent it. Routine updates go to that CHO. No-driver, FAILED, late-accept and undeliverable-SMS alerts go to all active CHOs at the compound. The compound's own `cho_phone` is seed data and is never messaged.
+- `python -m src.admin.deactivate_cho` and `python -m src.admin.move_cho` work in every environment and write an audit log row. The app re-checks the CHO on every sync. If they were deactivated or moved, it returns to setup, says why, and keeps unsent referrals visible with the Call and SMS buttons. **Not built:** reactivating a CHO, except by direct SQL.
+
+## 7.9 Offline Manual Fallback
+
+When the system can't help, the CHO can still reach people (Principle 9).
+
+- After setup and on every sync, the app saves its compound's drivers (name, phone, Motor-King or not) and the facilities' phone numbers.
+- When a referral is queued or has failed, or a dispatch reaches FAILED, the screen shows **Call** and **SMS** buttons for each saved driver and the chosen facility. These use the phone's own dialler and messaging.
+- The SMS button prefills a short message that never names the patient.
+- The screen shows when the list was last updated. This works with no network.
+
+## 7.10 Stale Queued Referrals and Cancelling
+
+A referral that waited for hours shouldn't send a driver to a patient who has already left.
+
+- The app sends how long the referral waited (`queue_age_seconds`), measured with the phone's own clock and never as a timestamp. A clock set backwards reads as zero, so that referral dispatches at once.
+- A referral older than `STALE_AFTER_MINUTES` (placeholder 20) is stored as AWAITING_CONFIRMATION and nobody is told.
+- The app asks "Still needs transport?" with Send now, Already handled and Cancel. If the CHO tapped Call or SMS for this referral, it starts on Already handled.
+- A CHO can cancel an active dispatch. This stops the cascade and late claims, and tells an accepted driver and the hospital. Before a driver accepts, neither has been told anything to stand down from, so no notice goes out. A completed dispatch can't be cancelled. The mock stipend ledger entry stays.
+- A failed referral can be marked handled, which deletes the local record. Unsent, stale and failed records are deleted after `LOCAL_RECORD_TTL_HOURS` (placeholder 72), and only once the CHO has had `LOCAL_RECORD_WARNING_HOURS` (placeholder 12) of notice.
+- A refusal counts as final only if it carries a code defined in `src/api/errors.py`. Anything else, such as a captive portal's 401 or 403, keeps the referral and retries with a visible warning.
+
 ---
 
 # PART VIII — AI Strategy
@@ -849,6 +961,8 @@ In emergencies, the patient's personal network is often the fastest source of tr
 ## Included Components
 
 ### 8.1 Acoustic Respiratory Screening (YAMNet/HeAR)
+
+> **Status:** see §7.1.1. HeAR is not built. YAMNet can only report Code Red or Inconclusive.
 
 **What it does:** Classifies breathing sounds as normal or abnormal (Code Red) using on-device AI.
 
@@ -872,6 +986,8 @@ In emergencies, the patient's personal network is often the fastest source of tr
 
 ### 8.2 Clinical Triage (SLM — Small Language Model)
 
+> **Not built:** all of §8.2.
+
 **What it does:** Provides structured clinical decision support based on symptoms and vital signs.
 
 **Why it's included:**
@@ -892,6 +1008,8 @@ In emergencies, the patient's personal network is often the fastest source of tr
 - Must be clearly framed as "decision support" not "diagnosis"
 
 ### 8.3 Referral Prioritization
+
+> **Not built:** all of §8.3.
 
 **What it does:** Ranks referrals by urgency based on AI screening results and symptom severity.
 
@@ -1006,9 +1124,17 @@ where each parameter score is derived from the vital value according to the tabl
 
 ### Triage Categories
 
-- **Green (Score: 0-2)**: Standard care. The patient is stable and can be managed locally or scheduled for a routine consultation.
-- **Yellow (Score: 3-4, or any single parameter scoring 1)**: Elevated risk. The CHO must inform the district referral coordinator, increase vital monitoring frequency to every 30 minutes, and initiate a soft transport reservation.
-- **Red (Score: ≥5, or any single parameter scoring 3)**: Critical emergency. The system triggers immediate transport brokerage, dispatches clinical telemetry, and alerts the receiving district hospital to prepare emergency resources.
+Only measured vitals are scored. The first matching category applies.
+
+- **Red (any measured parameter scoring 3, or a measured total of 5 or more)**: Critical emergency, even if other vitals are missing. A measured critical value is never hidden. The CHO confirms the referral, which starts transport brokerage and alerts the receiving hospital.
+- **Incomplete (otherwise, if any required vital is missing)**: Not Green and not Unknown, because a patient can't be called normal from half a set. The result lists what is missing. Every vital except SpO₂ is required.
+- **Yellow (a measured total of 3-4, or any parameter scoring 1)**: Elevated risk. The CHO must inform the district referral coordinator, increase vital monitoring frequency to every 30 minutes, and initiate a soft transport reservation.
+- **Green (otherwise)**: Standard care. The patient is stable and can be managed locally or scheduled for a routine consultation. If SpO₂ wasn't measured, the result says "SpO₂ not measured".
+- **Unknown**: The CHO chose "Emergency: skip vitals" (§7.1.3).
+
+> **Not built:** the Yellow actions (coordinator notice, 30-minute monitoring, soft reservation). Yellow dispatches like any other referral once the CHO confirms.
+
+> **Open decision:** these bands are adult obstetric. See Open Decisions at the top of this document. The values are placeholders until `docs/PARAMETERS_SIGNOFF.md` is signed.
 
 ### Integration with Acoustic Screening
 
@@ -1018,6 +1144,8 @@ For respiratory distress cases, the acoustic AI screening result is combined wit
 - If acoustic screening returns Normal but MOEWS score ≥5, the system still triggers Red classification based on vitals alone
 
 This ensures that the AI never overrides clinical data, and clinical data never overrides the AI when both signal danger.
+
+> **Status:** the acoustic result only changes which button leads on the result screen. The stored risk comes from MOEWS alone. "Normal" above means no signal; YAMNet reports Inconclusive.
 
 ## 9.4 Emergency Overrides
 
@@ -1047,6 +1175,8 @@ The system never removes the CHO's ability to act independently.
 When a patient dies or has a poor outcome despite referral, the system must handle this with clinical sensitivity and accountability.
 
 ### 9.6.1 Outcome Recording
+
+> **Not built:** all of §9.6: outcome recording, clinical review, and the anonymized district notice.
 
 - Driver confirms arrival at hospital (or reports patient died en route)
 - CHO records outcome when available: "Arrived alive," "Arrived deceased," "Outcome unknown"
@@ -1092,6 +1222,8 @@ At no point does the failure of Yoma Triage leave the CHO without options.
 # PART X — Technical Architecture
 
 ## 10.1 System Overview
+
+> **Status:** the diagram predates the backend-mediated rule. The app never calls Africa's Talking; only the backend does, through the outbox (§10.8). The app reaches the backend over HTTP.
 
 ```
 ┌─────────────────────────────────────────────────────────────────┐
@@ -1161,6 +1293,8 @@ At no point does the failure of Yoma Triage leave the CHO without options.
 
 ## 10.2 Mobile App (Flutter)
 
+> **Status:** the app uses `tflite_flutter` ^0.11 and adds `url_launcher` for §7.9. `referral_trigger.dart` and `tflite_classifier.dart` have other names in the code.
+
 **Dependencies:**
 ```yaml
 dependencies:
@@ -1195,21 +1329,30 @@ dependencies:
 | Endpoint | Method | Purpose |
 |----------|--------|---------|
 | `POST /api/v1/referral` | POST | Receive referral trigger from mobile app |
+| `GET /api/v1/referral/{id}` | GET | Get a referral |
 | `GET /api/v1/dispatch/{id}` | GET | Get dispatch status |
-| `POST /api/v1/ussd/callback` | POST | Handle USSD responses from drivers |
-| `POST /api/v1/voice/callback` | POST | Handle voice call events |
+| `GET /api/v1/dispatch/{id}/logs` | GET | Get a dispatch's timeline |
+| `POST /api/v1/referral/{id}/resolve` | POST | The CHO's answer for a stale referral |
+| `POST /api/v1/dispatch/{id}/cancel` | POST | Cancel an active dispatch |
+| `POST /api/v1/cho/lookup` | POST | Setup and re-check: find a CHO's compound by phone |
+| `POST /ussd/callback` | POST | Handle USSD responses from drivers |
 | `POST /api/v1/sms/inbound` | POST | Handle inbound SMS (hospital confirmation) |
 | `GET /api/v1/driver/{id}/status` | GET | Get driver availability |
 | `POST /api/v1/driver/{id}/availability` | POST | Update driver availability |
 | `GET /api/v1/compound/{id}/drivers` | GET | List drivers for a CHPS compound |
+| `GET /api/v1/compound/{id}/contacts` | GET | Drivers and facility phones for §7.9 |
+| `GET /api/v1/catalog/referral-graph` | GET | Facility catalog for the app |
+
+> **Not built:** `POST /api/v1/voice/callback`. The USSD path is `/ussd/callback`, not under `/api/v1`.
 
 **Key services:**
-- `dispatch_orchestrator.py` — Manages cascade dispatch sequence
-- `driver_pool_manager.py` — Manages driver registration and availability
-- `hospital_notifier.py` — Sends pre-arrival notifications
-- `sms_service.py` — Africa's Talking SMS integration
-- `voice_service.py` — Africa's Talking Voice integration
-- `ussd_handler.py` — Africa's Talking USSD callback handler
+- `dispatch_orchestrator.py` — Manages the cascade dispatch sequence
+- `driver_pool.py` — Looks up drivers and availability
+- `hospital_notifier.py` — Queues pre-arrival notifications
+- `outbox.py` — Sends all SMS (§10.8)
+- `messaging_gateway.py` — Africa's Talking SMS integration
+- `workers.py` — Runs the cascade and SMS workers
+- `api/ussd.py` — Africa's Talking USSD callback handler
 
 ## 10.4 Africa's Talking Integration
 
@@ -1239,6 +1382,8 @@ dependencies:
 To transmit detailed clinical vitals over standard 2G GSM cellular SMS channels, Yoma Triage implements a highly efficient binary compression format similar to the DHIS2 Android SMS protocol. This system packs variables into ultra-dense, Base64-encoded strings.
 
 ### Payload Structure (140-octet SMS)
+
+> **Not built:** all of §10.5 on the phone. The app can't send SMS referrals, and the backend doesn't read them. `sms_codec.py` encodes only 6 bytes (compound, score, risk, HR, SBP) with no CRC or encryption, and the result is stored but not sent. The layout below doesn't add up to 1,120 bits and needs redesigning before it is built.
 
 A standard 140-octet SMS payload (1,120 bits) is allocated as follows:
 
@@ -1323,6 +1468,8 @@ The mobile application uses a hybrid synchronization engine that monitors networ
 
 ## 10.6 Database (PostgreSQL on Supabase)
 
+> **Status:** the code uses plain PostgreSQL through SQLAlchemy, with Alembic migrations. Nothing depends on Supabase. Production needs `alembic upgrade head` before starting, because only development creates tables at startup. No hosting is set up.
+
 **Why Supabase:**
 - Free tier with 500MB storage
 - PostgreSQL with real-time subscriptions
@@ -1333,6 +1480,8 @@ The mobile application uses a hybrid synchronization engine that monitors networ
 **Schema:** See Part XI (Data Architecture)
 
 ## 10.7 Authentication & Security
+
+> **Status:** CHOs are identified by a registered phone number (§7.8), not yet verified by OTP. A shared `API_KEY` and `AT_WEBHOOK_SECRET` protect the APIs. Outside `ENVIRONMENT=development`, the server refuses to start without them. **Not built:** OTP, driver PIN, hospital login, per-user access control, and audit log writes for anything except CHO administration and answers to stale referrals.
 
 **Compliance:** Yoma Triage handles patient data and must comply with Ghana's Data Protection Act, 2012 (Act 843). All patient data is processed with minimal collection principles, stored with encryption, and retained only as long as necessary for the referral to succeed.
 
@@ -1349,11 +1498,29 @@ The mobile application uses a hybrid synchronization engine that monitors networ
 - Audio recordings deleted after processing (never stored)
 - Audit trail for all system actions
 
+## 10.8 Durable Dispatch and SMS Outbox
+
+**Cascade timing lives in the database.** Each dispatch stores `next_action` and `next_action_at` in the same transaction as its state change. A worker polls every 5 seconds with `SELECT ... FOR UPDATE SKIP LOCKED`, performs the tier transition, and sets the next action. Its first run is immediate, so anything overdue after a restart is handled on startup, and the cascade continues after the server is killed mid-tier.
+
+**All outbound SMS go through a transactional outbox.** Business code inserts into `outbound_messages` in the same transaction as the state change, so nothing calls Africa's Talking before commit or while holding a row lock. A sender worker claims rows in a short transaction, sends with no transaction open, and records the result. Each pass claims at most `OUTBOX_SEND_CONCURRENCY` messages (default 5), drivers first, then hospitals, CHOs and everything else, and sends them in parallel with `OUTBOX_SEND_TIMEOUT_SECONDS` each (default 5). So a hung provider delays a new driver alert by one pass at most, unless other first-attempt driver alerts are already ahead of it. It retries with backoff up to a limit, then marks the message FAILED and alerts the CHO if it was to a driver or hospital. A waiting driver offer is cancelled once someone else has claimed the dispatch.
+
+Delivery is at least once: if the server dies between sending and recording, the SMS goes out again. Phone numbers and message bodies do not appear in application logs.
+
+The workers run inside the API process for now.
+
+## 10.9 RAG and LLM
+
+`POST /api/v1/referral` does not import or call LangGraph, RAG or Gemini. MOEWS is scored locally, and `clinical_summary` is a fixed template of emergency type, risk and vitals, with no treatment advice. The API runs with only `requirements.txt`.
+
+The code stays in `src/agents` and `src/rag` behind `RAG_ENABLED`, which is off, and needs `requirements-rag.txt`.
+
 ---
 
 # PART XI — Data Architecture
 
 ## 11.1 Entity Relationship Diagram
+
+> **Status:** the code also has `chos` (id, name, phone, compound_id, active, created_at) and `outbound_messages` (recipient, body, purpose, dispatch_id, status, attempts, next_attempt_at, provider_response, created_at), `dispatches` has `next_action` and `next_action_at`, and `referrals` has `cho_id` and `queue_age_seconds`. **Not built:** `emergency_contact`, `referral.outcome`, `facility.blood_bank_status`. `referral.patient_name` exists but always holds "Unknown".
 
 ```
 ┌──────────────────┐     ┌──────────────────┐     ┌──────────────────┐
@@ -1437,6 +1604,8 @@ The mobile application uses a hybrid synchronization engine that monitors networ
 
 ## 11.2 What Data Is Stored
 
+> **Not built:** the 90-day retention and anonymization jobs, and the stated encryption. Each referral stores the sending CHO's id, not their phone.
+
 To comply with Ghana's Data Protection Act (Act 843) and protect patient privacy, the platform separates essential operational tracking data from sensitive personal identification markers:
 
 | Data | Purpose | Retention | Security |
@@ -1455,6 +1624,8 @@ To comply with Ghana's Data Protection Act (Act 843) and protect patient privacy
 | Audit trail | Security and compliance | 7 years (regulatory) | Tamper-proof, encrypted |
 
 ## 11.3 What Data Is Never Stored
+
+> **Status:** §7.9 saves driver and facility phone numbers on the device, and queued referrals hold vitals there until they are sent. Referrals the server refused stay on the phone. This is unencrypted (§11.4).
 
 | Data | Rationale |
 |------|-----------|
@@ -1541,6 +1712,8 @@ COMPARED TO: 2-4 hours (current manual process)
 
 ## Journey 2: No Available Driver
 
+> **Status:** the voice step and the husband's reply are not built (§7.5, §7.7). The CHO's Call and SMS buttons (§7.9) cover this case manually.
+
 ```
 14:00 — CHO Fatima detects postpartum hemorrhage in Amina
         Fatima triggers emergency referral via Yoma Triage
@@ -1574,6 +1747,8 @@ FALLBACK SUCCESS: Personal contact provided faster transport than registered dri
 
 ## Journey 3: Network Outage
 
+> **Status:** the queue and message work, and the screen shows the Call and SMS buttons (§7.9). When the network returns, a referral queued for longer than `STALE_AFTER_MINUTES` waits for the CHO's answer rather than dispatching (§7.10). **Not built:** a referral under that limit still dispatches, even if the CHO has already called a driver by hand.
+
 ```
 09:00 — Network outage in Tamale area
         2G and 3G unavailable
@@ -1602,6 +1777,8 @@ LESSON: The system degrades gracefully. CHO can always act manually.
 
 ## Journey 4: Hospital Rejects Referral
 
+> **Status:** the new hospital isn't notified automatically, and there is no new ETA (§7.3.2).
+
 ```
 10:00 — CHO Fatima triggers referral for neonatal sepsis
         Driver accepted, en route to Tamale Teaching Hospital
@@ -1625,6 +1802,8 @@ LESSON: Diversion protocol ensures patient reaches a facility that can treat the
 ```
 
 ## Journey 5: Family Refuses Transport
+
+> **Not built:** documenting the refusal. Continue Monitoring records nothing.
 
 ```
 11:00 — CHO Abiba screens child with respiratory distress
@@ -1656,6 +1835,10 @@ LESSON: Yoma Triage documents refusals but never forces referrals. The CHO manag
 # PART XIII — Pilot Design
 
 ## 13.1 Pilot Location
+
+> **Open decision:** pilot scope, paediatric or obstetric, and whether acoustic screening is included. See Open Decisions at the top of this document.
+
+> **Status:** the facility catalog covers the Northern Region only. Kassena-Nankana East, in Upper East, is not in it.
 
 **Districts:** Kassena-Nankana East Municipal (Upper East Region) and Savelugu Municipal (Northern Region), Ghana
 
@@ -1865,6 +2048,8 @@ LESSON: Yoma Triage documents refusals but never forces referrals. The CHO manag
 # PART XVI — Roadmap
 
 ## Phase 1: Hackathon MVP (This Week)
+
+> **Status:** the SLM below was not built, and acoustic screening is off by default. RAG and LLM were removed from the request path.
 
 **Deliverables:**
 - Flutter app with acoustic screening (YAMNet) AND clinical triage (SLM — quantized Phi-3 Mini or Gemma 2B)

@@ -20,7 +20,7 @@ from sqlalchemy.ext.asyncio import (  # noqa: E402
 )
 
 from src.db.database import Base, get_db  # noqa: E402
-from src.db.models import CHPSCompound, Driver, Facility  # noqa: E402
+from src.db.models import Cho, CHPSCompound, Driver, Facility  # noqa: E402
 
 # ---------------------------------------------------------------------------
 # Database fixtures (in-memory SQLite for tests)
@@ -225,6 +225,8 @@ async def seeded_db(db_session: AsyncSession):
     ]
     db_session.add_all(compounds + drivers + facilities)
     await db_session.flush()
+    db_session.add(Cho(id=1, name="Abiba", phone=SEEDED_CHO_PHONE, compound_id=1))
+    await db_session.flush()
     return {"compounds": compounds, "drivers": drivers, "facilities": facilities}
 
 
@@ -280,6 +282,7 @@ def sample_normal_vitals():
 
 
 VALID_PATIENT_HASH = "0123456789abcdef" * 4
+SEEDED_CHO_PHONE = "+233240000010"
 
 
 @pytest.fixture
@@ -289,6 +292,7 @@ def sample_referral_payload():
         "chps_compound_id": 1,
         "facility_id": 1,
         "patient_hash": VALID_PATIENT_HASH,
+        "cho_phone": SEEDED_CHO_PHONE,
         "emergency_type": "pph",
         "gestational_weeks": 38,
         "client_request_id": "11111111-1111-1111-1111-111111111111",
@@ -325,3 +329,9 @@ def added_sms(mock_session):
         for call in mock_session.add.call_args_list
         if isinstance(call.args[0], OutboundMessage)
     ]
+
+
+@pytest_asyncio.fixture
+async def seed_second_compound(db_session: AsyncSession, seeded_db):
+    db_session.add(CHPSCompound(id=2, name="Other CHPS", zone="Z", cho_phone="+233240000011"))
+    await db_session.flush()

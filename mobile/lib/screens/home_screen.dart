@@ -3,11 +3,15 @@ import 'package:flutter/material.dart';
 import '../config.dart';
 import '../services/api_client.dart';
 import '../services/catalog_store.dart';
+import '../services/cho_store.dart';
+import '../services/contacts_store.dart';
 import '../services/offline_queue.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
 import 'failed_referrals_screen.dart';
 import 'referral_screen.dart';
+import 'stale_referral_screen.dart';
+import 'unsent_referrals_screen.dart';
 import 'screening_screen.dart';
 import 'vitals_screen.dart';
 
@@ -15,7 +19,11 @@ class HomeScreen extends StatefulWidget {
   /// Overrides [ScreeningConfig.moewsOnly] so tests can exercise both modes.
   final bool? acousticEnabled;
 
-  const HomeScreen({super.key, this.acousticEnabled});
+  /// Test seam for the sync that runs when Home opens.
+  final ApiClient? api;
+  final OfflineQueue? queue;
+
+  const HomeScreen({super.key, this.acousticEnabled, this.api, this.queue});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -23,7 +31,8 @@ class HomeScreen extends StatefulWidget {
 
 class _HomeScreenState extends State<HomeScreen> {
   final _catalog = CatalogStore();
-  final _queue = OfflineQueue.shared;
+  late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
+  int _lastStaleCount = 0;
   bool _catalogStale = false;
   String? _catalogVersion;
   bool _syncing = false;
@@ -38,6 +47,35 @@ class _HomeScreenState extends State<HomeScreen> {
     _syncCatalog();
     // Picks up referrals refused in an earlier session.
     _queue.failed().catchError((_) => <QueuedReferral>[]);
+    _queue.needsConfirmationCount.addListener(_onStaleCountChanged);
+    _queue.needsConfirmation().catchError((_) => <QueuedReferral>[]);
+    // The CHO can see this screen, so this counts as being warned.
+    _queue.noteExpiryWarning().catchError((_) => 0);
+  }
+
+  @override
+  void dispose() {
+    _queue.needsConfirmationCount.removeListener(_onStaleCountChanged);
+    super.dispose();
+  }
+
+  /// Asks as soon as a stale referral arrives, unless the CHO is busy on another screen.
+  /// In that case the card below is waiting for them when they come back.
+  void _onStaleCountChanged() {
+    final count = _queue.needsConfirmationCount.value;
+    final arrived = count > _lastStaleCount;
+    _lastStaleCount = count;
+    if (arrived && mounted && (ModalRoute.of(context)?.isCurrent ?? false)) {
+      _openStalePrompt();
+    }
+  }
+
+  void _openStalePrompt() {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => StaleReferralScreen(queue: _queue, api: widget.api),
+      ),
+    );
   }
 
   Future<void> _refreshCatalogStatus() async {
@@ -52,7 +90,10 @@ class _HomeScreenState extends State<HomeScreen> {
 
   Future<void> _syncCatalog() async {
     setState(() => _syncing = true);
-    await _catalog.trySyncOnConnect(ApiClient());
+    final api = widget.api ?? ApiClient();
+    await _catalog.trySyncOnConnect(api);
+    await ChoStore().recheck(api);
+    await ContactsStore().refreshForThisPhone(api);
     if (!mounted) return;
     setState(() => _syncing = false);
     await _refreshCatalogStatus();
@@ -78,6 +119,70 @@ class _HomeScreenState extends State<HomeScreen> {
                   style: TextStyle(color: Colors.grey.shade600, fontSize: 12),
                 ),
               ),
+            ValueListenableBuilder<String?>(
+              valueListenable: _queue.retryWarning,
+              builder: (context, warning, _) {
+                if (warning == null) return const SizedBox.shrink();
+                return Card(
+                  color: YomaColors.caution.withValues(alpha: 0.15),
+                  child: ListTile(
+                    leading: const Icon(Icons.wifi_off, color: YomaColors.caution),
+                    title: Text(warning, key: const Key('home_retry_warning')),
+                  ),
+                );
+              },
+            ),
+            ValueListenableBuilder<int>(
+              valueListenable: _queue.expiringCount,
+              builder: (context, count, _) {
+                if (count == 0) return const SizedBox.shrink();
+                return Card(
+                  color: YomaColors.caution.withValues(alpha: 0.15),
+                  child: ListTile(
+                    key: const Key('home_expiring'),
+                    leading: const Icon(Icons.delete_outline, color: YomaColors.caution),
+                    title: Text(
+                      count == 1
+                          ? '1 unsent referral will soon be deleted from this phone'
+                          : '$count unsent referrals will soon be deleted from this phone',
+                      style: const TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: const Text('Tap to see them, and to Call or SMS.'),
+                    onTap: () => Navigator.of(context).push(
+                      MaterialPageRoute(
+                        builder: (_) =>
+                            UnsentReferralsScreen(queue: _queue, api: widget.api),
+                      ),
+                    ),
+                  ),
+                );
+              },
+            ),
+            ValueListenableBuilder<int>(
+              valueListenable: _queue.needsConfirmationCount,
+              builder: (context, count, _) {
+                if (count == 0) return const SizedBox.shrink();
+                return Card(
+                  color: YomaColors.danger.withValues(alpha: 0.15),
+                  child: ListTile(
+                    key: const Key('home_stale_referrals'),
+                    leading: const Icon(Icons.help, color: YomaColors.danger),
+                    title: const Text(
+                      'Still needs transport?',
+                      style: TextStyle(fontWeight: FontWeight.w700),
+                    ),
+                    subtitle: Text(
+                      count == 1
+                          ? '1 old referral is waiting for your answer. '
+                              'Drivers have not been told.'
+                          : '$count old referrals are waiting for your answer. '
+                              'Drivers have not been told.',
+                    ),
+                    onTap: _openStalePrompt,
+                  ),
+                );
+              },
+            ),
             ValueListenableBuilder<int>(
               valueListenable: _queue.failedCount,
               builder: (context, count, _) {

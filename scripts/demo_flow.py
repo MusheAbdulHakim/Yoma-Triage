@@ -10,6 +10,8 @@ from typing import Any
 import httpx
 
 
+# The seeded CHO for compound 1.
+DEMO_CHO_PHONE = "+233240000100"
 BASE_URL = __import__("os").getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
 ROOT = Path(__file__).resolve().parents[1]
 if str(ROOT) not in sys.path:
@@ -58,6 +60,7 @@ def critical_referral(patient_hash: str) -> dict[str, Any]:
         "facility_id": 1,
         "patient_hash": patient_hash,
         "client_request_id": str(uuid.uuid4()),
+        "cho_phone": DEMO_CHO_PHONE,
         "emergency_type": "pph",
         "gestational_weeks": 38,
         "vitals": {

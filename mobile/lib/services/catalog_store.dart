@@ -15,21 +15,10 @@ import 'api_client.dart';
 class CatalogStore {
   static const bootstrapAsset = 'assets/catalog/northern_bootstrap.json';
   static const syncedFileName = 'referral_graph_northern.json';
-  static const homeChpsPrefsKey = FacilityConfig.homeChpsPrefsKey;
 
   final ApiClient? api;
 
   CatalogStore({this.api});
-
-  Future<int> homeChpsCompoundId() async {
-    final prefs = await SharedPreferences.getInstance();
-    return prefs.getInt(homeChpsPrefsKey) ?? 1;
-  }
-
-  Future<void> setHomeChpsCompoundId(int id) async {
-    final prefs = await SharedPreferences.getInstance();
-    await prefs.setInt(homeChpsPrefsKey, id);
-  }
 
   Future<DateTime?> lastSyncedAt() async {
     final prefs = await SharedPreferences.getInstance();

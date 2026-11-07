@@ -31,6 +31,7 @@ def no_side_effects(monkeypatch):
 def _payload(**overrides):
     return {
         "chps_compound_id": 1,
+        "cho_phone": "+233240000010",
         "facility_id": 1,
         "patient_hash": "0123456789abcdef" * 4,
         "emergency_type": "pph",

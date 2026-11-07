@@ -308,6 +308,12 @@ async def test_killed_mid_tier_cascade_continues_after_restart(postgres_url):  #
                     "values (1, 'H', 't', '+233240000200', 'D', true, false)"
                 )
             )
+            await conn.execute(
+                text(
+                    "insert into chos (name, phone, compound_id, active) "
+                    "values ('CHO', '+233240000100', 1, true)"
+                )
+            )
             for driver_id, phone in DRIVER_PHONES.items():
                 await conn.execute(
                     text(
@@ -322,6 +328,7 @@ async def test_killed_mid_tier_cascade_continues_after_restart(postgres_url):  #
                 f"http://127.0.0.1:{server.port}/api/v1/referral",
                 json={
                     "chps_compound_id": 1,
+                    "cho_phone": "+233240000100",
                     "facility_id": 1,
                     "patient_hash": "0" * 64,
                     "emergency_type": "pph",

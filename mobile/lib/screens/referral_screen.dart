@@ -6,6 +6,7 @@ import '../models/facility_catalog.dart';
 import '../models/referral.dart';
 import '../services/api_client.dart';
 import '../services/catalog_store.dart';
+import '../services/cho_store.dart';
 import '../services/geo.dart';
 import '../services/offline_queue.dart';
 import '../services/patient_token.dart';
@@ -61,11 +62,15 @@ class _ReferralScreenState extends State<ReferralScreen> {
   late final ApiClient _api = widget.api ?? ApiClient();
   final _catalogStore = CatalogStore();
 
+  static const _notSetUp =
+      'This phone is not set up as a CHO, so it cannot send a referral. '
+      'Call the driver and hospital directly.';
+
   late final Future<void> _catalogReady;
   ReferralGraph? _graph;
   CatalogFacility? _selectedFacility;
-  int _chpsCompoundId = FacilityConfig.chpsCompoundId;
-  String _chpsLabel = FacilityConfig.chpsLabel;
+  ChoIdentity? _identity;
+  bool _identityLoaded = false;
   String _originBanner = 'Using Home CHPS location';
   double? _originLat;
   double? _originLon;
@@ -88,13 +93,17 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   Future<void> unawaitedLoadCatalog() async {
     try {
+      final identity = await ChoStore().load();
+      if (!mounted) return;
+      setState(() {
+        _identity = identity;
+        _identityLoaded = true;
+      });
       final graph = await _catalogStore.load();
-      final homeId = await _catalogStore.homeChpsCompoundId();
-      final home = graph.compoundById(homeId) ??
-          (graph.compounds.isEmpty ? null : graph.compounds.first);
+      final home = identity == null ? null : graph.compoundById(identity.compoundId);
       int? preferredId;
       for (final link in graph.preferredLinks) {
-        if (link.chpsCompoundId == (home?.id ?? homeId)) {
+        if (link.chpsCompoundId == identity?.compoundId) {
           preferredId = link.facilityId;
           break;
         }
@@ -106,10 +115,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
       if (!mounted) return;
       setState(() {
         _graph = graph;
-        _chpsCompoundId = home?.id ?? FacilityConfig.chpsCompoundId;
-        _chpsLabel = home?.name ?? FacilityConfig.chpsLabel;
-        _originLat = home?.latitude;
-        _originLon = home?.longitude;
+        _originLat = home?.latitude ?? identity?.latitude;
+        _originLon = home?.longitude ?? identity?.longitude;
         _originSource = 'home_chps';
         _originBanner = 'Using Home CHPS location';
         _selectedFacility = suggested;
@@ -153,15 +160,14 @@ class _ReferralScreenState extends State<ReferralScreen> {
     if (graph == null) return;
     final originLat = _originLat;
     final originLon = _originLon;
-    if (originLat == null || originLon == null) {
-      setState(() => _error = 'Home CHPS has no coordinates in catalog');
-      return;
-    }
-    final ranked = rankNearest(
-      originLat: originLat,
-      originLon: originLon,
-      facilities: graph.facilities,
-    );
+    // Without a known location, list by name: this must never block a referral.
+    final ranked = originLat == null || originLon == null
+        ? listByName(facilities: graph.facilities)
+        : rankNearest(
+            originLat: originLat,
+            originLon: originLon,
+            facilities: graph.facilities,
+          );
     final picked = await Navigator.of(context).push<CatalogFacility>(
       MaterialPageRoute(
         builder: (_) => FacilityPickerScreen(
@@ -183,7 +189,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   /// One tap: needs only the emergency type and facility, never vitals or a name.
   Future<void> _skipVitals() async {
-    final problem = _emergencyType == null
+    await _catalogReady;
+    if (!mounted) return;
+    final problem = _identity == null
+        ? _notSetUp
+        : _emergencyType == null
         ? 'Choose the emergency type first'
         : !_facilityConfirmed || _selectedFacility == null
             ? 'Tap above to choose the receiving facility first'
@@ -197,6 +207,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   Future<void> _submit() async {
     if (!_formKey.currentState!.validate()) return;
+    await _catalogReady;
+    if (!mounted) return;
+    if (_identity == null) {
+      setState(() => _error = _notSetUp);
+      return;
+    }
     if (_selectedFacility == null || !_facilityConfirmed) {
       setState(() {
         _error =
@@ -221,7 +237,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
     try {
       final req = ReferralRequest(
         clientRequestId: clientRequestId,
-        chpsCompoundId: _chpsCompoundId,
+        chpsCompoundId: _identity!.compoundId,
+        choPhone: _identity!.phone,
         facilityId: _selectedFacility!.id,
         patientHash: token,
         patientName: _patientName.text.trim(),
@@ -268,7 +285,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
           );
           return;
         }
-        // 5xx, 408, 429: the referral stays queued for retry.
+        // Anything else: the referral stays queued for retry.
+        if (e.needsRetryWarning) _queue.noteRetryWarning(e.retryWarning);
       } catch (_) {
         // Offline / API down — the referral remains durably queued.
       }
@@ -279,6 +297,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
           MaterialPageRoute(
             builder: (_) => QueuedReferralScreen(
               clientRequestId: clientRequestId,
+              queue: _queue,
+              api: _api,
+              facilityId: _selectedFacility?.id,
             ),
           ),
         );
@@ -288,6 +309,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
             builder: (_) => DispatchStatusScreen(
               dispatchId: dispatchId,
               clientRequestId: clientRequestId,
+              facilityId: _selectedFacility?.id,
             ),
           ),
         );
@@ -318,7 +340,10 @@ class _ReferralScreenState extends State<ReferralScreen> {
             Card(
               color: YomaColors.brand.withValues(alpha: 0.08),
               child: ListTile(
-                title: Text(_chpsLabel),
+                title: Text(
+                  _identity?.compoundName ??
+                      (_identityLoaded ? 'This phone is not set up' : '…'),
+                ),
                 subtitle: Text(
                   _facilityConfirmed
                       ? '→ $facilityLabel (confirmed)'

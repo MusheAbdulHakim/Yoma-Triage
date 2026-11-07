@@ -102,7 +102,7 @@ Concrete fix applied to plan:
 
 Evidence:
 
-- `PRODUCT_SPEC.md` and `docs/yoma-triage-product-spec.md` still claim Phase 1 ships an on-device SLM and YAMNet clinical flow.
+- `PRODUCT_SPEC.md` still claim Phase 1 ships an on-device SLM and YAMNet clinical flow.
 - Their architecture diagram visually routes mobile SMS to Africa's Talking despite the backend-only rule.
 - They include patient names in SMS examples while also claiming names are never stored.
 - They describe SQLCipher, pinning, encrypted telemetry, TTS, and other production controls as if implemented.

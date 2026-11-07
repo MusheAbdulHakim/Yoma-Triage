@@ -3,17 +3,29 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 
 import '../services/api_client.dart';
+import '../services/cho_store.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
+import '../widgets/manual_contacts_panel.dart';
 
 class DispatchStatusScreen extends StatefulWidget {
   final int? dispatchId;
   final String clientRequestId;
 
+  /// The facility chosen for this referral.
+  final int? facilityId;
+  final ApiClient? api;
+  final OfflineQueue? queue;
+  final ContactLauncher launcher;
+
   const DispatchStatusScreen({
     super.key,
     required this.dispatchId,
     required this.clientRequestId,
+    this.facilityId,
+    this.api,
+    this.queue,
+    this.launcher = launchWithPhone,
   });
 
   @override
@@ -21,8 +33,8 @@ class DispatchStatusScreen extends StatefulWidget {
 }
 
 class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
-  final _api = ApiClient();
-  final _queue = OfflineQueue.shared;
+  late final ApiClient _api = widget.api ?? ApiClient();
+  late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
   Timer? _timer;
   int? _dispatchId;
   String _status = 'PENDING';
@@ -32,8 +44,16 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   bool _terminal = false;
   bool _disposed = false;
   int _pollSeconds = 2;
+  late int? _facilityId = widget.facilityId;
 
-  static const _terminalStates = {'COMPLETED', 'FAILED', 'DIVERTED'};
+  bool get _needsManualHelp => _status == 'FAILED' || _status == 'QUEUED';
+
+  bool _cancelling = false;
+
+  static const _terminalStates = {'COMPLETED', 'FAILED', 'DIVERTED', 'CANCELLED'};
+
+  bool get _canCancel =>
+      _dispatchId != null && _status != 'COMPLETED' && _status != 'CANCELLED';
 
   @override
   void initState() {
@@ -110,6 +130,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       if (!mounted || _disposed) return;
       final status = (data['status'] as String?) ?? 'UNKNOWN';
       final driverName = data['driver_name'] as String?;
+      final facilityId = data['facility_id'];
       final etaRaw = data['eta_minutes'];
       final eta = etaRaw is int
           ? etaRaw
@@ -118,6 +139,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
               : null;
       setState(() {
         _status = status;
+        if (facilityId is int) _facilityId = facilityId;
         _driverName = driverName;
         _etaMinutes = eta;
         final parts = <String>[
@@ -145,6 +167,68 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
     }
   }
 
+  Future<void> _confirmCancel() async {
+    final yes = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Cancel this dispatch?'),
+        content: const Text(
+          'This stops alerting drivers. If a driver has accepted, the driver and the '
+          'hospital will be told it is cancelled.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('Keep it'),
+          ),
+          TextButton(
+            key: const Key('dispatch_cancel_confirm'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Cancel dispatch'),
+          ),
+        ],
+      ),
+    );
+    if (yes == true) await _cancel();
+  }
+
+  Future<void> _cancel() async {
+    setState(() => _cancelling = true);
+    String? problem;
+    try {
+      final identity = await ChoStore().load();
+      if (identity == null) {
+        problem = 'This phone is not set up. Call the driver and hospital directly.';
+      } else {
+        final data = await _api.cancelDispatch(
+          dispatchId: _dispatchId!,
+          choPhone: identity.phone,
+        );
+        if (!mounted || _disposed) return;
+        _timer?.cancel();
+        setState(() {
+          _status = (data['status'] as String?) ?? 'CANCELLED';
+          _terminal = true;
+          _driverName = null;
+          _etaMinutes = null;
+          _detail = 'Drivers will not be alerted any more.';
+        });
+      }
+    } on ApiException catch (e) {
+      problem = e.code == null
+          ? 'Could not cancel. Call the driver and hospital directly.'
+          : e.reason;
+    } catch (_) {
+      problem =
+          'Could not cancel: no connection. Call the driver and hospital directly.';
+    }
+    if (!mounted || _disposed) return;
+    setState(() => _cancelling = false);
+    if (problem != null) {
+      ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text(problem)));
+    }
+  }
+
   @override
   void dispose() {
     _disposed = true;
@@ -158,58 +242,72 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       appBar: AppBar(
         title: const Text('Dispatch Status'),
       ),
-      body: Padding(
+      body: ListView(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            const SizedBox(height: 32),
+        children: [
+          const SizedBox(height: 32),
+          Text(
+            _status,
+            textAlign: TextAlign.center,
+            style: const TextStyle(
+              fontSize: 32,
+              fontWeight: FontWeight.bold,
+              color: YomaColors.brand,
+            ),
+          ),
+          const SizedBox(height: 16),
+          Text(
+            _detail,
+            textAlign: TextAlign.center,
+            style: TextStyle(color: Colors.grey.shade800),
+          ),
+          if (_driverName != null || _etaMinutes != null) ...[
+            const SizedBox(height: 12),
             Text(
-              _status,
+              [
+                if (_driverName != null) 'Driver: $_driverName',
+                if (_etaMinutes != null) 'ETA: ${_etaMinutes}m',
+              ].join('  ·  '),
               textAlign: TextAlign.center,
               style: const TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.bold,
+                fontSize: 16,
+                fontWeight: FontWeight.w600,
                 color: YomaColors.brand,
               ),
             ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Request: ${widget.clientRequestId}',
+            textAlign: TextAlign.center,
+            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          ),
+          const SizedBox(height: 24),
+          if (!_terminal && _dispatchId != null)
+            const Center(child: CircularProgressIndicator()),
+          if (_needsManualHelp) ...[
             const SizedBox(height: 16),
-            Text(
-              _detail,
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade800),
-            ),
-            if (_driverName != null || _etaMinutes != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                [
-                  if (_driverName != null) 'Driver: $_driverName',
-                  if (_etaMinutes != null) 'ETA: ${_etaMinutes}m',
-                ].join('  ·  '),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: YomaColors.brand,
-                ),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Text(
-              'Request: ${widget.clientRequestId}',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
-            ),
-            const Spacer(),
-            if (!_terminal && _dispatchId != null)
-              const Center(child: CircularProgressIndicator()),
-            const Spacer(),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-              child: const Text('Back to Home'),
+            ManualContactsPanel(
+              key: ValueKey(_facilityId),
+              facilityIds: {if (_facilityId != null) _facilityId!},
+              launcher: widget.launcher,
             ),
           ],
-        ),
+          if (_canCancel) ...[
+            const SizedBox(height: 24),
+            TextButton(
+              key: const Key('dispatch_cancel'),
+              style: TextButton.styleFrom(foregroundColor: YomaColors.danger),
+              onPressed: _cancelling ? null : _confirmCancel,
+              child: Text(_cancelling ? 'Cancelling…' : 'Cancel this dispatch'),
+            ),
+          ],
+          const SizedBox(height: 24),
+          OutlinedButton(
+            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+            child: const Text('Back to Home'),
+          ),
+        ],
       ),
     );
   }

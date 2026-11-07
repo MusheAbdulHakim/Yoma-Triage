@@ -4,6 +4,7 @@ import 'package:yoma_triage/screens/screening_screen.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'helpers/vitals_helper.dart';
+import 'helpers/cho_helper.dart';
 
 /// Advance frames without [pumpAndSettle], which hangs on the breath pulse.
 Future<void> pumpUntilFound(
@@ -24,7 +25,7 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   setUp(() {
-    SharedPreferences.setMockInitialValues({});
+    SharedPreferences.setMockInitialValues(registeredChoPrefs());
   });
 
   testWidgets('web simulator Code Red shows Confirm Referral', (tester) async {

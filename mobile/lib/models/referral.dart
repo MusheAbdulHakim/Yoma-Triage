@@ -4,6 +4,9 @@ class ReferralRequest {
   final int facilityId;
   final String patientHash;
 
+  /// The registered CHO sending this. The server rejects anyone else.
+  final String choPhone;
+
   /// In-memory display label only — never serialized to outbox/API JSON.
   final String? patientName;
   final String emergencyType;
@@ -19,11 +22,16 @@ class ReferralRequest {
   /// False for "Emergency: skip vitals": dispatch with no clinical assessment.
   final bool vitalsTaken;
 
+  /// How long this waited on the phone, by the phone's own clock. Set only when the
+  /// queue sends it. Never a timestamp, so a phone set to the wrong date can't skew it.
+  final int? queueAgeSeconds;
+
   ReferralRequest({
     required this.clientRequestId,
     required this.chpsCompoundId,
     required this.facilityId,
     required this.patientHash,
+    required this.choPhone,
     this.patientName,
     required this.emergencyType,
     required this.vitals,
@@ -35,6 +43,7 @@ class ReferralRequest {
     this.originLon,
     this.originSource,
     this.vitalsTaken = true,
+    this.queueAgeSeconds,
   });
 
   Map<String, dynamic> toJson() => {
@@ -42,9 +51,11 @@ class ReferralRequest {
         'chps_compound_id': chpsCompoundId,
         'facility_id': facilityId,
         'patient_hash': patientHash,
+        'cho_phone': choPhone,
         'emergency_type': emergencyType,
         'vitals': vitals,
         if (!vitalsTaken) 'vitals_taken': false,
+        if (queueAgeSeconds != null) 'queue_age_seconds': queueAgeSeconds,
         if (aiScreenResult != null) 'ai_screen_result': aiScreenResult,
         if (aiConfidence != null) 'ai_confidence': aiConfidence,
         if (aiModelVersion != null) 'ai_model_version': aiModelVersion,

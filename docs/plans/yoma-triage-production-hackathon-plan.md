@@ -172,7 +172,7 @@ These are assumed so the plan can be complete without blocking on product-owner 
 | Location | Current text | Action |
 |----------|--------------|--------|
 | `PRODUCT_SPEC.md` §Solution | **RelayCare Mobile**, **RelayDispatch** | Rename to **Yoma Care (mobile)** / **Yoma Dispatch (gateway)** or simply “CHO app” / “Dispatch gateway” |
-| `docs/yoma-triage-product-spec.md` | Same RelayCare/RelayDispatch | Sync with PRODUCT_SPEC |
+| `PRODUCT_SPEC.md` | Same RelayCare/RelayDispatch | Sync with PRODUCT_SPEC |
 | `Yoma Triage Clinical Design Research.md` (and any `RelayAI Clinical Design Research.md` leftover) | RelayCare / RelayDispatch / Kotlin Compose narrative | Update product names; note Flutter is actual stack |
 | `mobile/test/widget_test.dart`, `mobile/test/simulator_flow_test.dart` | `RelayApp` (nonexistent) | Rename to `YomaApp`; this currently breaks `flutter test` |
 | `src/tools/momo_escrow.py` | `externalId = "RELAY-..."` | Rename the external-id prefix to a Yoma-safe value; real MoMo remains deferred |
@@ -352,7 +352,7 @@ There is **no** `GET /api/v1/driver/{id}/status`, `/api/v1/ussd/callback`, voice
 
 | File | Responsibility |
 |------|----------------|
-| `PRODUCT_SPEC.md`, `docs/yoma-triage-product-spec.md` | RelayCare/RelayDispatch rename |
+| `PRODUCT_SPEC.md` | RelayCare/RelayDispatch rename |
 | `README.md` | Demo runbook + honesty notes |
 | `docs/plans/yoma-triage-demo-runbook.md` (optional new at impl time) | Minute-by-minute pitch |
 
@@ -380,7 +380,7 @@ There is **no** `GET /api/v1/driver/{id}/status`, `/api/v1/ussd/callback`, voice
 
 **Files:**
 - Modify: `PRODUCT_SPEC.md` (Solution section ~L37–39 and any architecture labels)
-- Modify: `docs/yoma-triage-product-spec.md` (same)
+- Modify: `PRODUCT_SPEC.md` (same)
 - Modify: `Yoma Triage Clinical Design Research.md` (product component names)
 - Modify: `src/tools/momo_escrow.py` (`RELAY-` external-id prefix only; no payment behavior change)
 - Verify: case-insensitive repository search for any `relay` branding/symbol
@@ -408,7 +408,7 @@ Expected before changes: active-doc component names, stale `RelayApp` tests, `RE
 - [ ] **Step 4: Commit** (when implementation authorized)
 
 ```bash
-git add PRODUCT_SPEC.md docs/yoma-triage-product-spec.md "*.md"
+git add PRODUCT_SPEC.md "*.md"
 git commit -m "$(cat <<'EOF'
 docs: complete Yoma Triage rebrand naming pass
 
@@ -422,7 +422,7 @@ EOF
 
 ### Task W0.2: Reconcile active product docs with the honest demo cut
 
-**Files:** `PRODUCT_SPEC.md`, `docs/yoma-triage-product-spec.md`
+**Files:** `PRODUCT_SPEC.md`
 
 - [ ] Update the Phase 1 roadmap so it does not claim an on-device SLM or clinically meaningful YAMNet result ships this week.
 - [ ] Correct the architecture diagram that visually sends mobile SMS directly to Africa's Talking; backend remains the only gateway.

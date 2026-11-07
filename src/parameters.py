@@ -51,6 +51,9 @@ CASCADE_TIER_SECONDS = 90
 MIN_FIELD_CASCADE_TIER_SECONDS = 60
 LATE_CLAIM_WINDOW_MINUTES = 45
 PLACEHOLDER_ETA_MINUTES = 30
+# A referral that waited longer than this on the phone isn't dispatched until the CHO says
+# it's still needed. STALE_AFTER_MINUTES can be overridden by an environment variable.
+STALE_AFTER_MINUTES = 20
 # How often the worker looks for overdue cascade steps. WORKER_POLL_SECONDS overrides it.
 WORKER_POLL_SECONDS = 5
 
@@ -61,6 +64,14 @@ OUTBOX_MAX_ATTEMPTS = 5
 OUTBOX_BACKOFF_SECONDS = 15
 OUTBOX_SENDING_LEASE_SECONDS = 60
 OUTBOX_BATCH_SIZE = 20
+# Sent in parallel, so one hung send can't hold up the rest. OUTBOX_SEND_CONCURRENCY and
+# OUTBOX_SEND_TIMEOUT_SECONDS can be overridden by environment variables of the same name.
+OUTBOX_SEND_CONCURRENCY = 5
+OUTBOX_SEND_TIMEOUT_SECONDS = 5
+
+# Records on the phone: unsent or refused referrals are deleted after this long, once the
+# CHO has been warned. The app does the deleting; this keeps both sides' sheets in step.
+LOCAL_RECORD_TTL_HOURS = 72
 
 # Payments: mock ledger only. No money moves.
 FUEL_STIPEND_GHS = 22.5

@@ -8,13 +8,19 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:sqflite/sqflite.dart';
 
 import '../models/referral.dart';
+import '../parameters.dart';
 import 'api_client.dart';
+
+const _serverReferralIdKey = 'local_server_referral_id';
+const _manualContactKey = 'local_manual_contact_made';
+const _expiryWarnedAtKey = 'local_expiry_warned_at';
 
 class QueuedReferral {
   final String clientRequestId;
   final Map<String, dynamic> payload;
   /// pending: will be retried. sent: done. failed: the server refused it, so it
-  /// will not be retried and the CHO has to coordinate manually.
+  /// will not be retried and the CHO has to coordinate manually. needs_confirmation:
+  /// the server stored it as stale and is waiting for the CHO's answer.
   String status;
   String? lastError;
   DateTime createdAt;
@@ -29,6 +35,18 @@ class QueuedReferral {
     DateTime? updatedAt,
   })  : createdAt = createdAt ?? DateTime.now(),
         updatedAt = updatedAt ?? DateTime.now();
+
+  // Kept in the payload, under keys that are never sent to the server.
+  int? get serverReferralId => payload[_serverReferralIdKey] as int?;
+  bool get manualContactMade => payload[_manualContactKey] == true;
+  DateTime? get expiryWarnedAt =>
+      DateTime.tryParse(payload[_expiryWarnedAtKey] as String? ?? '');
+
+  /// How long this has waited, by this phone's clock. A clock set back reads as zero.
+  int get ageSeconds {
+    final age = DateTime.now().difference(createdAt).inSeconds;
+    return age < 0 ? 0 : age;
+  }
 
   Map<String, dynamic> toJson() => {
         'client_request_id': clientRequestId,
@@ -81,6 +99,15 @@ class OfflineQueue {
 
   /// How many referrals the server has refused. The Home screen shows this.
   final ValueNotifier<int> failedCount = ValueNotifier<int>(0);
+
+  /// How many stale referrals are waiting for the CHO's answer.
+  final ValueNotifier<int> needsConfirmationCount = ValueNotifier<int>(0);
+
+  /// Set while referrals keep being refused by something other than our API.
+  final ValueNotifier<String?> retryWarning = ValueNotifier<String?>(null);
+
+  /// How many records the CHO has been warned are about to be deleted.
+  final ValueNotifier<int> expiringCount = ValueNotifier<int>(0);
 
   Database? _db;
   final DatabaseFactory? databaseFactoryOverride;
@@ -273,6 +300,126 @@ class OfflineQueue {
     });
   }
 
+  /// Stale referrals waiting for the CHO's answer, oldest first.
+  Future<List<QueuedReferral>> needsConfirmation() {
+    return _serialized(() async {
+      final items = await _withStatusUnlocked('needs_confirmation');
+      needsConfirmationCount.value = items.length;
+      return items;
+    });
+  }
+
+  /// The CHO has answered, and the server has recorded it.
+  Future<void> removeResolved(String clientRequestId) {
+    return _serialized(() async {
+      for (final queued in await _withStatusUnlocked('needs_confirmation')) {
+        if (queued.clientRequestId == clientRequestId) {
+          queued.status = 'sent';
+          await _persistUnlocked(queued);
+        }
+      }
+      needsConfirmationCount.value =
+          (await _withStatusUnlocked('needs_confirmation')).length;
+    });
+  }
+
+  /// The CHO tapped Call or SMS for this referral. If it turns out to be stale, the
+  /// prompt starts on "Already handled".
+  Future<void> markManualContact(String clientRequestId) {
+    return _serialized(() async {
+      for (final status in const ['pending', 'needs_confirmation']) {
+        for (final queued in await _withStatusUnlocked(status)) {
+          if (queued.clientRequestId == clientRequestId) {
+            queued.payload[_manualContactKey] = true;
+            await _persistUnlocked(queued);
+          }
+        }
+      }
+    });
+  }
+
+  /// Everything that hasn't reached a driver, oldest first.
+  Future<List<QueuedReferral>> unsent() {
+    return _serialized(() async {
+      return (await _unsentUnlocked())
+        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+    });
+  }
+
+  /// The CHO has dealt with this failed referral by hand. Deletes the local record.
+  Future<void> markHandled(String clientRequestId) {
+    return _serialized(() async {
+      for (final queued in await _failedUnlocked()) {
+        if (queued.clientRequestId == clientRequestId) {
+          queued.status = 'sent';
+          await _persistUnlocked(queued);
+        }
+      }
+      failedCount.value = (await _failedUnlocked()).length;
+    });
+  }
+
+  Future<List<QueuedReferral>> _unsentUnlocked() async => [
+        for (final status in const ['pending', 'needs_confirmation', 'failed'])
+          ...await _withStatusUnlocked(status),
+      ];
+
+  /// Call when the CHO can see the warning. Starts the clock on deleting anything near
+  /// its TTL, and returns how many records that covers.
+  Future<int> noteExpiryWarning({DateTime? now}) {
+    return _serialized(() async {
+      final time = now ?? DateTime.now();
+      final warnFrom = const Duration(
+        hours: Parameters.localRecordTtlHours - Parameters.localRecordWarningHours,
+      );
+      var count = 0;
+      for (final queued in await _unsentUnlocked()) {
+        if (time.difference(queued.createdAt) < warnFrom) continue;
+        count++;
+        if (queued.expiryWarnedAt == null) {
+          queued.payload[_expiryWarnedAtKey] = time.toIso8601String();
+          await _persistUnlocked(queued);
+        }
+      }
+      expiringCount.value = count;
+      return count;
+    });
+  }
+
+  /// Deletes what's past its TTL, but only after the CHO has had the full warning. A
+  /// phone left off for a week still warns first when it comes back. Returns how many.
+  Future<int> purgeExpired({DateTime? now}) {
+    return _serialized(() async {
+      final time = now ?? DateTime.now();
+      var deleted = 0;
+      for (final queued in await _unsentUnlocked()) {
+        final warnedAt = queued.expiryWarnedAt;
+        final expired = time.difference(queued.createdAt) >=
+            const Duration(hours: Parameters.localRecordTtlHours);
+        final warnedLongEnough = warnedAt != null &&
+            time.difference(warnedAt) >=
+                const Duration(hours: Parameters.localRecordWarningHours);
+        if (expired && warnedLongEnough) {
+          queued.status = 'sent';
+          await _persistUnlocked(queued);
+          deleted++;
+        }
+      }
+      if (deleted > 0) {
+        failedCount.value = (await _failedUnlocked()).length;
+        needsConfirmationCount.value =
+            (await _withStatusUnlocked('needs_confirmation')).length;
+        expiringCount.value = expiringCount.value > deleted
+            ? expiringCount.value - deleted
+            : 0;
+      }
+      return deleted;
+    });
+  }
+
+  /// A send outside the queue was refused by something other than our API.
+  void noteRetryWarning(String warning) => retryWarning.value = warning;
+
   /// Records that the server refused this referral, so it is never retried.
   Future<void> markFailed(String clientRequestId, String reason) {
     return _serialized(() async {
@@ -294,20 +441,24 @@ class OfflineQueue {
   }
 
   /// Sends pending items. A permanent refusal (see [ApiException.isPermanent]) moves
-  /// an item to failed. Network errors, 5xx, 408 and 429 keep it pending for retry.
+  /// an item to failed. Anything else keeps it pending for retry, and a 4xx we can't
+  /// trust also raises [retryWarning].
   Future<int> flush(ApiClient api) {
     return _serialized(() async {
       final items = await _pendingUnlocked();
       var sent = 0;
+      String? warning;
       for (final queued in items) {
         final chps = _asInt(queued.payload['chps_compound_id']);
         final facility = _asInt(queued.payload['facility_id']);
         final hash = _asString(queued.payload['patient_hash']);
+        final choPhone = _asString(queued.payload['cho_phone']);
         final emergency = _asString(queued.payload['emergency_type']);
         final vitalsRaw = queued.payload['vitals'];
         if (chps == null ||
             facility == null ||
             hash == null ||
+            choPhone == null ||
             emergency == null ||
             vitalsRaw is! Map) {
           // Retrying can't repair what was saved on this phone.
@@ -324,6 +475,7 @@ class OfflineQueue {
               chpsCompoundId: chps,
               facilityId: facility,
               patientHash: hash,
+              choPhone: choPhone,
               emergencyType: emergency,
               vitals: Map<String, dynamic>.from(vitalsRaw),
               aiScreenResult: queued.payload['ai_screen_result'] as String?,
@@ -337,8 +489,19 @@ class OfflineQueue {
                   originLon == null ? null : (originLon as num).toDouble(),
               originSource: queued.payload['origin_source'] as String?,
               vitalsTaken: queued.payload['vitals_taken'] != false,
+              queueAgeSeconds: queued.ageSeconds,
             ),
           );
+          final referral = response['referral'];
+          if (referral is Map &&
+              referral['status'] == 'AWAITING_CONFIRMATION') {
+            queued.status = 'needs_confirmation';
+            queued.lastError = null;
+            queued.updatedAt = DateTime.now();
+            queued.payload[_serverReferralIdKey] = _asInt(referral['id']);
+            await _persistUnlocked(queued);
+            continue;
+          }
           final dispatchId = parseDispatchIdFromResponse(response);
           if (dispatchId != null) {
             await _saveDispatchId(queued.clientRequestId, dispatchId);
@@ -352,6 +515,7 @@ class OfflineQueue {
           if (e.isPermanent) {
             await _failUnlocked(queued, e.reason);
           } else {
+            if (e.needsRetryWarning) warning = e.retryWarning;
             await _keepPending(queued, e);
           }
         } catch (e) {
@@ -359,6 +523,9 @@ class OfflineQueue {
         }
       }
       failedCount.value = (await _failedUnlocked()).length;
+      needsConfirmationCount.value =
+          (await _withStatusUnlocked('needs_confirmation')).length;
+      retryWarning.value = warning;
       return sent;
     });
   }
@@ -370,45 +537,28 @@ class OfflineQueue {
     await _persistUnlocked(queued);
   }
 
-  Future<List<QueuedReferral>> _failedUnlocked() async {
+  Future<List<QueuedReferral>> _failedUnlocked() => _withStatusUnlocked('failed');
+
+  Future<List<QueuedReferral>> _withStatusUnlocked(String status) async {
     if (kIsWeb) {
       final prefs = await SharedPreferences.getInstance();
       return [
         for (final s in prefs.getStringList(_prefsKey) ?? <String>[])
-          if (_decodeRow(s) case final q? when q.status == 'failed') q,
+          if (_decodeRow(s) case final q? when q.status == status) q,
       ];
     }
     final db = await _openDb();
     final rows = await db.query(
       _table,
       where: 'status = ?',
-      whereArgs: ['failed'],
+      whereArgs: [status],
       orderBy: 'created_at ASC',
     );
     return rows.map(_fromRow).toList();
   }
 
   /// Internal pending without re-entering the mutex (caller already holds it).
-  Future<List<QueuedReferral>> _pendingUnlocked() async {
-    if (kIsWeb) {
-      final prefs = await SharedPreferences.getInstance();
-      final list = prefs.getStringList(_prefsKey) ?? [];
-      final out = <QueuedReferral>[];
-      for (final s in list) {
-        final q = _decodeRow(s);
-        if (q != null && q.status == 'pending') out.add(q);
-      }
-      return out;
-    }
-    final db = await _openDb();
-    final rows = await db.query(
-      _table,
-      where: 'status = ?',
-      whereArgs: ['pending'],
-      orderBy: 'created_at ASC',
-    );
-    return rows.map(_fromRow).toList();
-  }
+  Future<List<QueuedReferral>> _pendingUnlocked() => _withStatusUnlocked('pending');
 
   Future<void> _persistUnlocked(QueuedReferral queued) async {
     if (kIsWeb) {

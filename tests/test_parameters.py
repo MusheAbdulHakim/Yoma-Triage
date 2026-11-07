@@ -66,6 +66,14 @@ def test_moews_bands_match_the_app(vital):
     assert _dart_band(DART_VITALS[vital]) == expected
 
 
+def test_stale_threshold_matches_the_app():
+    assert _dart_constant("staleAfterMinutes") == parameters.STALE_AFTER_MINUTES
+
+
+def test_local_record_ttl_matches_the_app():
+    assert _dart_constant("localRecordTtlHours") == parameters.LOCAL_RECORD_TTL_HOURS
+
+
 def test_risk_rules_match_the_app():
     assert _dart_constant("moewsRedParameterScore") == parameters.MOEWS_RED_PARAMETER_SCORE
     assert _dart_constant("moewsRedTotal") == parameters.MOEWS_RED_TOTAL
@@ -128,12 +136,16 @@ def test_sheet_lists_each_moews_band(vital):
         ("Wait per cascade tier", parameters.CASCADE_TIER_SECONDS),
         ("Shortest tier wait allowed in the field", parameters.MIN_FIELD_CASCADE_TIER_SECONDS),
         ("Late-claim window", parameters.LATE_CLAIM_WINDOW_MINUTES),
+        ("Stale queued referral", parameters.STALE_AFTER_MINUTES),
+        ("Local record TTL", parameters.LOCAL_RECORD_TTL_HOURS),
         ("Cascade worker poll interval", parameters.WORKER_POLL_SECONDS),
         ("SMS outbox poll interval", parameters.OUTBOX_POLL_SECONDS),
         ("SMS send attempts before giving up", parameters.OUTBOX_MAX_ATTEMPTS),
         ("SMS retry backoff", parameters.OUTBOX_BACKOFF_SECONDS),
         ("SMS claim lease", parameters.OUTBOX_SENDING_LEASE_SECONDS),
         ("SMS batch size", parameters.OUTBOX_BATCH_SIZE),
+        ("SMS sent at once", parameters.OUTBOX_SEND_CONCURRENCY),
+        ("SMS send time limit", parameters.OUTBOX_SEND_TIMEOUT_SECONDS),
         ("ETA shown to the CHO", parameters.PLACEHOLDER_ETA_MINUTES),
         ("Fuel stipend recorded on accept", parameters.FUEL_STIPEND_GHS),
         ("Highest gestational age accepted", parameters.GESTATIONAL_WEEKS_MAX),
@@ -158,6 +170,7 @@ def test_sheet_lists_each_setting_with_its_current_value(label, value):
         ("Device SpO₂, lowest accepted", "deviceSpo2Min"),
         ("Device SpO₂, highest accepted", "deviceSpo2Max"),
         ("Facility list refresh warning", "catalogStaleAfterDays"),
+        ("Local record deletion warning", "localRecordWarningHours"),
     ],
 )
 def test_sheet_lists_each_app_only_setting(label, name):
@@ -178,6 +191,11 @@ def test_every_table_row_has_a_blank_sign_off_column():
     assert data_rows
     for row in data_rows:
         assert row.rstrip().endswith("| |"), row
+
+
+def test_sheet_asks_about_green_without_spo2():
+    questions = SHEET[SHEET.index("## Questions for the clinical lead") : SHEET.index("## Vital sign")]
+    assert "every vital measured except SpO₂ can still be GREEN" in questions
 
 
 def test_sheet_says_nothing_is_approved():
