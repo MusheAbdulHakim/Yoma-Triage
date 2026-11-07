@@ -6,6 +6,23 @@
 | Staging | `staging` | `yamnet` or dual-run packs | Point `API_BASE_URL` at staging FastAPI; sync catalog on connect |
 | Production pilot | `production` | `yamnet` until HeAR/OPERA cleared | Hide env chip; prefer `MOEWS_ONLY=true` if acoustic pack fails field QA |
 
+## Backend pre-deploy check (deploy runbook)
+
+Run these against the target database before deploying the backend, and stop if either
+fails:
+
+```bash
+alembic upgrade head
+python -m src.admin.check_compounds
+```
+
+`check_compounds` lists every CHPS compound with **no active CHO** or **no active driver**,
+and exits 1 if there are any. A compound without an active registered CHO gets no CHO
+alerts at all, because alerts go only to the `chos` table, and one without an active
+driver can't dispatch. Fix each one first: register its CHO with
+`python -m src.admin.add_cho`, and add or reactivate its drivers. It only reads, needs
+only `DATABASE_URL`, and prints no phone numbers.
+
 ## Flutter dart-defines
 
 ```bash
