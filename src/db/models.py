@@ -153,6 +153,7 @@ class Wallet(Base):
     amount: Mapped[float] = mapped_column(Float)
     currency: Mapped[str] = mapped_column(String(8), default="GHS")
     source: Mapped[str] = mapped_column(String(64), default="community_fund_mock")
+    # INITIAL_DISBURSED|CANCELLED. A cancelled dispatch keeps its row, marked CANCELLED.
     status: Mapped[str] = mapped_column(String(32), default="INITIAL_DISBURSED")
     transaction_id: Mapped[str] = mapped_column(String(64))
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
