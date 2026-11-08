@@ -64,6 +64,8 @@ PURPOSES = {
     "inbound_reply": Purpose("inbound_reply", "inbound_status_reply", "inbound_reply_failed"),
     "inbound_confirm_ack": Purpose("inbound_reply", "inbound_confirm_ack", "inbound_reply_failed"),
     "send_failure_alert": Purpose("cho", "send_failure_alert", "send_failure_alert_failed"),
+    # Rehearsal and load checks only; never sent by the product itself.
+    "test_message": Purpose("test", "test_send", "test_send_failed"),
 }
 # Who to reach first when there's a queue. Lower goes first.
 ROLE_PRIORITY = {"driver": 0, "hospital": 1, "cho": 2}
@@ -338,6 +340,8 @@ class OutboxSender:
             if result.get("status") != "FAILED":
                 row.status = SENT
                 row.next_attempt_at = None
+                message_id = result.get("message_id")
+                row.provider_message_id = str(message_id)[:64] if message_id else None
                 self._log_outcome(session, row, PURPOSES[row.purpose].sent_action, result)
             elif row.attempts >= parameters.OUTBOX_MAX_ATTEMPTS:
                 await self._fail(session, row, result)
@@ -395,3 +399,59 @@ class OutboxSender:
                 },
             )
         )
+
+
+# What Africa's Talking's delivery reports say. Only these move delivery_status.
+DELIVERY_STATUSES = frozenset({"Success", "Failed", "Rejected", "Buffered", "Sent", "Submitted"})
+
+
+async def record_delivery_report(
+    session: AsyncSession,
+    *,
+    message_id: str,
+    status: str,
+    failure_reason: str | None = None,
+    network_code: str | None = None,
+    retry_count: str | None = None,
+) -> OutboundMessage | None:
+    """Store a delivery report against the message it is about. Phone numbers aren't kept.
+
+    Returns None if no message has that id (a report for a send we didn't make, or for a
+    send recorded before its id was kept).
+    """
+    if status not in DELIVERY_STATUSES:
+        raise ValueError(f"Unknown delivery status: {status}")
+    row = await session.scalar(
+        select(OutboundMessage)
+        .where(OutboundMessage.provider_message_id == message_id)
+        .with_for_update()
+        .execution_options(populate_existing=True)
+    )
+    if row is None:
+        logger.warning("Delivery report for an unknown message id (%s)", status)
+        return None
+    row.delivery_status = status
+    row.delivery_updated_at = datetime.now(UTC)
+    report = {
+        key: value
+        for key, value in (
+            ("status", status),
+            ("failure_reason", failure_reason),
+            ("network_code", network_code),
+            ("retry_count", retry_count),
+        )
+        if value
+    }
+    row.provider_response = {**(row.provider_response or {}), "delivery": report}
+    if row.dispatch_id is not None:
+        session.add(
+            DispatchLog(
+                dispatch_id=row.dispatch_id,
+                action="sms_delivery_report",
+                target_phone=row.recipient,
+                target_role=PURPOSES[row.purpose].role,
+                response=status,
+                metadata_json={"outbound_message_id": row.id, **report},
+            )
+        )
+    return row

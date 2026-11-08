@@ -145,6 +145,15 @@ class OutboundMessage(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
     provider_response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Africa's Talking's id for a sent message, which its delivery reports quote.
+    provider_message_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    # The latest delivery report: Success, Failed, Rejected, Buffered, Sent or Submitted.
+    delivery_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    delivery_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
 
 

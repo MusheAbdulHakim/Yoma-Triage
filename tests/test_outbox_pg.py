@@ -442,4 +442,6 @@ async def test_migration_table_matches_the_brief(pg_sessions):  # noqa: F811
     assert columns == {
         "id", "recipient", "body", "purpose", "dispatch_id", "status", "attempts",
         "next_attempt_at", "provider_response", "created_at",
+        # Delivery reports (migration 0009).
+        "provider_message_id", "delivery_status", "delivery_updated_at",
     }
