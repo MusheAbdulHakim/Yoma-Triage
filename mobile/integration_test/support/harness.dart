@@ -24,6 +24,7 @@ const compoundName = 'Tamale South CHPS';
 const facilityName = 'Tamale Teaching Hospital';
 const facilityPhone = '+233240000200';
 const motorKingDriver = '+233240000001';
+const secondFacilityId = 2;
 const backendUrl = 'http://10.0.2.2:8000';
 
 /// Set by the harness for the 320 dp run, which checks layout on every screen it passes.
@@ -338,4 +339,36 @@ Future<String> ussd(String phone, String choice) async {
     throw StateError('USSD ${response.statusCode}: ${response.body}');
   }
   return response.body;
+}
+
+/// The Ref number a driver sees for a dispatch: its referral's id.
+Future<int> refOf(int dispatchId) async {
+  final row = (await Host.rows('dispatches')).singleWhere((d) => d['id'] == dispatchId);
+  return row['referral_id'] as int;
+}
+
+/// The code in the hospital's notice, which a hospital must quote to reply.
+Future<String> hospitalCode(int dispatchId) async {
+  final row = (await Host.rows('dispatches')).singleWhere((d) => d['id'] == dispatchId);
+  return row['hospital_code'] as String;
+}
+
+/// A driver accepts this dispatch through the USSD menu: 1, the Ref number, then 1.
+Future<String> ussdAccept(String phone, int dispatchId) async =>
+    ussd(phone, '1*${await refOf(dispatchId)}*1');
+
+/// A driver confirms arrival for their trip: 2, then 1.
+Future<String> ussdArrival(String phone) => ussd(phone, '2*1');
+
+/// A hospital's SMS reply, as Africa's Talking would deliver it.
+Future<Map<String, dynamic>> hospitalReply(String phone, String text) async {
+  final response = await http.post(
+    Uri.parse('$backendUrl/api/v1/sms/inbound'),
+    headers: {'content-type': 'application/json'},
+    body: jsonEncode({'from': phone, 'text': text}),
+  ).timeout(const Duration(seconds: 15));
+  if (response.statusCode != 200) {
+    throw StateError('SMS ${response.statusCode}: ${response.body}');
+  }
+  return jsonDecode(response.body) as Map<String, dynamic>;
 }

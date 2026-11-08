@@ -8,7 +8,6 @@ from pathlib import Path
 import pytest
 
 from src.api.referral import VitalsInput
-from src.api.ussd import _menu_choice
 from src.tools.sms_codec import encode_referral_payload_or_none
 
 REPO = Path(__file__).resolve().parents[1]
@@ -147,33 +146,32 @@ def test_payload_within_range_is_encoded():
     )
 
 
-@pytest.mark.parametrize("text", ["1", "2", "3"])
-def test_ussd_exact_choices(text):
-    assert _menu_choice(text) == text
-
-
-@pytest.mark.parametrize(
-    "text", ["21", "13", "11", "31", "1*2", "99*1", "3*2", "*1", "1*", "4", "0", "a1", "1a"]
-)
-def test_ussd_rejects_anything_else(text):
-    assert _menu_choice(text) is None
-
-
 @pytest.mark.asyncio
-@pytest.mark.parametrize("text", ["21", "13", "1*1", "99*1"])
+@pytest.mark.parametrize(
+    "text",
+    ["21", "13", "11", "31", "99*1", "4", "0", "a1", "1a", "*1", "1*", "1*{ref}*11",
+     "1*{ref}*1*1", "1*{ref}*3", "1*{ref}1*1", "1*1{ref}*1", "2*1", "3*3"],
+)
 async def test_ussd_typo_does_not_claim_dispatch(
     client, seeded_db, no_side_effects, monkeypatch, text
 ):
+    """BUG-10: only the exact path 1*<ref>*1 accepts. Nothing near it does."""
     monkeypatch.setattr("src.api.ussd.settings.AT_USSD_SERVICE_CODE", "")
     created = await client.post("/api/v1/referral", json=_payload())
     dispatch_id = created.json()["dispatch"]["id"]
+    ref = created.json()["referral"]["id"]
 
     reply = await client.post(
         "/ussd/callback",
-        data={"phoneNumber": "+233240000001", "serviceCode": "*1#", "text": text},
+        data={
+            "phoneNumber": "+233240000001",
+            "serviceCode": "*1#",
+            "text": text.format(ref=ref),
+        },
     )
 
-    assert reply.text == "END Invalid option selected."
+    assert reply.text.startswith("END ")
+    assert "Accepted" not in reply.text
     dispatch = (await client.get(f"/api/v1/dispatch/{dispatch_id}")).json()
     assert dispatch["driver_id"] is None
 

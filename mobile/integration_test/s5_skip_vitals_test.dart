@@ -19,7 +19,7 @@ void main() {
     await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 30));
     await tester.shot('s5_2_tier1');
 
-    final accept = await ussd(motorKingDriver, '1');
+    final accept = await ussdAccept(motorKingDriver, tester.dispatchIdOnScreen());
     expect(accept, contains('Accepted'));
     await tester.waitFor(find.text('HOSPITAL_NOTIFIED'), timeout: const Duration(seconds: 15));
     await tester.shot('s5_3_accepted');

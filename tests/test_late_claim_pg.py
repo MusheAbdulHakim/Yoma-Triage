@@ -18,15 +18,20 @@ from tests.postgres_support import (
     pg_sessions,  # noqa: F401 - pytest fixture
     postgres_url,  # noqa: F401 - pytest fixture
 )
+from tests.ussd_paths import accept, decline, ref_of
 
 pytestmark = pytest.mark.postgres
 
 MOTOR_KING = DRIVER_PHONES[1]
 
 
+SESSIONS: list = []
+
+
 @pytest.fixture
-def no_wait(monkeypatch):
+def no_wait(monkeypatch, pg_sessions):  # noqa: F811
     monkeypatch.setattr("src.api.ussd.settings.AT_USSD_SERVICE_CODE", "")
+    SESSIONS[:] = [pg_sessions]
 
 
 async def _open(sessions) -> int:
@@ -59,8 +64,13 @@ async def _escalate(sessions, dispatch_id: int) -> None:
     await DispatchOrchestrator().process_due_dispatches()
 
 
-async def _dial(phone: str, text: str = "1") -> str:
+async def _dial(phone: str, dispatch_id: int, choice: str = "1") -> str:
+    """Accept ("1") or decline ("2") this dispatch through the driver's USSD menu."""
     from main import app
+
+    async with SESSIONS[0]() as session:
+        ref = await ref_of(session, dispatch_id)
+    text = accept(ref) if choice == "1" else decline(ref)
 
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
@@ -88,7 +98,7 @@ async def test_tier_one_driver_can_accept_after_escalation(pg_sessions, no_wait)
     await _escalate(pg_sessions, dispatch_id)
     assert (await _dispatch(pg_sessions, dispatch_id)).current_tier == 2
 
-    assert "Accepted" in await _dial(MOTOR_KING)
+    assert "Accepted" in await _dial(MOTOR_KING, dispatch_id)
 
     assert (await _dispatch(pg_sessions, dispatch_id)).driver_id == 1
     async with pg_sessions() as session:
@@ -102,7 +112,7 @@ async def test_driver_claims_after_failed_and_cho_is_told(pg_sessions, no_wait):
     await _escalate(pg_sessions, dispatch_id)
     assert (await _dispatch(pg_sessions, dispatch_id)).status == "FAILED"
 
-    assert "Accepted" in await _dial(MOTOR_KING)
+    assert "Accepted" in await _dial(MOTOR_KING, dispatch_id)
 
     dispatch = await _dispatch(pg_sessions, dispatch_id)
     assert dispatch.driver_id == 1
@@ -122,17 +132,18 @@ async def test_second_late_claim_loses(pg_sessions, no_wait):  # noqa: F811
     await _escalate(pg_sessions, dispatch_id)
     await _escalate(pg_sessions, dispatch_id)
 
-    assert "Accepted" in await _dial(MOTOR_KING)
-    assert "Accepted" not in await _dial(FALLBACK_DRIVER_PHONE)
+    assert "Accepted" in await _dial(MOTOR_KING, dispatch_id)
+    assert "Accepted" not in await _dial(FALLBACK_DRIVER_PHONE, dispatch_id)
 
     assert (await _dispatch(pg_sessions, dispatch_id)).driver_id == 1
 
 
 @pytest.mark.asyncio
 async def test_driver_never_offered_the_dispatch_stays_refused(pg_sessions, no_wait):  # noqa: F811
-    await _open(pg_sessions)
-    reply = await _dial(FALLBACK_DRIVER_PHONE)
-    assert "not eligible" in reply
+    dispatch_id = await _open(pg_sessions)
+    reply = await _dial(FALLBACK_DRIVER_PHONE, dispatch_id)
+    assert "not open for you" in reply
+    assert (await _dispatch(pg_sessions, dispatch_id)).driver_id is None
 
 
 @pytest.mark.asyncio
@@ -148,7 +159,7 @@ async def test_failed_dispatch_past_the_window_cannot_be_claimed(pg_sessions, no
         )
         await session.commit()
 
-    assert "Accepted" not in await _dial(MOTOR_KING)
+    assert "Accepted" not in await _dial(MOTOR_KING, dispatch_id)
 
     dispatch = await _dispatch(pg_sessions, dispatch_id)
     assert dispatch.status == "FAILED"
@@ -161,7 +172,7 @@ async def test_decline_after_failed_does_not_restart_the_cascade(pg_sessions, no
     await _escalate(pg_sessions, dispatch_id)
     await _escalate(pg_sessions, dispatch_id)
 
-    assert "No active dispatch" in await _dial(MOTOR_KING, "2")
+    assert "Decline noted" in await _dial(MOTOR_KING, dispatch_id, "2")
 
     assert (await _dispatch(pg_sessions, dispatch_id)).status == "FAILED"
 
@@ -169,9 +180,9 @@ async def test_decline_after_failed_does_not_restart_the_cascade(pg_sessions, no
 @pytest.mark.asyncio
 async def test_driver_who_declined_can_still_claim_while_unclaimed(pg_sessions, no_wait):  # noqa: F811
     dispatch_id = await _open(pg_sessions)
-    assert "declined" in await _dial(MOTOR_KING, "2")
+    assert "declined" in await _dial(MOTOR_KING, dispatch_id, "2")
 
-    assert "Accepted" in await _dial(MOTOR_KING)
+    assert "Accepted" in await _dial(MOTOR_KING, dispatch_id)
 
     assert (await _dispatch(pg_sessions, dispatch_id)).driver_id == 1
 
@@ -189,7 +200,7 @@ async def test_failed_dispatch_inside_the_window_can_be_claimed(pg_sessions, no_
         )
         await session.commit()
 
-    assert "Accepted" in await _dial(MOTOR_KING)
+    assert "Accepted" in await _dial(MOTOR_KING, dispatch_id)
 
 
 @pytest.mark.asyncio
@@ -206,4 +217,4 @@ async def test_late_claim_window_is_configurable(pg_sessions, no_wait, monkeypat
         )
         await session.commit()
 
-    assert "Accepted" in await _dial(MOTOR_KING)
+    assert "Accepted" in await _dial(MOTOR_KING, dispatch_id)

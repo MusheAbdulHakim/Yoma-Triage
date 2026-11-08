@@ -29,7 +29,11 @@ from src.db.models import (
     Facility,
     Referral,
 )
-from src.services.dispatch_orchestrator import DispatchNotCancellableError, DispatchOrchestrator
+from src.services.dispatch_orchestrator import (
+    ASSIGNED,
+    DispatchNotCancellableError,
+    DispatchOrchestrator,
+)
 from src.services.referral_expiry import EXPIRED_UNCONFIRMED
 from src.tools.clinical_summary import build_clinical_summary
 from src.tools.moews_calculator import missing_vitals, score_vitals
@@ -190,16 +194,27 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
         if driver:
             driver_name = driver.name
             # Demo ETA once a driver has claimed the trip.
-            if dispatch.status in {
-                "ACCEPTED",
-                "HOSPITAL_NOTIFIED",
-                "HOSPITAL_CONFIRMED",
-            }:
+            if dispatch.status in ASSIGNED:
                 eta_minutes = parameters.PLACEHOLDER_ETA_MINUTES
+    facility = await session.get(Facility, dispatch.facility_id)
+    # The facility the most recent diversion sent the patient away from, if any.
+    divert = await session.scalar(
+        select(DispatchLog)
+        .where(DispatchLog.dispatch_id == dispatch.id, DispatchLog.action == "hospital_divert")
+        .order_by(DispatchLog.id.desc())
+        .limit(1)
+    )
+    diverted_from = None
+    if divert is not None:
+        origin_id = (divert.metadata_json or {}).get("from_facility_id")
+        origin = await session.get(Facility, origin_id) if origin_id else None
+        diverted_from = origin.name if origin else None
     return {
         "id": dispatch.id,
         "referral_id": dispatch.referral_id,
         "facility_id": dispatch.facility_id,
+        "facility_name": facility.name if facility else None,
+        "diverted_from": diverted_from,
         "driver_id": dispatch.driver_id,
         "driver_name": driver_name,
         "eta_minutes": eta_minutes,

@@ -99,16 +99,16 @@ cd /var/www/html/unicef
 # optional: DEMO_API_BASE_URL=http://127.0.0.1:8000
 ```
 
-Expects: referral → USSD accept → hospital SMS (`SENT`) → CONFIRM → arrival `COMPLETED`, then decline → divert.
+Expects: referral → USSD accept → hospital SMS (`SENT`) → a driver's CONFIRM refused → hospital CONFIRM → arrival `COMPLETED`, then decline → escalate → accept → DIVERT → new hospital CONFIRM → arrival there `COMPLETED`.
 
 Uses **live seed phones** (resolves Ibrahim/Musah/Abdul from `GET /api/v1/compound/1/drivers`).
 
 ## Manual phone path (judge room)
 
 1. Flutter referral (or POST `/api/v1/referral`) for compound 1 → facility 1.
-2. Driver dials `*384*99193#` → `1` Accept.
-3. Facility receives hospital SMS with **Driver phone** line; reply `CONFIRM <id>` or `confirmed`.
-4. Driver dials again → `3` Arrival → status `COMPLETED`.
+2. Driver dials `*384*99193#` → `1` Open referrals → types the Ref number from the SMS → `1` Accept.
+3. Facility receives hospital SMS with **Driver phone** and **Code** lines; reply `CONFIRM <code>`, or `DIVERT <code> <facility code>` using a code listed at the end of the SMS.
+4. Driver dials again → `2` Confirm arrival → `1` → status `COMPLETED`.
 
 ## If AT is down
 

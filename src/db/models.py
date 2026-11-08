@@ -100,6 +100,9 @@ class Dispatch(Base):
     # PENDING|TIER1_NOTIFIED|TIER2_NOTIFIED|ACCEPTED|HOSPITAL_NOTIFIED|COMPLETED|DIVERTED|FAILED
     # |CANCELLED
     current_tier: Mapped[int] = mapped_column(Integer, default=0)
+    # Four digits the destination facility must quote to CONFIRM or DIVERT. Set when a
+    # facility is told about the patient, and replaced when the patient is diverted.
+    hospital_code: Mapped[str | None] = mapped_column(String(8), nullable=True, index=True)
     declined_driver_ids: Mapped[list] = mapped_column(JSON, default=list)
     # What the worker must do next, and when. Null means nothing is scheduled.
     next_action: Mapped[str | None] = mapped_column(String(32), nullable=True)

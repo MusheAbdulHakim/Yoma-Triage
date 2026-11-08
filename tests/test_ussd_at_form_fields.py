@@ -37,7 +37,7 @@ async def test_ussd_callback_accepts_africastalking_field_names(
     monkeypatch.setattr(
         "src.api.ussd.settings.AT_USSD_SERVICE_CODE", "*384*99193#"
     )
-    await _seed_open_referral(
+    created = await _seed_open_referral(
         client, monkeypatch, "eeeeeeee-eeee-eeee-eeee-eeeeeeeeeeee"
     )
 
@@ -47,7 +47,7 @@ async def test_ussd_callback_accepts_africastalking_field_names(
             "sessionId": "ATUid_test",
             "serviceCode": "*384*99193#",
             "phoneNumber": "+233240000001",
-            "text": "1",
+            "text": f"1*{created['referral']['id']}*1",
             "networkCode": "62002",
         },
     )
@@ -74,7 +74,7 @@ async def test_ussd_first_dial_empty_text_returns_con_menu(client, seeded_db, mo
     assert res.status_code == 200
     assert res.headers["content-type"].startswith("text/plain")
     assert res.text.startswith("CON ")
-    assert "1. Accept" in res.text
+    assert "1. Open referrals" in res.text
 
 
 @pytest.mark.asyncio
@@ -84,7 +84,7 @@ async def test_ussd_accepts_local_ghana_phone_without_plus(
     monkeypatch.setattr(
         "src.api.ussd.settings.AT_USSD_SERVICE_CODE", "*384*99193#"
     )
-    await _seed_open_referral(
+    created = await _seed_open_referral(
         client, monkeypatch, "ffffffff-ffff-ffff-ffff-ffffffffffff"
     )
     res = await client.post(
@@ -93,7 +93,7 @@ async def test_ussd_accepts_local_ghana_phone_without_plus(
             "sessionId": "ATUid_local",
             "serviceCode": "*384*99193#",
             "phoneNumber": "0240000001",
-            "text": "1",
+            "text": f"1*{created['referral']['id']}*1",
         },
     )
     assert res.status_code == 200, res.text

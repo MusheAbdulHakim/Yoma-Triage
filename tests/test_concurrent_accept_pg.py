@@ -38,17 +38,26 @@ async def _open_dispatch(sessions) -> int:
         await session.flush()
         dispatch = await DispatchOrchestrator().initiate_dispatch(session, referral.id)
         await session.commit()
-        return dispatch.id
+        return dispatch.id, referral.id
 
 
-async def _dial_accept(client: AsyncClient, phone: str) -> str:
+async def _finish(sessions, dispatch_id: int, driver_id: int) -> None:
+    """The winner arrives, so both drivers are AVAILABLE for the next round."""
+    from src.services.dispatch_orchestrator import DispatchOrchestrator
+
+    async with sessions() as session:
+        await DispatchOrchestrator().handle_arrival(session, dispatch_id, driver_id)
+        await session.commit()
+
+
+async def _dial_accept(client: AsyncClient, phone: str, ref: int) -> str:
     response = await client.post(
         "/ussd/callback",
         data={
             "sessionId": str(uuid.uuid4()),
             "serviceCode": "*384*1#",
             "phoneNumber": phone,
-            "text": "1",
+            "text": f"1*{ref}*1",
         },
     )
     assert response.status_code == 200, response.text
@@ -63,10 +72,10 @@ async def test_parallel_accepts_have_exactly_one_winner(pg_sessions, monkeypatch
     transport = ASGITransport(app=app)
     async with AsyncClient(transport=transport, base_url="http://test") as client:
         for round_number in range(ROUNDS):
-            dispatch_id = await _open_dispatch(pg_sessions)
+            dispatch_id, ref = await _open_dispatch(pg_sessions)
 
             replies = await asyncio.gather(
-                *(_dial_accept(client, phone) for phone in DRIVER_PHONES.values())
+                *(_dial_accept(client, phone, ref) for phone in DRIVER_PHONES.values())
             )
 
             winners = [
@@ -88,3 +97,4 @@ async def test_parallel_accepts_have_exactly_one_winner(pg_sessions, monkeypatch
                 ).all()
             assert dispatch.driver_id == winners[0], context
             assert len(accept_logs) == 1, context
+            await _finish(pg_sessions, dispatch_id, winners[0])

@@ -87,8 +87,13 @@ async def test_hospital_sms_says_vitals_not_taken(db_session):
         risk_level="UNKNOWN",
         vitals_json={"systolic_bp": None, "vitals_taken": False},
     )
-    HospitalNotifier().notify_pre_arrival(
-        db_session, referral, MagicMock(), MagicMock(phone="+233240000200"), 7
+    await HospitalNotifier().notify_pre_arrival(
+        db_session,
+        referral,
+        MagicMock(),
+        MagicMock(id=1, phone="+233240000200", latitude=None, longitude=None),
+        7,
+        code="4821",
     )
     await db_session.flush()
 

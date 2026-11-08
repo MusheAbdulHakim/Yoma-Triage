@@ -3,10 +3,12 @@ from __future__ import annotations
 
 import pytest
 
+from tests.hospital_replies import confirm_text, divert_text
+
 
 @pytest.mark.asyncio
 async def test_full_flow_accept_confirm_and_divert(
-    client, seeded_db, sample_referral_payload, monkeypatch
+    client, db_session, seeded_db, sample_referral_payload, monkeypatch
 ):
 
     # Integration uses demo shortcode; ignore sandbox AT_USSD_SERVICE_CODE from .env.
@@ -26,7 +28,7 @@ async def test_full_flow_accept_confirm_and_divert(
             "session_id": "sess-1",
             "service_code": "*123#",
             "phone_number": "+233240000001",
-            "text": "1",
+            "text": f"1*{referral_id}*1",
         },
     )
     assert accept.status_code == 200
@@ -39,7 +41,7 @@ async def test_full_flow_accept_confirm_and_divert(
 
     confirm = await client.post(
         "/api/v1/sms/inbound",
-        json={"from": "+233240000200", "text": f"CONFIRM {dispatch_id}"},
+        json={"from": "+233240000200", "text": await confirm_text(db_session, dispatch_id)},
     )
     assert confirm.status_code == 200
     assert confirm.json()["status"] == "CONFIRMED"
@@ -54,14 +56,16 @@ async def test_full_flow_accept_confirm_and_divert(
     create2 = await client.post("/api/v1/referral", json=payload2)
     assert create2.status_code == 201
     dispatch2_id = create2.json()["dispatch"]["id"]
+    referral2_id = create2.json()["referral"]["id"]
 
     accept2 = await client.post(
         "/ussd/callback",
         data={
             "session_id": "sess-2",
             "service_code": "*123#",
-            "phone_number": "+233240000001",
-            "text": "1",
+            # Driver 1 is on the first trip, so driver 2 takes this one.
+            "phone_number": "+233240000002",
+            "text": f"1*{referral2_id}*1",
         },
     )
     assert accept2.status_code == 200
@@ -69,14 +73,18 @@ async def test_full_flow_accept_confirm_and_divert(
 
     divert = await client.post(
         "/api/v1/sms/inbound",
-        json={"from": "+233240000200", "text": f"DIVERT {dispatch2_id} 2"},
+        json={
+            "from": "+233240000200",
+            "text": await divert_text(db_session, dispatch2_id, 2),
+        },
     )
     assert divert.status_code == 200, divert.text
     assert divert.json()["status"] == "DIVERTED"
     assert divert.json()["facility_id"] == 2
 
+    # BUG-5: the trip carries on, now waiting on the new facility.
     diverted = await client.get(f"/api/v1/dispatch/{dispatch2_id}")
-    assert diverted.json()["status"] == "DIVERTED"
+    assert diverted.json()["status"] == "HOSPITAL_NOTIFIED"
     assert diverted.json()["facility_id"] == 2
 
     referral = await client.get(f"/api/v1/referral/{referral_id}")

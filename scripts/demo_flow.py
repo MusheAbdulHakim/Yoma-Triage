@@ -9,7 +9,6 @@ from typing import Any
 
 import httpx
 
-
 # The seeded CHO for compound 1.
 DEMO_CHO_PHONE = "+233240000100"
 BASE_URL = __import__("os").getenv("DEMO_API_BASE_URL", "http://127.0.0.1:8000").rstrip("/")
@@ -85,13 +84,48 @@ async def resolve_demo_actors(client: httpx.AsyncClient) -> dict[str, str]:
     if missing:
         raise RuntimeError(f"Missing demo drivers in compound 1: {', '.join(missing)}")
 
-    hospital = "+233240000200"
+    contacts = await client.get("/api/v1/compound/1/contacts")
+    contacts.raise_for_status()
+    facilities = {f["id"]: f["phone"] for f in contacts.json()["facilities"]}
     return {
         "ibrahim": by_name["Ibrahim"],
         "musah": by_name["Musah"],
         "abdul": by_name["Abdul"],
-        "hospital": hospital,
+        "hospital": facilities[1],
+        "hospital_2": facilities[2],
     }
+
+
+async def hospital_code(dispatch_id: int) -> str:
+    """The code in the hospital's notice. A real hospital reads it off its SMS."""
+    from sqlalchemy.ext.asyncio import create_async_engine
+
+    from src.config import settings
+    from src.db.models import Dispatch
+
+    engine = create_async_engine(settings.DATABASE_URL)
+    try:
+        async with engine.connect() as conn:
+            code = await conn.scalar(
+                Dispatch.__table__.select()
+                .with_only_columns(Dispatch.hospital_code)
+                .where(Dispatch.id == dispatch_id)
+            )
+    finally:
+        await engine.dispose()
+    if not code:
+        raise AssertionError(f"Dispatch {dispatch_id} has no hospital code yet")
+    return code
+
+
+async def hospital_says(
+    client: httpx.AsyncClient, phone: str, text: str
+) -> dict[str, Any]:
+    response = await client.post(
+        "/api/v1/sms/inbound", params=_webhook_params(), json={"from": phone, "text": text}
+    )
+    response.raise_for_status()
+    return response.json()
 
 
 async def create_referral(
@@ -136,6 +170,19 @@ async def wait_for_sms_recipients(
     raise AssertionError(f"Timed out waiting for SMS recipients: {', '.join(phones)}")
 
 
+async def wait_for_hospital_notice(
+    client: httpx.AsyncClient, dispatch_id: int, phone: str
+) -> None:
+    for _ in range(60):
+        logs = await dispatch_logs(client, dispatch_id)
+        if any(
+            log["action"] == "hospital_notify" and log["target_phone"] == phone for log in logs
+        ):
+            return
+        await asyncio.sleep(0.25)
+    raise AssertionError(f"Timed out waiting for the hospital notice to {phone}")
+
+
 async def ussd(client: httpx.AsyncClient, phone_number: str, choice: str) -> str:
     from src.config import settings
 
@@ -173,12 +220,8 @@ async def main() -> None:
             ) from exc
 
         actors = await resolve_demo_actors(client)
-        ibrahim, musah, abdul, hospital = (
-            actors["ibrahim"],
-            actors["musah"],
-            actors["abdul"],
-            actors["hospital"],
-        )
+        ibrahim, musah, abdul = actors["ibrahim"], actors["musah"], actors["abdul"]
+        hospital, hospital_2 = actors["hospital"], actors["hospital_2"]
         demo.log(f"Actors: Ibrahim={ibrahim} Musah={musah} Abdul={abdul}")
 
         # Happy path: accept, mock payment, hospital notification, and confirmation.
@@ -187,8 +230,8 @@ async def main() -> None:
         )
         assert "patient_name" not in referral
         assert "Ama" not in str(referral)
-        dispatch_id = dispatch["id"]
-        demo.log(f"Referral created: #REF-{referral['id']:03d}")
+        dispatch_id, ref = dispatch["id"], referral["id"]
+        demo.log(f"Referral created: #REF-{ref:03d}")
         demo.log(
             f"MOEWS: {referral['moews_score']} ({referral['risk_level']}) — "
             "Critical: BP 70/50, HR 140, RR 35"
@@ -197,11 +240,14 @@ async def main() -> None:
         assert any(log["target_phone"] == ibrahim for log in initial_logs)
         demo.log(f"Cascade: SMS → Driver Ibrahim ({ibrahim})")
 
-        accept_response = await ussd(client, ibrahim, "1")
+        offer_screen = await ussd(client, ibrahim, f"1*{ref}")
+        assert f"Ref {ref}: PPH bleeding" in offer_screen, offer_screen
+        demo.log(f"Ibrahim's USSD shows: {offer_screen.splitlines()[0][4:]}")
+        accept_response = await ussd(client, ibrahim, f"1*{ref}*1")
         assert "Accepted" in accept_response, accept_response
-        demo.log("Ibrahim: ACCEPTED via USSD")
+        demo.log("Ibrahim: ACCEPTED via USSD (now ON TRIP)")
         accepted_logs = await wait_for_actions(
-            client, dispatch_id, "momo_escrow", "hospital_notify"
+            client, dispatch_id, "momo_escrow", "hospital_notify", "cho_accept_notify"
         )
         momo = next(log for log in accepted_logs if log["action"] == "momo_escrow")
         transaction_id = momo["metadata"]["transaction_id"]
@@ -211,7 +257,7 @@ async def main() -> None:
         demo.log(f"Mock MoMo: GHS 22.50 fuel stipend logged (tx={transaction_id})")
         demo.log(
             f"Hospital SMS → {hospital_log['target_phone']} "
-            f"({hospital_log['response']})"
+            f"({hospital_log['response']}); CHO told the driver is coming"
         )
         meta = hospital_log.get("metadata") or {}
         if meta.get("patient_token_prefix") or meta.get("message_preview"):
@@ -223,38 +269,37 @@ async def main() -> None:
         assert status == "HOSPITAL_NOTIFIED"
         demo.log("Status: HOSPITAL_NOTIFIED ✓")
 
-        confirmation = await client.post(
-            "/api/v1/sms/inbound",
-            params=_webhook_params(),
-            json={"from": hospital, "text": f"CONFIRM {dispatch_id}"},
-        )
-        confirmation.raise_for_status()
-        assert confirmation.json()["status"] == "CONFIRMED"
-        demo.log("Hospital: CONFIRM received ✓")
+        code = await hospital_code(dispatch_id)
+        refused = await hospital_says(client, ibrahim, f"CONFIRM {code}")
+        assert refused["status"] == "NOT_YOUR_DISPATCH", refused
+        demo.log("Driver's phone tries CONFIRM: refused ✓")
+        confirmation = await hospital_says(client, hospital, f"CONFIRM {code}")
+        assert confirmation["status"] == "CONFIRMED", confirmation
+        demo.log(f"Hospital: CONFIRM {code} received ✓")
 
-        arrival_response = await ussd(client, ibrahim, "3")
+        arrival_response = await ussd(client, ibrahim, "2*1")
         assert "Arrival confirmed" in arrival_response, arrival_response
-        await wait_for_actions(client, dispatch_id, "arrival_confirm", "cho_arrival_notify")
+        await wait_for_actions(
+            client, dispatch_id, "arrival_confirm", "cho_arrival_notify", "hospital_arrival_notify"
+        )
         completed = (await client.get(f"/api/v1/dispatch/{dispatch_id}")).json()["status"]
         assert completed == "COMPLETED"
-        demo.log("Ibrahim: ARRIVAL confirmed via USSD ✓")
+        demo.log("Ibrahim: ARRIVAL confirmed via USSD ✓ (CHO and hospital told)")
         demo.log("Status: COMPLETED ✓")
 
         # Decline path: exhaust tier-1 Motor-Kings, then escalate to personal (Abdul).
-        _, decline_dispatch = await create_referral(
+        decline_referral, decline_dispatch = await create_referral(
             client, critical_referral(DECLINE_PATH_HASH)
         )
-        decline_id = decline_dispatch["id"]
-        demo.log(
-            f"Referral created: #REF-{decline_dispatch['referral_id']:03d} (decline path)"
-        )
-        decline_response = await ussd(client, ibrahim, "2")
+        decline_id, decline_ref = decline_dispatch["id"], decline_referral["id"]
+        demo.log(f"Referral created: #REF-{decline_ref:03d} (decline path)")
+        decline_response = await ussd(client, ibrahim, f"1*{decline_ref}*2")
         assert "declined" in decline_response.lower(), decline_response
         demo.log("Ibrahim: DECLINED via USSD")
         await wait_for_actions(client, decline_id, "ussd_decline", "decline_tier_remaining")
         demo.log("Cascade: same-tier Motor-King still available (Musah) — no premature escalate")
 
-        decline_musah = await ussd(client, musah, "2")
+        decline_musah = await ussd(client, musah, f"1*{decline_ref}*2")
         assert "declined" in decline_musah.lower(), decline_musah
         demo.log("Musah: DECLINED via USSD (tier-1 exhausted)")
         await wait_for_actions(client, decline_id, "sms_send")
@@ -265,19 +310,38 @@ async def main() -> None:
         assert abdul in notified_phones
         demo.log(f"Cascade: escalated SMS → Abdul ({abdul})")
 
-        accept_response = await ussd(client, abdul, "1")
+        accept_response = await ussd(client, abdul, f"1*{decline_ref}*1")
         assert "Accepted" in accept_response, accept_response
         await wait_for_actions(client, decline_id, "momo_escrow", "hospital_notify")
         demo.log("Abdul: ACCEPTED via USSD; hospital notified")
 
-        diversion = await client.post(
-            "/api/v1/sms/inbound",
-            params=_webhook_params(),
-            json={"from": hospital, "text": f"DIVERT {decline_id} 2"},
+        # Diversion: the hospital sends the patient elsewhere, and the trip carries on.
+        code = await hospital_code(decline_id)
+        diversion = await hospital_says(client, hospital, f"DIVERT {code} 2")
+        assert diversion["status"] == "DIVERTED", diversion
+        diverted = (await client.get(f"/api/v1/dispatch/{decline_id}")).json()
+        assert diverted["status"] == "HOSPITAL_NOTIFIED", diverted
+        assert diverted["facility_id"] == 2
+        demo.log(
+            f"Hospital: DIVERT {code} 2 → {diverted['facility_name']} "
+            f"(from {diverted['diverted_from']}) ✓"
         )
-        diversion.raise_for_status()
-        assert diversion.json()["status"] == "DIVERTED"
-        demo.log("Hospital: DIVERT to facility #2 ✓")
+        await wait_for_actions(client, decline_id, "divert_notify")
+        await wait_for_hospital_notice(client, decline_id, hospital_2)
+        demo.log("New hospital, old hospital, Abdul and the CHO all told ✓")
+
+        new_code = await hospital_code(decline_id)
+        confirmation = await hospital_says(client, hospital_2, f"CONFIRM {new_code}")
+        assert confirmation["status"] == "CONFIRMED", confirmation
+        demo.log(f"New hospital: CONFIRM {new_code} received ✓")
+
+        arrival_response = await ussd(client, abdul, "2*1")
+        assert "Arrival confirmed" in arrival_response, arrival_response
+        await wait_for_actions(client, decline_id, "arrival_confirm", "hospital_arrival_notify")
+        completed = (await client.get(f"/api/v1/dispatch/{decline_id}")).json()
+        assert completed["status"] == "COMPLETED", completed
+        demo.log(f"Abdul: ARRIVAL at {completed['facility_name']} confirmed ✓")
+        demo.log("Status: COMPLETED after diversion ✓")
 
     demo.log("Demo complete ✓")
 

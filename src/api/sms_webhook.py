@@ -1,6 +1,14 @@
-"""Inbound hospital SMS confirmations and diversions (Africa's Talking + JSON demos)."""
+"""Hospital replies by SMS: CONFIRM and DIVERT (Africa's Talking, and JSON for demos).
+
+Only the destination facility's registered phone may act, and every reply must quote
+the dispatch's four-digit code from the facility's notice ("CONFIRM 4821",
+"DIVERT 4821 7"). The code is what stops a reply reaching the wrong dispatch, and means
+a spoofed sender ID isn't enough on its own. Every reply, accepted or not, gets an SMS
+back saying what happened.
+"""
 from __future__ import annotations
 
+from dataclasses import dataclass
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, Request, Response
@@ -10,29 +18,25 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import require_webhook_secret
 from src.db.database import get_db
-from src.db.models import Dispatch, DispatchLog, Driver, Facility, Referral
-from src.services.outbox import enqueue_cho_update, enqueue_sms
+from src.db.models import Cho, Dispatch, DispatchLog, Driver, Facility
+from src.services.dispatch_orchestrator import (
+    ASSIGNED,
+    DispatchOrchestrator,
+    DiversionError,
+)
+from src.services.hospital_notifier import divert_options, facility_codes_line
+from src.services.outbox import enqueue_sms
 from src.utils.phones import normalize_ghana_phone
 
 router = APIRouter(prefix="/api/v1/sms", tags=["SMS Gateway"])
 
-CONFIRM_ALIASES = frozenset({"CONFIRM", "CONFIRMED", "YES", "OK", "Y"})
-ELIGIBLE_STATUSES = frozenset({"ACCEPTED", "HOSPITAL_NOTIFIED"})
-# Already past hospital confirm — treat inbound CONFIRM as status ping.
+CONFIRM_WORDS = frozenset({"CONFIRM", "CONFIRMED", "YES", "OK", "Y"})
+CONFIRMABLE = frozenset({"ACCEPTED", "HOSPITAL_NOTIFIED"})
+# Already past hospital confirm — an inbound CONFIRM is a status ping.
 EN_ROUTE_STATUSES = frozenset({"HOSPITAL_CONFIRMED", "COMPLETED"})
-# Broader lookup when no eligible open dispatch exists.
-RELATED_STATUSES = frozenset(
-    {
-        *ELIGIBLE_STATUSES,
-        *EN_ROUTE_STATUSES,
-        "TIER1_NOTIFIED",
-        "TIER2_NOTIFIED",
-        "TIER3_NOTIFIED",
-        "DIVERTED",
-        "FAILED",
-        "PENDING",
-    }
-)
+CODE_LENGTH = 4
+PREFIX = "Yoma Triage:"
+HOW_TO_REPLY = "Reply CONFIRM <code> or DIVERT <code> <facility code>, using the code in our SMS."
 
 
 class InboundSMS(BaseModel):
@@ -42,6 +46,13 @@ class InboundSMS(BaseModel):
     text: str
 
 
+@dataclass(frozen=True)
+class Command:
+    verb: str  # CONFIRM | DIVERT | NEED_CODE | INVALID
+    code: str | None = None
+    facility_code: str | None = None
+
+
 def _form_map(form) -> dict[str, str]:
     return {
         key: (value if isinstance(value, str) else str(value))
@@ -49,264 +60,229 @@ def _form_map(form) -> dict[str, str]:
     }
 
 
-def _parse_command(text: str) -> tuple[str, int | None, int | None]:
-    """Parse CONFIRM/DIVERT commands, including bare 'confirmed' replies."""
-    cleaned = text.strip().upper().replace(".", "").replace("!", "").replace(",", "")
-    if not cleaned:
-        raise ValueError("Empty SMS text")
+def _is_code(word: str) -> bool:
+    return len(word) == CODE_LENGTH and word.isdigit()
 
-    if cleaned in CONFIRM_ALIASES:
-        return "CONFIRM", None, None
 
+def parse_command(text: str) -> Command:
+    """Read a hospital's reply. Anything not understood becomes NEED_CODE or INVALID."""
+    cleaned = text.strip().upper().replace(".", " ").replace("!", " ").replace(",", " ")
     parts = cleaned.split()
     if not parts:
-        raise ValueError("Empty SMS text")
-
-    if parts[0] in CONFIRM_ALIASES:
-        if len(parts) == 1:
-            return "CONFIRM", None, None
-        if len(parts) == 2:
-            try:
-                return "CONFIRM", int(parts[1]), None
-            except ValueError as exc:
-                raise ValueError("Dispatch ID must be an integer") from exc
-        raise ValueError("Expected CONFIRM or CONFIRM <dispatch_id>")
-
-    if parts[0] != "DIVERT":
-        raise ValueError(
-            "Expected CONFIRM / confirmed, CONFIRM <dispatch_id>, "
-            "or DIVERT <dispatch_id> <facility_id>"
-        )
+        return Command("INVALID")
+    verb = "CONFIRM" if parts[0] in CONFIRM_WORDS else parts[0]
+    if verb not in {"CONFIRM", "DIVERT"}:
+        return Command("INVALID")
+    if len(parts) < 2 or not _is_code(parts[1]):
+        return Command("NEED_CODE")
+    if verb == "CONFIRM":
+        return Command("CONFIRM", parts[1]) if len(parts) == 2 else Command("INVALID")
     if len(parts) != 3:
-        raise ValueError("Expected DIVERT <dispatch_id> <facility_id>")
-    try:
-        return "DIVERT", int(parts[1]), int(parts[2])
-    except ValueError as exc:
-        raise ValueError("Dispatch and facility IDs must be integers") from exc
+        return Command("INVALID")
+    return Command("DIVERT", parts[1], parts[2])
 
 
-async def _sender_matches_dispatch(
-    session: AsyncSession, phone: str, dispatch: Dispatch
-) -> bool:
-    facility = await session.get(Facility, dispatch.facility_id)
-    if facility and normalize_ghana_phone(facility.phone) == phone:
-        return True
-    if dispatch.driver_id:
-        driver = await session.get(Driver, dispatch.driver_id)
-        if driver and normalize_ghana_phone(driver.phone) == phone:
-            return True
-    return False
+def _phone_variants(phone: str) -> set[str]:
+    normalized = normalize_ghana_phone(phone)
+    variants = {normalized, phone.strip()}
+    if normalized.startswith("+233") and len(normalized) == 13:
+        variants |= {"0" + normalized[4:], normalized[1:]}
+    return variants
 
 
-async def _latest_dispatch_for_sender(
-    session: AsyncSession,
-    sender: str,
-    statuses: frozenset[str],
-) -> Dispatch | None:
-    phone = normalize_ghana_phone(sender)
-    rows = (
+async def sender_role(session: AsyncSession, phone: str) -> str:
+    """Who a phone belongs to, for the record: hospital, driver, cho or unknown."""
+    variants = _phone_variants(phone)
+    normalized = normalize_ghana_phone(phone)
+    facilities = await session.scalars(select(Facility.phone))
+    if any(normalize_ghana_phone(number) == normalized for number in facilities):
+        return "hospital"
+    if await session.scalar(select(Driver.id).where(Driver.phone.in_(variants)).limit(1)):
+        return "driver"
+    if await session.scalar(select(Cho.id).where(Cho.phone.in_(variants)).limit(1)):
+        return "cho"
+    return "unknown"
+
+
+async def _dispatch_for_code(session: AsyncSession, code: str) -> Dispatch | None:
+    """The open dispatch with this code, else the most recent closed one."""
+    rows = list(
         await session.scalars(
             select(Dispatch)
-            .where(Dispatch.status.in_(statuses))
+            .where(Dispatch.hospital_code == code)
             .order_by(Dispatch.id.desc())
-            .limit(50)
+            .limit(20)
         )
-    ).all()
-    for dispatch in rows:
-        if await _sender_matches_dispatch(session, phone, dispatch):
-            return dispatch
-    return None
+    )
+    return next((d for d in rows if d.status in ASSIGNED), rows[0] if rows else None)
 
 
-async def _find_dispatch_for_sender(
-    session: AsyncSession, sender: str, dispatch_id: int | None
-) -> Dispatch:
-    if dispatch_id is not None:
-        dispatch = await session.get(Dispatch, dispatch_id)
-        if not dispatch:
-            raise ValueError("Dispatch not found")
-        return dispatch
-
-    dispatch = await _latest_dispatch_for_sender(session, sender, ELIGIBLE_STATUSES)
-    if dispatch:
-        return dispatch
-    raise ValueError("No open dispatch found for this sender")
+async def _is_destination(session: AsyncSession, phone: str, dispatch: Dispatch) -> bool:
+    facility = await session.get(Facility, dispatch.facility_id)
+    return facility is not None and normalize_ghana_phone(facility.phone) == normalize_ghana_phone(
+        phone
+    )
 
 
-async def _assert_sender_authorized(
-    session: AsyncSession, sender: str, dispatch: Dispatch
-) -> None:
-    phone = normalize_ghana_phone(sender)
-    if await _sender_matches_dispatch(session, phone, dispatch):
-        return
-    raise ValueError("Unauthorized sender")
-
-
-async def _reply_sms(
+async def _reply(
     session: AsyncSession,
     sender: str,
-    message: str,
+    body: str,
     dispatch_id: int | None,
     *,
     purpose: str = "inbound_reply",
 ) -> None:
     """Queue a reply to whoever texted us, and commit it with any state change."""
-    enqueue_sms(
-        session,
-        recipient=sender,
-        body=message,
-        purpose=purpose,
-        dispatch_id=dispatch_id,
-    )
+    enqueue_sms(session, recipient=sender, body=body, purpose=purpose, dispatch_id=dispatch_id)
     await session.commit()
 
 
-async def _facility_name(session: AsyncSession, facility_id: int | None) -> str:
-    if not facility_id:
-        return "the hospital"
-    facility = await session.get(Facility, facility_id)
-    return facility.name if facility else "the hospital"
-
-
-async def _status_reply_for_dispatch(
-    session: AsyncSession, sender: str, dispatch: Dispatch
+async def _reject(
+    session: AsyncSession,
+    sender: str,
+    text: str,
+    status: str,
+    body: str,
+    dispatch: Dispatch | None = None,
 ) -> dict[str, Any]:
-    facility_name = await _facility_name(session, dispatch.facility_id)
-    if dispatch.status in EN_ROUTE_STATUSES:
-        msg = (
-            f"Yoma Triage: Referral #{dispatch.referral_id} already confirmed. "
-            f"Driver is on the way to {facility_name}."
-        )
-        await _reply_sms(session, sender, msg, dispatch.id)
-        return {
-            "status": "ALREADY_CONFIRMED",
-            "dispatch_id": dispatch.id,
-            "dispatch_status": dispatch.status,
-        }
-
-    msg = (
-        f"Yoma Triage: Referral #{dispatch.referral_id} status is "
-        f"{dispatch.status}. No CONFIRM action taken."
-    )
-    await _reply_sms(session, sender, msg, dispatch.id)
-    return {
-        "status": "STATUS_ONLY",
-        "dispatch_id": dispatch.id,
-        "dispatch_status": dispatch.status,
-    }
-
-
-async def process_inbound_sms(
-    session: AsyncSession, sender: str, text: str
-) -> dict[str, Any]:
-    """Apply a hospital/driver command and persist its audit trail."""
-    command, dispatch_id, facility_id = _parse_command(text)
-
-    if command == "CONFIRM":
-        try:
-            dispatch = await _find_dispatch_for_sender(session, sender, dispatch_id)
-        except ValueError as exc:
-            if str(exc) == "No open dispatch found for this sender":
-                related = await _latest_dispatch_for_sender(
-                    session, sender, RELATED_STATUSES
-                )
-                if related:
-                    return await _status_reply_for_dispatch(session, sender, related)
-                await _reply_sms(
-                    session,
-                    sender,
-                    (
-                        "Yoma Triage: No open referral for this number. "
-                        "If this is an emergency, contact your CHPS compound."
-                    ),
-                    None,
-                )
-                return {"status": "NO_OPEN_DISPATCH"}
-            raise
-
-        referral = await session.get(Referral, dispatch.referral_id)
-        if not referral:
-            raise ValueError("Referral not found")
-        await _assert_sender_authorized(session, sender, dispatch)
-
-        if dispatch.status in EN_ROUTE_STATUSES:
-            return await _status_reply_for_dispatch(session, sender, dispatch)
-
-        if dispatch.status not in ELIGIBLE_STATUSES:
-            return await _status_reply_for_dispatch(session, sender, dispatch)
-
-        dispatch.status = "HOSPITAL_CONFIRMED"
+    """Say why nothing happened. Logged on the dispatch, with the sender's real role."""
+    if dispatch is not None:
         session.add(
             DispatchLog(
                 dispatch_id=dispatch.id,
-                action="hospital_confirm",
+                action="hospital_command_rejected",
                 target_phone=sender,
-                target_role="hospital",
-                response="CONFIRMED",
+                target_role=await sender_role(session, sender),
+                response=status,
                 metadata_json={"text": text},
             )
         )
-        await _reply_sms(
-            session,
-            sender,
-            (
-                f"Yoma Triage: Confirmed. Awaiting arrival for referral "
-                f"#{referral.id}."
-            ),
-            dispatch.id,
-            purpose="inbound_confirm_ack",
-        )
-        return {"status": "CONFIRMED", "dispatch_id": dispatch.id}
+    await _reply(session, sender, f"{PREFIX} {body}", dispatch.id if dispatch else None)
+    return {"status": status, "dispatch_id": dispatch.id if dispatch else None}
 
-    # DIVERT
-    dispatch = await _find_dispatch_for_sender(session, sender, dispatch_id)
-    referral = await session.get(Referral, dispatch.referral_id)
-    if not referral:
-        raise ValueError("Referral not found")
-    await _assert_sender_authorized(session, sender, dispatch)
-    if dispatch.status not in ELIGIBLE_STATUSES:
-        raise ValueError("Hospital command not available for this dispatch status")
 
-    destination = await session.get(Facility, facility_id)
-    if not destination:
-        raise ValueError("Destination facility not found")
-    driver = await session.get(Driver, dispatch.driver_id) if dispatch.driver_id else None
+async def _status_reply(
+    session: AsyncSession, sender: str, dispatch: Dispatch, code: str
+) -> dict[str, Any]:
+    facility = await session.get(Facility, dispatch.facility_id)
+    name = facility.name if facility else "the hospital"
+    ref = f"Referral #{dispatch.referral_id} (code {code})"
+    if dispatch.status == "COMPLETED":
+        body, status = f"{PREFIX} {ref} is complete. The patient has arrived.", "ALREADY_CONFIRMED"
+    elif dispatch.status in EN_ROUTE_STATUSES:
+        body = f"{PREFIX} {ref} is already confirmed. Driver is on the way to {name}."
+        status = "ALREADY_CONFIRMED"
+    else:
+        body = f"{PREFIX} {ref} status is {dispatch.status}. No action taken."
+        status = "STATUS_ONLY"
+    await _reply(session, sender, body, dispatch.id)
+    return {"status": status, "dispatch_id": dispatch.id, "dispatch_status": dispatch.status}
 
-    referral.facility_id = destination.id
-    dispatch.facility_id = destination.id
-    dispatch.status = "DIVERTED"
+
+async def _confirm(
+    session: AsyncSession, sender: str, text: str, dispatch: Dispatch, code: str
+) -> dict[str, Any]:
+    if dispatch.status not in CONFIRMABLE:
+        return await _status_reply(session, sender, dispatch, code)
+    dispatch.status = "HOSPITAL_CONFIRMED"
     session.add(
         DispatchLog(
             dispatch_id=dispatch.id,
-            action="hospital_divert",
+            action="hospital_confirm",
             target_phone=sender,
             target_role="hospital",
-            response="DIVERTED",
-            metadata_json={"destination_facility_id": destination.id, "text": text},
+            response="CONFIRMED",
+            metadata_json={"text": text},
         )
     )
+    await _reply(
+        session,
+        sender,
+        f"{PREFIX} Confirmed referral #{dispatch.referral_id} (code {code}). "
+        "Awaiting arrival.",
+        dispatch.id,
+        purpose="inbound_confirm_ack",
+    )
+    return {"status": "CONFIRMED", "dispatch_id": dispatch.id}
 
-    message = (
-        f"Yoma Triage diversion: referral #{referral.id} destination changed to "
-        f"{destination.name}."
+
+async def _divert(
+    session: AsyncSession,
+    sender: str,
+    text: str,
+    dispatch: Dispatch,
+    facility_code: str,
+) -> dict[str, Any]:
+    destination = (
+        await session.get(Facility, int(facility_code)) if facility_code.isdigit() else None
     )
-    if driver:
-        enqueue_sms(
+    if destination is None:
+        current = await session.get_one(Facility, dispatch.facility_id)
+        options = facility_codes_line(await divert_options(session, current))
+        return await _reject(
             session,
-            recipient=driver.phone,
-            body=message,
-            purpose="divert_driver",
-            dispatch_id=dispatch.id,
+            sender,
+            text,
+            "UNKNOWN_FACILITY",
+            f"Unknown facility code {facility_code}. Codes: {options}.",
+            dispatch,
         )
-    await enqueue_cho_update(
-        session, referral, body=message, purpose="divert_cho", dispatch_id=dispatch.id
-    )
+    try:
+        await DispatchOrchestrator().divert(
+            session,
+            dispatch.id,
+            destination.id,
+            actor_phone=sender,
+            actor_role="hospital",
+            text=text,
+        )
+    except DiversionError as exc:
+        # divert() checks everything before it changes anything, so nothing to undo.
+        return await _reject(session, sender, text, "DIVERT_REJECTED", str(exc), dispatch)
+    # The old facility's "diverted" notice, queued by divert(), is the sender's receipt.
     await session.commit()
-    return {
-        "status": "DIVERTED",
-        "dispatch_id": dispatch.id,
-        "facility_id": destination.id,
-    }
+    return {"status": "DIVERTED", "dispatch_id": dispatch.id, "facility_id": destination.id}
+
+
+async def process_inbound_sms(session: AsyncSession, sender: str, text: str) -> dict[str, Any]:
+    """Apply a hospital's reply, or explain by SMS why it can't be applied."""
+    command = parse_command(text)
+    if command.verb == "INVALID":
+        return await _reject(session, sender, text, "INVALID", f"Not understood. {HOW_TO_REPLY}")
+    if command.verb == "NEED_CODE":
+        return await _reject(
+            session,
+            sender,
+            text,
+            "NEED_CODE",
+            f"Please include the 4-digit code from our referral SMS. {HOW_TO_REPLY}",
+        )
+    assert command.code is not None
+    dispatch = await _dispatch_for_code(session, command.code)
+    if dispatch is None:
+        return await _reject(
+            session,
+            sender,
+            text,
+            "UNKNOWN_CODE",
+            f"Unknown code {command.code}. Check the code in our referral SMS.",
+        )
+    if not await _is_destination(session, sender, dispatch):
+        return await _reject(
+            session,
+            sender,
+            text,
+            "NOT_YOUR_DISPATCH",
+            f"Code {command.code} is not a referral for this number. Only the receiving "
+            "facility's registered phone can reply.",
+            dispatch,
+        )
+    if dispatch.status not in ASSIGNED:
+        return await _status_reply(session, sender, dispatch, command.code)
+    if command.verb == "CONFIRM":
+        return await _confirm(session, sender, text, dispatch, command.code)
+    assert command.facility_code is not None
+    return await _divert(session, sender, text, dispatch, command.facility_code)
 
 
 @router.post("/inbound", dependencies=[Depends(require_webhook_secret)])
@@ -315,7 +291,8 @@ async def inbound_sms(
 ) -> Any:
     """Africa's Talking posts form-urlencoded; local demos may post JSON.
 
-    AT two-way callbacks expect a plain ``GOOD`` / ``BAD`` body.
+    AT two-way callbacks expect a plain ``GOOD`` / ``BAD`` body. Every reply we can read
+    gets an SMS back, so even a rejected one is ``GOOD`` to AT.
     """
     content_type = (request.headers.get("content-type") or "").lower()
     at_form = "application/json" not in content_type
@@ -337,21 +314,8 @@ async def inbound_sms(
             return Response(content="BAD", media_type="text/plain", status_code=400)
         raise HTTPException(status_code=400, detail="Missing from")
 
-    try:
-        result = await process_inbound_sms(session, str(sender), str(text or ""))
-    except ValueError as exc:
-        if at_form:
-            return Response(
-                content=f"BAD {exc}",
-                media_type="text/plain",
-                status_code=200,
-            )
-        raise HTTPException(
-            status_code=400 if "not found" not in str(exc).lower() else 404,
-            detail=str(exc),
-        ) from exc
-
+    result = await process_inbound_sms(session, str(sender), str(text or ""))
     if at_form:
-        # Status-only / no-open cases still reply by SMS; acknowledge AT with GOOD.
         return Response(content="GOOD", media_type="text/plain")
     return result
+
