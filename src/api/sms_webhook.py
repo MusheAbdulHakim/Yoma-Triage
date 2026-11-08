@@ -25,7 +25,7 @@ from src.services.dispatch_orchestrator import (
     DiversionError,
 )
 from src.services.hospital_notifier import divert_options, facility_codes_line
-from src.services.outbox import enqueue_sms
+from src.services.outbox import enqueue_sms, record_delivery_report
 from src.utils.phones import normalize_ghana_phone
 
 router = APIRouter(prefix="/api/v1/sms", tags=["SMS Gateway"])
@@ -319,3 +319,28 @@ async def inbound_sms(
         return Response(content="GOOD", media_type="text/plain")
     return result
 
+
+
+@router.post("/delivery", dependencies=[Depends(require_webhook_secret)])
+async def delivery_report(request: Request, session: AsyncSession = Depends(get_db)) -> Any:
+    """Africa's Talking delivery reports: form fields id, status, failureReason, ...
+
+    Always 200 for a report we could read, known message or not, so AT doesn't retry it.
+    """
+    form = _form_map(await request.form())
+    message_id, status = form.get("id", "").strip(), form.get("status", "").strip()
+    if not message_id or not status:
+        return Response(content="BAD", media_type="text/plain", status_code=400)
+    try:
+        row = await record_delivery_report(
+            session,
+            message_id=message_id,
+            status=status,
+            failure_reason=form.get("failureReason") or None,
+            network_code=form.get("networkCode") or None,
+            retry_count=form.get("retryCount") or None,
+        )
+    except ValueError:
+        return Response(content="BAD", media_type="text/plain", status_code=400)
+    await session.commit()
+    return Response(content="OK" if row else "UNKNOWN", media_type="text/plain")

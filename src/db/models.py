@@ -145,7 +145,36 @@ class OutboundMessage(Base):
         DateTime(timezone=True), nullable=True, index=True
     )
     provider_response: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # Africa's Talking's id for a sent message, which its delivery reports quote.
+    provider_message_id: Mapped[str | None] = mapped_column(
+        String(64), nullable=True, index=True
+    )
+    # The latest delivery report: Success, Failed, Rejected, Buffered, Sent or Submitted.
+    delivery_status: Mapped[str | None] = mapped_column(String(32), nullable=True)
+    delivery_updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True
+    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now())
+
+
+class UssdSession(Base):
+    """What a USSD session showed first, so later key presses mean what the driver saw.
+
+    AT sends only the keys pressed. When the first screen is a single referral, "1" means
+    accept *that* referral, even if the offers change before the driver answers.
+    """
+
+    __tablename__ = "ussd_sessions"
+    session_id: Mapped[str] = mapped_column(String(64), primary_key=True)
+    phone: Mapped[str] = mapped_column(String(32))
+    # menu: the root menu, where every action names its Ref. offer: one referral.
+    mode: Mapped[str] = mapped_column(String(16))
+    ref: Mapped[int | None] = mapped_column(Integer, nullable=True)
+    # Digits that came with the dial string, which AT may repeat at the start of `text`.
+    prefix: Mapped[str] = mapped_column(String(32), default="")
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), server_default=func.now(), index=True
+    )
 
 
 class Wallet(Base):
