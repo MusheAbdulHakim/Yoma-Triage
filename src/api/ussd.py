@@ -21,6 +21,17 @@ that changes between screens can't make a driver act on a referral they didn't p
     "2"           the driver's own trip; "2*1" confirms arrival
                   (with several open trips, from before ON_TRIP: "2*<ref>", then "2*<ref>*1")
     "3"           availability; "3*1" Available, "3*2" Off duty
+
+One open offer. When a session's first screen would be the root menu but the driver has
+exactly one open offer (and no trip), it shows that referral instead: "1" accepts it,
+"2" declines it, "9" opens the root menu above (so "9*3*2" is Off duty). What the first
+screen showed is stored by AT's sessionId (ussd_sessions), so "1" always means the
+referral the driver saw, even if offers change before they answer.
+
+Dial string. *CODE*REF# opens referral REF directly, in the same one-referral screen. AT
+may deliver REF in serviceCode or as the first request's text; both are read.
+
+Without a sessionId (tests, scripts) the root-menu grammar above applies, unchanged.
 """
 from __future__ import annotations
 
@@ -28,13 +39,13 @@ from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
 
 from fastapi import APIRouter, Depends, Request, Response
-from sqlalchemy import select
+from sqlalchemy import delete, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from src.api.deps import require_webhook_secret
 from src.config import settings
 from src.db.database import get_db
-from src.db.models import CHPSCompound, Dispatch, Driver, Facility, Referral
+from src.db.models import CHPSCompound, Dispatch, Driver, Facility, Referral, UssdSession
 from src.services.dispatch_orchestrator import (
     ACCEPT_ELIGIBLE,
     ARRIVAL_ELIGIBLE,
@@ -48,6 +59,10 @@ router = APIRouter(prefix="/ussd", tags=["USSD Gateway"])
 
 # How long after confirming arrival a repeated "2*1" still gets "Arrival confirmed".
 REPEAT_WINDOW = timedelta(minutes=15)
+# Sessions older than this are deleted when a new one starts. AT ends a session long before.
+SESSION_TTL = timedelta(hours=1)
+# Key that leaves the one-referral screen for the root menu.
+MAIN_MENU = "9"
 # How many referrals one screen lists. AT allows about 180 characters.
 LIST_LIMIT = 4
 # Short names, so a referral fits on a feature phone's screen.
@@ -89,6 +104,19 @@ def _configured_service_code() -> str:
     return _normalize_service_code(settings.AT_USSD_SERVICE_CODE)
 
 
+def dial_ref(incoming: str | None) -> str | None:
+    """REF from a dial string *CODE*REF#, if AT passed it in serviceCode."""
+    expected = _configured_service_code()
+    if not expected or not incoming or not expected.endswith("#"):
+        return None
+    code = _normalize_service_code(incoming)
+    stem = expected[:-1] + "*"
+    if code.startswith(stem) and code.endswith("#"):
+        ref = code[len(stem) : -1]
+        return ref if ref.isdigit() else None
+    return None
+
+
 def _service_code_allowed(incoming: str | None) -> bool:
     """Require a configured shortcode outside development; match when set."""
     expected = _configured_service_code()
@@ -97,7 +125,7 @@ def _service_code_allowed(incoming: str | None) -> bool:
         return settings.is_development
     if not incoming:
         return False
-    return _normalize_service_code(incoming) == expected
+    return _normalize_service_code(incoming) == expected or dial_ref(incoming) is not None
 
 
 async def _find_driver(session: AsyncSession, phone_number: str) -> Driver | None:
@@ -315,22 +343,114 @@ async def _availability_menu(session: AsyncSession, driver: Driver, rest: list[s
     return "END You are now AVAILABLE for referrals."
 
 
-async def process_ussd(session: AsyncSession, phone_number: str, text: str) -> Response:
+async def _menu_grammar(session: AsyncSession, driver: Driver, user_input: str) -> str:
+    """The root-menu grammar, where every action names its referral."""
+    if user_input == "":
+        return await _root(session, driver)
+    first, *rest = user_input.split("*")
+    menus = {"1": _offers_menu, "2": _arrival_menu, "3": _availability_menu}
+    menu = menus.get(first)
+    if menu is None or any(not part.isdigit() for part in rest):
+        return "END Invalid option selected."
+    return await menu(session, driver, rest)
+
+
+async def _offer_screen(session: AsyncSession, driver: Driver, ref: int) -> str:
+    """One referral: what, where from, where to, how long ago; accept or decline."""
+    if driver.availability == ON_TRIP:
+        return ON_TRIP_REPLY
+    item = next((o for o in await open_offers(session, driver) if o.ref == ref), None)
+    if item is None:
+        return f"END Ref {ref} is not open for you. Dial again to see open referrals."
+    sent = f"Sent {_minutes_ago(item.dispatch.initiated_at)}"
+    return f"CON {_detail(item, when=sent)}\n1. Accept\n2. Decline\n{MAIN_MENU}. Main menu"
+
+
+async def _offer_grammar(
+    session: AsyncSession, driver: Driver, ref: int, user_input: str
+) -> str:
+    """Keys pressed on the one-referral screen, which always mean that referral."""
+    if user_input == "":
+        return await _offer_screen(session, driver, ref)
+    if user_input == MAIN_MENU or user_input.startswith(MAIN_MENU + "*"):
+        return await _menu_grammar(session, driver, user_input[len(MAIN_MENU) + 1 :])
+    if user_input not in {"1", "2"}:
+        return "END Invalid option selected."
+    # The same path as typing the Ref in the menu: its checks, its idempotency.
+    return await _offers_menu(session, driver, [str(ref), user_input])
+
+
+async def _first_screen(session: AsyncSession, driver: Driver) -> tuple[str, int | None]:
+    """The mode a new session starts in: one referral if that's all there is to answer."""
+    # An ON_TRIP driver has no offers. A trip from before ON_TRIP existed needs the menu
+    # too, for Confirm arrival.
+    if await own_trips(session, driver):
+        return "menu", None
+    offers = await open_offers(session, driver)
+    if len(offers) == 1:
+        return "offer", offers[0].ref
+    return "menu", None
+
+
+async def _start_session(
+    session: AsyncSession, session_id: str, phone: str, mode: str, ref: int | None, prefix: str
+) -> None:
+    await session.execute(
+        delete(UssdSession).where(UssdSession.created_at < datetime.now(UTC) - SESSION_TTL)
+    )
+    session.add(UssdSession(session_id=session_id, phone=phone, mode=mode, ref=ref, prefix=prefix))
+    await session.commit()
+
+
+async def process_ussd(
+    session: AsyncSession,
+    phone_number: str,
+    text: str,
+    *,
+    session_id: str | None = None,
+    service_code: str | None = None,
+) -> Response:
     """Handle a USSD response. All SMS go to the outbox, so this makes no external calls."""
     driver = await _find_driver(session, phone_number)
     if not driver:
         return _ussd_response("END Unknown driver.")
 
     user_input = text.strip()
-    if user_input == "":
+    if not session_id:
+        return _ussd_response(await _menu_grammar(session, driver, user_input))
+
+    state = await session.get(UssdSession, session_id)
+    if state is not None and state.phone != driver.phone:
+        # Another phone's session id: trust nothing stored, and store nothing.
+        return _ussd_response(await _menu_grammar(session, driver, user_input))
+    if state is None:
+        # A new session. Its first request has empty text, unless the dial string
+        # carried a Ref: *CODE*REF# arrives as serviceCode, or as the text.
+        ref_text = dial_ref(service_code)
+        prefix = ""
+        if ref_text is None and user_input.isdigit():
+            ref_text, prefix = user_input, user_input
+        if ref_text is not None:
+            await _start_session(session, session_id, driver.phone, "offer", int(ref_text), prefix)
+            return _ussd_response(await _offer_screen(session, driver, int(ref_text)))
+        if user_input != "":
+            # Mid-session text we have no record of: the Ref-naming grammar is safe.
+            return _ussd_response(await _menu_grammar(session, driver, user_input))
+        mode, ref = await _first_screen(session, driver)
+        await _start_session(session, session_id, driver.phone, mode, ref, "")
+        if mode == "offer":
+            assert ref is not None
+            return _ussd_response(await _offer_screen(session, driver, ref))
         return _ussd_response(await _root(session, driver))
 
-    first, *rest = user_input.split("*")
-    menus = {"1": _offers_menu, "2": _arrival_menu, "3": _availability_menu}
-    menu = menus.get(first)
-    if menu is None or any(not part.isdigit() for part in rest):
-        return _ussd_response("END Invalid option selected.")
-    return _ussd_response(await menu(session, driver, rest))
+    if state.prefix:
+        if user_input == state.prefix:
+            user_input = ""
+        elif user_input.startswith(state.prefix + "*"):
+            user_input = user_input[len(state.prefix) + 1 :]
+    if state.mode == "offer" and state.ref is not None:
+        return _ussd_response(await _offer_grammar(session, driver, state.ref, user_input))
+    return _ussd_response(await _menu_grammar(session, driver, user_input))
 
 
 @router.post("/callback", dependencies=[Depends(require_webhook_secret)])
@@ -357,5 +477,6 @@ async def handle_ussd(
     if not _service_code_allowed(service_code):
         return _ussd_response("END Unknown service code.")
 
-    _ = session_id  # available for session continuity / logging
-    return await process_ussd(session, phone_number, text)
+    return await process_ussd(
+        session, phone_number, text, session_id=session_id, service_code=service_code
+    )
