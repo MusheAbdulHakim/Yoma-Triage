@@ -1077,7 +1077,7 @@ def scenario_2(device: Device, apk: dict) -> bool:
         wait_screen(device, "Record vitals", 30)
         device.screenshot("s2_3_vitals_after_denial")
         to_result_screen(device)
-        result = wait_screen(device, "Advisory only", 20)
+        result = wait_screen(device, "Confirm referral", 60)
         device.screenshot("s2_4_result_after_denial")
         denied_result = screen_text(result)
         notes.append(f"Result after denying the mic: {denied_result[:500]}")

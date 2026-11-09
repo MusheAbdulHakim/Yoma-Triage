@@ -202,13 +202,15 @@ class _SetupScreenState extends State<SetupScreen> {
           autofillHints: const [AutofillHints.telephoneNumberNational],
           style: text.titleLarge,
           decoration: InputDecoration(
-            // A neutral placeholder that floats up once digits are typed, so the field keeps
-            // its name for screen readers (a never-floating label leaves it nameless).
+            // "Phone number" always sits in the border, so the field keeps its name for screen
+            // readers whatever is typed, and nothing moves when typing starts. "+233" is inline
+            // with the digits.
             labelText: 'Phone number',
-            labelStyle: text.titleMedium?.copyWith(color: YomaColors.grey600),
-            floatingLabelStyle: text.bodyMedium?.copyWith(color: YomaColors.primary),
-            prefixIcon: Container(
-              margin: const EdgeInsets.only(left: 14, right: 12),
+            floatingLabelBehavior: FloatingLabelBehavior.always,
+            labelStyle: text.bodyMedium?.copyWith(color: YomaColors.grey700),
+            floatingLabelStyle: text.bodyMedium?.copyWith(color: YomaColors.grey700),
+            prefix: Container(
+              margin: const EdgeInsets.only(right: 12),
               padding: const EdgeInsets.only(right: 12),
               decoration: const BoxDecoration(
                 border: Border(right: BorderSide(color: YomaColors.grey300)),
@@ -217,7 +219,6 @@ class _SetupScreenState extends State<SetupScreen> {
                 child: Text('+233', style: text.titleLarge?.copyWith(fontWeight: FontWeight.w700)),
               ),
             ),
-            prefixIconConstraints: const BoxConstraints(minHeight: 56),
             fillColor: YomaColors.surface,
             enabledBorder: OutlineInputBorder(
               borderRadius: BorderRadius.circular(YomaRadii.md),
