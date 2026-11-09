@@ -643,3 +643,172 @@ acoustic mode); Home in both modes, Record vitals, Result, the referral form and
 dispatch status were checked against the Stitch renders. That check found the Record
 vitals accessibility bug (fields and four "Not measured" toggles missing from the
 accessibility tree) and the clipped validation messages, fixed below.
+
+## Round 4 — decisions, design-system palette, copy, fidelity
+
+Same branch. Flutter skills used: `dart-flutter:flutter-build-responsive-layout`,
+`flutter-fix-layout-issues`, `dart-use-pattern-matching`,
+`flutter-apply-architecture-best-practices`, `flutter-add-widget-test`,
+`flutter-add-integration-test`, `dart-run-static-analysis`.
+
+| Step | Commits |
+|---|---|
+| 1 Push rounds 2–3, commit this report | `f3368cc` |
+| 2 Record vitals accessibility | `3f6fe91` |
+| 3 Decisions | `a2a3b8d`, `bb5c867`, `8217ab3` |
+| 4 Palette and Recording screen | `a447916`, `f4e4aa8`, `74fcc49` |
+| 5 Copy | `423772a` |
+| 6 Fidelity | `3262aeb` and the commit that adds this section |
+
+### Step 2 — Record vitals accessibility bug
+
+- **What was wrong:**
+  - each "Not measured" toggle was merged into its field's semantics node;
+  - the number fields had no name of their own. The placeholder ("—") was the only text,
+    and a `Semantics` wrapper does not name a `TextField`'s own node;
+  - TalkBack users heard one unnamed editable field per vital, with the toggle hidden inside it.
+- **Fix:**
+  - each toggle is its own container node, labelled "Blood pressure, systolic: not
+    measured" and so on;
+  - each field is named through `InputDecoration.label` (floating behaviour "never", so it
+    looks the same);
+  - validation messages are no longer drawn inside the narrow field. They show at full
+    width below the row (key `<field>_error`; for BP, "Systolic: …").
+- **Why round 1 missed it:** `labeledTapTargetGuideline` skips every node flagged
+  `isTextField`. So a field with a toggle merged into it, or a field with no name, passes
+  that guideline. The round-1 checks were the Flutter guidelines plus finders, and finders
+  find widgets, not semantics nodes.
+- **The stronger check:** `test/ui_redesign_a11y_test.dart` now walks the real semantics
+  tree (`semanticsNodes`). `expectSeparateNamedControls` asserts that:
+  - every editable field and every tappable node has its own non-empty label;
+  - no node is both a text field and a button.
+
+  It runs on every redesigned screen: Home in both modes, Record vitals, Result, the
+  referral form, the breathing screens and the dispatch states. On Record vitals it also
+  asserts six named fields and seven separate toggles. Checked: the new tests fail on the
+  old code.
+
+### Step 3 — decisions
+
+- **Offline pill:**
+  - Home shows "Offline" (key `home_offline`) when `connectivity_plus` reports no network;
+  - it is display only, and the queue logic is unchanged;
+  - a test seam (`online` stream) covers both states. The fidelity shots were taken online,
+    so the pill does not appear in them.
+- **Patient name:** it was never used to tell queued referrals apart. It was not
+  serialized, not stored in the queue, and not shown on any list. It was removed (form
+  field and model), so it can never reach the server.
+- **Form vitals:**
+  - the form's editable vitals are replaced by one summary row, "Vitals: Not recorded" or
+    the risk badge, with key `referral_vitals_summary`;
+  - the row opens Record vitals with the current values; "Save vitals" returns them;
+  - Emergency: skip vitals is unchanged;
+  - Send still requires vitals or the skip.
+- **Step times:**
+  - `GET /dispatch/{id}` now returns `step_times` (sent, drivers_notified, driver_accepted,
+    hospital_notified, hospital_confirmed, diverted, completed);
+  - they are taken from the existing dispatch and SMS log rows; nothing new is logged;
+  - tested in `tests/test_dispatch_step_times.py`;
+  - the timeline shows each time in local time ("17:43", or "Yesterday, 09:12").
+
+### Step 4 — palette (Clinical Field Resilience)
+
+- Design system saved in `docs/design/stitch/design-system/`, and the pulse frames in
+  `docs/design/stitch/breathing-check/pulse-frames-1-3.png`.
+- Font: Atkinson Hyperlegible Next, bundled.
+- All colours live in `lib/theme/yoma_theme.dart`. `test/color_tokens_test.dart` fails on
+  any `Color(0x…)` or `Colors.*` outside it.
+- Red, amber and green appear only in `TriageColors` (risk levels and destructive actions:
+  Emergency: skip vitals, Cancel).
+
+| Before | After | Use |
+|---|---|---|
+| teal `#005F60` (brand) | primary `#0F2744` | primary buttons incl. Emergency referral, active, focus, timeline markers |
+| — | secondary `#1B3B6F` | outlined buttons, selected chips |
+| `#B54708` warning / note | tertiary `#2C5E8A` | links, info accents, pulse rings (tints) |
+| `#0F172A` navy | neutral `#0B192C` | dark cards and strips |
+| `#1E293B` text | `#0E1C2F` | main text |
+| `#F8FAFC` canvas | `#F9F9FF` | background |
+| `#94A3B8` | `#C4C6CE` outline-variant | hairlines |
+| `#64748B` | `#74777E` outline | borders, incomplete |
+| `#DCE3EC` muted on dark | `#EBF1FF` | muted text on navy |
+| `#B42318`, `#C62828` | error `#BA1A1A` | errors |
+| `#067647` success | removed | (green only for triage) |
+| `#DC2626` | triage red `#C5221F` | Critical / skip vitals |
+| `#D97706`, `#F59E0B` | triage amber `#B45309` | Elevated |
+| `Colors.red/white/black` literals | tokens | — |
+
+- Contrast: every text pair on the redesigned screens meets AA (the suite checks it).
+- The round-3 future-step outline (2.56:1) now uses outline `#74777E` (4.5:1).
+- **Recording screen:** rebuilt to the pulse frames:
+  - LISTENING pill; a 138 dp circle with the seconds remaining; an arc showing time left;
+  - three tertiary rings that follow the microphone level;
+  - Stop as a secondary outlined button;
+  - round-2 behaviour kept: silence hint, reduced motion (static ring), auto stop.
+
+### Step 5 — copy
+
+- **No raw codes:** emergency types read from `models/emergency_type.dart` ("pph" → "Heavy
+  bleeding"), and statuses read as words.
+- **Plurals and relative times:** `countOf` gives "1 warning" and "Saved 1 minute ago".
+- **Dates:** "Today, 17:43" and "Yesterday, 09:12" (`services/friendly_time.dart`, 24-hour
+  setting respected).
+- **Warning list:** the open list no longer repeats its header as the first row.
+- **Debug footer:** "Env · model" shows only in test builds, as a small footer.
+- Tested in `test/copy_rules_test.dart` and `test/friendly_time_test.dart`.
+
+### Step 6 — fidelity at 360×640 dp
+
+- **Setup:** API 34 emulator at `1080x1920` density 480 (360×640 dp), animations on, debug
+  builds of this branch.
+- **Side-by-sides:** in `docs/testing/screenshots/ui-redesign/fidelity/` (1 Home MOEWS,
+  2 Home acoustic, 3 Recording, 4 Record vitals, 5 Referral form).
+- **Fixed in this step:**
+  - Home: the title is 18 bold primary; the Emergency referral label is larger; secondary
+    buttons are 56 dp with a 2 dp border, a 16 bold label and a 20 dp icon;
+  - Recording: no grey status-bar band; "1 second" plural;
+  - Record vitals: units are always visible ("— mmHg");
+  - Record vitals: "Not measured" sits under the value on the right, as in the design.
+    Before, it sat between label and field, which wrapped "Breathing rate" onto two lines;
+  - Form: chips are 58 dp; the selected chip uses the design's secondary tint, border and
+    bold text.
+- **Differences left on purpose:**
+  1. Colour: the Stitch renders are teal. The app uses the design-system palette, as
+     instructed in step 4.
+  2. Home, acoustic mode: there is no Record vitals button. This is round-1 conflict 1 and
+     is still undecided.
+  3. Home: the Offline pill is not visible because the emulator was online. It appears
+     when offline (tested).
+  4. Home MOEWS: the Stitch Home render shows a taller Emergency button and a "1 referral
+     waiting" strip. The app sizes the button as in Screen A, and the strip appears only
+     when something is queued.
+  5. Text size: the app's text is larger than the renders because the bundled Atkinson
+     Hyperlegible Next is wider than the render's font, and because round 1 set the field
+     and label sizes for 48 dp targets.
+  6. Record vitals:
+     - BP is two fields (systolic and diastolic, each with its own Not measured);
+     - the HR helper text and "Fill HR from device (advisory)" are kept as existing
+       behaviour;
+     - See result stays enabled with "N left" (open question 2);
+     - there is no "Clear" chip state: tapping the link again clears.
+  7. Referral form:
+     - no "Other" type (the type list is the clinical decision from round 1);
+     - the facility picker keeps its confirm wording and location line;
+     - the vitals row reads "Not recorded" until vitals exist;
+     - Emergency: skip vitals is a red button because it is destructive.
+  8. Recording: the silence hint shows in the shots because the emulator microphone is
+     silent. This is round-2 behaviour.
+- **Checks:** `flutter analyze` reports no issues. `flutter test`: 471 passed in the
+  default mode and 472 passed with `MOEWS_ONLY=false`. Backend:
+  `tests/test_dispatch_step_times.py` and `test_referral_validation.py` pass (run with
+  `AT_WEBHOOK_SECRET=`). The 4 `test_startup_config` failures come from the local `.env`
+  and were failing before.
+
+### Open questions (round 4)
+
+1. Record vitals in acoustic mode on Home (round-1 conflict 1)?
+2. SpO₂ "(optional)", and See result disabled until complete (as the design shows)?
+3. Keep polling after FAILED so a late accept shows live?
+4. "Call a driver instead" during the cascade: confirm step or hide?
+5. Risk words Critical / Elevated / Stable: confirm with clinical leads.
+6. Recording arc: time remaining (built) or time elapsed?

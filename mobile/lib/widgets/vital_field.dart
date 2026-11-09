@@ -325,26 +325,28 @@ class _VitalFieldState extends State<VitalField> {
         padding: const EdgeInsets.fromLTRB(14, 4, 10, 4),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // One row (label, toggle, value) where it fits, so most of the form shows on
-            // 360×640. On a narrow screen or with large text, the toggle goes under the label.
+            // Label and value side by side where they fit; on a narrow screen or with large
+            // text the toggle goes under the label instead.
             final oneRow = constraints.maxWidth >= 290 &&
                 MediaQuery.textScalerOf(context).scale(16) <= 16 * 1.15;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (oneRow)
+                if (oneRow) ...[
+                  // As in the design: label and value on one row, "Not measured" under
+                  // the value on the right.
                   Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    padding: const EdgeInsets.only(top: 8),
                     child: Row(
                       children: [
                         Expanded(child: label),
-                        toggle,
-                        const SizedBox(width: 6),
-                        field(104),
+                        const SizedBox(width: YomaSpacing.sm),
+                        field(120),
                       ],
                     ),
-                  )
-                else
+                  ),
+                  Align(alignment: Alignment.centerRight, child: toggle),
+                ] else
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
