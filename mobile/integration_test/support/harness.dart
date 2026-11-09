@@ -48,6 +48,7 @@ abstract final class Host {
 
   static Future<void> airplane(bool on) => call('/airplane', {'on': on ? '1' : '0'});
   static Future<void> killBackend() => call('/backend/kill');
+  static Future<void> grantMicrophone() => call('/grant-mic');
   static Future<void> startBackend() => call('/backend/start');
   static Future<void> metric(String name, num value) =>
       call('/metric', {'name': name, 'value': '$value'});

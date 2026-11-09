@@ -95,6 +95,8 @@ SCENARIOS: dict[str, dict] = {
     "banners": {"file": "s9_home_banners_test.dart"},
     # UI redesign: every redesigned screen and state, for the side-by-side screenshots.
     "ui": {"file": "s12_ui_redesign_test.dart"},
+    # UI redesign round 2: the breathing check, measured with the real recorder, and shots.
+    "breathing": {"file": "s13_breathing_test.dart", "defines": {"MOEWS_ONLY": "false"}},
     # The same test at the device's own size. It can fail there too: that's a finding.
     "banners_native": {"file": "s9_home_banners_test.dart"},
 }
@@ -576,6 +578,10 @@ class Handler(BaseHTTPRequestHandler):
             return {"path": device.screenshot(query["name"])}
         if path == "/airplane":
             return device.airplane(query["on"] == "1")
+        if path == "/grant-mic":
+            # The app is reinstalled per scenario, so the grant has to come after install.
+            device.shell(f"pm grant {PACKAGE} android.permission.RECORD_AUDIO")
+            return {"granted": True}
         if path == "/backend/kill":
             backend.kill()
             return {}
@@ -867,40 +873,34 @@ def tap_permission(device: Device, allow: bool) -> str:
 
 
 def to_result_screen(device: Device) -> None:
-    """Mark every vital Not measured, which needs no typing, then continue to the result."""
-    wait_screen(device, "Record Vitals", 90)
-    for _ in range(10):
-        boxes = [
-            n for n in device.dump() if n.get("checkable") == "true" and n.get("checked") != "true"
+    """Mark every vital Not measured, which needs no typing, then continue to the result.
+
+    Each vital (and Consciousness) has a toggle whose screen-reader label is
+    "<vital> not measured"; once tapped it reads "Clear: …".
+    """
+    wait_screen(device, "Record vitals", 90)
+    for _ in range(12):
+        nodes = device.dump()
+        toggles = [
+            n
+            for n in nodes
+            if (n.get("content-desc") or "").endswith("not measured")
+            and not (n.get("content-desc") or "").startswith("Clear")
         ]
-        if not boxes:
-            nodes = device.dump()
-            if find_node(nodes, "AVPU"):
-                break
-        for box in boxes:
-            tap_node(device, box)
+        for toggle in toggles:
+            tap_node(device, toggle)
             time.sleep(0.3)
         nodes = device.dump()
-        if find_node(nodes, "AVPU") and not any(
-            n.get("checkable") == "true" and n.get("checked") != "true" for n in nodes
-        ):
+        done = find_node(nodes, "Clear: Consciousness") and not any(
+            (n.get("content-desc") or "").endswith("not measured")
+            and not (n.get("content-desc") or "").startswith("Clear")
+            for n in nodes
+        )
+        if done:
             break
         device.shell("input swipe 300 1000 300 500 400")
         time.sleep(0.7)
-    tap_node(device, find_node(device.dump(), "AVPU"))
-    time.sleep(1)
-    # The menu lists the options; its own "Not measured" is the last of them on screen.
-    options = [
-        n
-        for n in device.dump()
-        if (n.get("content-desc") or n.get("text")) == "Not measured"
-        and n.get("clickable") == "true"
-    ]
-    if not options:
-        raise RuntimeError(f"No AVPU option. Screen: {screen_text(device.dump())[:500]}")
-    tap_node(device, options[-1])
-    time.sleep(1)
-
+    tap_text(device, "See result", 20)
 
 def scenario_2(device: Device, apk: dict) -> bool:
     CURRENT["scenario"] = "s2"
@@ -932,7 +932,7 @@ def scenario_2(device: Device, apk: dict) -> bool:
 
         # Mic denied.
         device.shell(f"pm revoke {PACKAGE} android.permission.RECORD_AUDIO")
-        tap_text(device, "Screen Breathing")
+        tap_text(device, "Check breathing")
         answered = tap_permission(device, allow=False)
         notes.append(f"Mic dialog answered with: {answered}")
         time.sleep(2)
@@ -943,11 +943,11 @@ def scenario_2(device: Device, apk: dict) -> bool:
             if text_value in denied:
                 notes.append(f"Demo string visible after denial: {text_value}")
                 passed = False
-        tap_text(device, "Stop & Analyze Early", 20)
-        to_result_screen(device)
+        tap_text(device, "Skip to vitals", 20)
+        wait_screen(device, "Record vitals", 30)
         device.screenshot("s2_3_vitals_after_denial")
-        tap_text(device, "Continue to Result", 20)
-        result = wait_screen(device, "Screening Result", 20)
+        to_result_screen(device)
+        result = wait_screen(device, "Advisory only", 20)
         device.screenshot("s2_4_result_after_denial")
         denied_result = screen_text(result)
         notes.append(f"Result after denying the mic: {denied_result[:500]}")
@@ -960,14 +960,13 @@ def scenario_2(device: Device, apk: dict) -> bool:
         device.shell(f"am force-stop {PACKAGE}")
         device.shell(f"pm grant {PACKAGE} android.permission.RECORD_AUDIO")
         device.shell(f"am start -n {ACTIVITY}")
-        tap_text(device, "Screen Breathing", 60)
+        tap_text(device, "Check breathing", 60)
         wait_screen(device, "Listening", 20)
         device.screenshot("s2_5_listening")
         # Leave the screen alone until the countdown ends and the analysis finishes. A touch
         # during analysis is what anr_probe tests.
         to_result_screen(device)
-        tap_text(device, "Continue to Result", 20)
-        allowed = screen_text(wait_screen(device, "Screening Result", 30))
+        allowed = screen_text(wait_screen(device, "Advisory only", 30))
         device.screenshot("s2_6_result_mic_allowed")
         notes.append(f"Result with the mic allowed: {allowed[:500]}")
         entry["mic_allowed_green"] = "GREEN" in allowed.upper()
@@ -1018,7 +1017,7 @@ def anr_probe(device: Device, entry: dict, runs: int = 3) -> None:
             device.shell(f"am force-stop {PACKAGE}")
             device.shell("logcat -b events -c")
             device.shell(f"am start -n {ACTIVITY}")
-            tap_text(device, "Screen Breathing", 60)
+            tap_text(device, "Check breathing", 60)
             wait_screen(device, "Listening", 20)
             # Touch the app bar, which has no action, once a second until analysis is over.
             started = time.monotonic()
@@ -1030,7 +1029,7 @@ def anr_probe(device: Device, entry: dict, runs: int = 3) -> None:
                 if re.search(rf"am_anr.*{re.escape(PACKAGE)}", events):
                     break
                 # Past the countdown and off the screening page: analysis has finished.
-                if time.monotonic() - started > 12 and find_node(device.dump(), "Record Vitals"):
+                if time.monotonic() - started > 12 and find_node(device.dump(), "Record vitals"):
                     break
             events = device.shell("logcat -d -b events", timeout=30)
             anr = bool(re.search(rf"am_anr.*{re.escape(PACKAGE)}", events))
@@ -1106,15 +1105,14 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
         CURRENT["backend"].reset()
         device.shell(f"am force-stop {PACKAGE}")
         device.shell(f"am start -n {ACTIVITY}")
-        tap_text(device, "Screen Breathing", 60)
-        tap_text(device, "Stop & Analyze Early", 30)
+        tap_text(device, "Check breathing", 60)
+        tap_text(device, "Stop", 30)
         to_result_screen(device)
-        tap_text(device, "Continue to Result", 20)
-        wait_screen(device, "Screening Result", 30)
+        wait_screen(device, "Advisory only", 30)
         tap_scrolling(device, "Confirm Referral", exact=True)
-        tap_text(device, "tap to confirm facility", 30)
+        tap_text(device, "confirm facility", 30)
         tap_text(device, "Tamale Teaching Hospital", 20)
-        wait_screen(device, "(confirmed)", 20)
+        wait_screen(device, "confirmed", 20)
         tap_text(device, "Emergency type", 20)
         tap_text(device, "Postpartum hemorrhage", 20)
         time.sleep(1)
@@ -1191,11 +1189,12 @@ def main() -> int:
             "8",
             "11",
             "ui",
+            "breathing",
             "9",
             "banners_native",
             "timings",
         ],
-        help="1-9, 11, ui, responsive, banners, banners_native and timings",
+        help="1-9, 11, ui, breathing, responsive, banners, banners_native and timings",
     )
     parser.add_argument(
         "--keep-running",
