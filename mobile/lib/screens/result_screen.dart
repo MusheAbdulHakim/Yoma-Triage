@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../services/moews_calculator.dart';
+import '../services/moews_explanation.dart';
 import '../services/referral_gating.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
+import '../widgets/yoma_components.dart';
 import 'referral_screen.dart';
 
 class ResultScreen extends StatelessWidget {
@@ -18,35 +20,26 @@ class ResultScreen extends StatelessWidget {
     this.vitals,
   });
 
-  Color _acousticColor(String label) {
-    switch (label) {
-      case 'RED':
-        return YomaColors.danger;
-      case 'GREEN':
-        return YomaColors.safe;
-      default:
-        return YomaColors.caution;
-    }
-  }
-
   bool get _acousticDisabled => result.source == 'moews_only';
 
   bool get _isDemoSource =>
       result.source == 'stub' || result.source == 'simulator';
 
-  Color _moewsColor(MoewsResult m) {
-    switch (m.riskLevel) {
-      case 'RED':
-        return YomaColors.danger;
-      case 'YELLOW':
-      case 'INCOMPLETE':
-        return YomaColors.caution;
-      case 'GREEN':
-        return YomaColors.safe;
-      default:
-        return Colors.grey;
-    }
+  void _openReferral(BuildContext context) {
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => ReferralScreen(
+          aiScreenResult: result.label,
+          aiConfidence: result.confidence,
+          aiModelVersion: result.modelVersion,
+          initialVitals: vitals,
+        ),
+      ),
+    );
   }
+
+  void _backHome(BuildContext context) =>
+      Navigator.of(context).popUntil((route) => route.isFirst);
 
   @override
   Widget build(BuildContext context) {
@@ -54,204 +47,402 @@ class ResultScreen extends StatelessWidget {
       acousticLabel: result.label,
       moewsRiskLevel: moews?.riskLevel,
     );
-    final heroIsMoews = moews != null;
-    final heroColor =
-        heroIsMoews ? _moewsColor(moews!) : _acousticColor(result.label);
-    final heroTitle = !heroIsMoews
-        ? result.label
-        : moews!.isIncomplete
-            ? 'Incomplete'
-            : 'MOEWS ${moews!.riskLevel}';
-    final partial =
-        heroIsMoews && moews!.missingVitals.any((name) => name != 'spo2');
-    final heroSubtitle = !heroIsMoews
-        ? result.reason
-        : moews!.isIncomplete
-            ? 'Cannot call this patient normal without a full set of vitals'
-            : 'Clinical spine'
-                '${moews!.score != null ? ' · score ${moews!.score}' : ''}'
-                '${partial ? ' from measured vitals' : ''}'
-                '${moews!.hrAbnormal ? ' · HR band elevated' : ''}';
-    final notMeasured = moews?.notMeasuredText;
+    final m = moews;
+    final level = TriageLevel.fromMoews(m?.riskLevel);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Screening Result'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
+      appBar: AppBar(title: const Text('Result')),
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
-            color: YomaColors.caution.withValues(alpha: 0.15),
-            child: Padding(
-              padding: const EdgeInsets.all(12),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Advisory only — not a diagnosis. Not clinically validated.',
-                    style: TextStyle(
-                      fontWeight: FontWeight.w600,
-                      fontSize: 14,
-                    ),
-                  ),
-                  if (_isDemoSource) ...[
-                    const SizedBox(height: 6),
-                    Text(
-                      'Demo screening mode.',
-                      style: TextStyle(
-                        color: Colors.grey.shade800,
-                        fontSize: 13,
-                      ),
-                    ),
-                  ],
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 24),
-          Container(
-            padding: const EdgeInsets.all(24),
-            decoration: BoxDecoration(
-              color: heroColor.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: heroColor, width: 2),
-            ),
-            child: Column(
+          Expanded(
+            child: ListView(
+              padding: const EdgeInsets.fromLTRB(
+                  YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.lg),
               children: [
-                Text(
-                  heroTitle,
-                  style: TextStyle(
-                    fontSize: 36,
-                    fontWeight: FontWeight.bold,
-                    color: heroColor,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  heroSubtitle,
-                  textAlign: TextAlign.center,
-                  style: const TextStyle(fontSize: 16),
-                ),
-                if (notMeasured != null) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    notMeasured,
-                    key: const Key('moews_not_measured'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
+                _Disclaimer(demo: _isDemoSource),
+                const SizedBox(height: YomaSpacing.md),
+                if (m != null && level != null) ...[
+                  _RiskCard(moews: m, level: level),
+                  const SizedBox(height: YomaSpacing.xl),
+                  ..._details(context, m, level),
+                ] else
+                  _AcousticCard(result: result, primary: true),
+                if (m != null && !_acousticDisabled) ...[
+                  const SizedBox(height: YomaSpacing.xl),
+                  _AcousticCard(result: result, primary: false, moews: m),
                 ],
               ],
             ),
           ),
-          if (moews != null && !_acousticDisabled) ...[
-            const SizedBox(height: 16),
-            Card(
-              color: _acousticColor(result.label).withValues(alpha: 0.08),
-              child: Padding(
-                padding: const EdgeInsets.all(12),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Acoustic (advisory): ${result.label}',
-                      style: TextStyle(
-                        fontWeight: FontWeight.w700,
-                        color: _acousticColor(result.label),
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(result.reason),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%'
-                      ' · ${result.source}',
-                      style: TextStyle(color: Colors.grey.shade700),
-                    ),
-                    if (moews!.hrAbnormal) ...[
-                      const SizedBox(height: 8),
-                      Text(
-                        'Heart rate contributes MOEWS ${moews!.hrScore} '
-                        '(abnormal band — escalate attention).',
-                        style: const TextStyle(
-                          color: YomaColors.danger,
-                          fontWeight: FontWeight.w600,
-                        ),
-                      ),
-                    ],
-                  ],
+          _Actions(
+            indicate: indicate,
+            onConfirm: () => _openReferral(context),
+            onMonitor: () => _backHome(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  /// "Why" for a scored result; "Not measured" for an incomplete one.
+  List<Widget> _details(BuildContext context, MoewsResult m, TriageLevel level) {
+    final text = Theme.of(context).textTheme;
+    final why = explainMoews(m, vitals ?? const {});
+    final missing = m.missingVitals;
+    final onlySpo2Missing = missing.length == 1 && missing.first == 'spo2';
+    final dot = level == TriageLevel.amber ? const Color(0xFFD97706) : level.colour;
+
+    return [
+      if (why.isNotEmpty) ...[
+        const _SectionTitle('Why'),
+        for (final row in why)
+          _DotRow(
+            text: row.text,
+            colour: dot,
+            filled: row.critical,
+            semanticPrefix: row.critical ? 'Critical' : 'Borderline',
+          ),
+        const SizedBox(height: YomaSpacing.lg),
+      ] else if (level == TriageLevel.green) ...[
+        const _SectionTitle('Why'),
+        Text(
+          'Every measured vital is in the normal range.',
+          style: text.bodyLarge?.copyWith(color: YomaColors.grey800),
+        ),
+        const SizedBox(height: YomaSpacing.lg),
+      ],
+      if (m.isIncomplete) ...[
+        Semantics(
+          container: true,
+          key: const Key('moews_not_measured'),
+          label: m.notMeasuredText,
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              const _SectionTitle('Not measured'),
+              for (final name in missing)
+                _DotRow(
+                  text: vitalDisplayNames[name] ?? name,
+                  colour: TriageColors.incompleteBorder,
+                  filled: true,
+                ),
+            ],
+          ),
+        ),
+      ] else if (missing.isNotEmpty)
+        Text(
+          onlySpo2Missing
+              ? 'Oxygen saturation not measured'
+              : 'Not measured: ${missing.map((n) => vitalDisplayNames[n] ?? n).join(', ')}',
+          key: const Key('moews_not_measured'),
+          style: text.bodyMedium?.copyWith(color: YomaColors.grey600),
+        ),
+    ];
+  }
+}
+
+class _Disclaimer extends StatelessWidget {
+  const _Disclaimer({required this.demo});
+
+  final bool demo;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Padding(
+          padding: EdgeInsets.only(top: 1),
+          child: Icon(Icons.info_outline, size: 18, color: YomaColors.grey600),
+        ),
+        const SizedBox(width: 8),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                'Advisory only — not a diagnosis. Not clinically validated.',
+                style: text.bodyMedium?.copyWith(
+                  color: YomaColors.grey700,
+                  fontWeight: FontWeight.w600,
                 ),
               ),
+              if (demo)
+                Text(
+                  'Demo screening mode.',
+                  style: text.bodySmall?.copyWith(color: YomaColors.grey700),
+                ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// The large risk card. Coloured by level, named in words, and announced as such.
+class _RiskCard extends StatelessWidget {
+  const _RiskCard({required this.moews, required this.level});
+
+  final MoewsResult moews;
+  final TriageLevel level;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final incomplete = level == TriageLevel.incomplete;
+    final partial = moews.missingVitals.any((name) => name != 'spo2');
+    final score = moews.score;
+    final detail = incomplete
+        ? 'Cannot call this patient normal without a full set of vitals'
+        : [
+            if (score != null) 'Score $score',
+            if (partial) 'from measured vitals',
+          ].join(' · ');
+
+    final content = Padding(
+      padding: const EdgeInsets.all(YomaSpacing.lg),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: incomplete
+                  ? YomaColors.grey200
+                  : level == TriageLevel.amber
+                      ? Colors.black.withValues(alpha: 0.10)
+                      : Colors.white.withValues(alpha: 0.20),
+              borderRadius: BorderRadius.circular(YomaRadii.sm),
             ),
-          ] else if (moews == null) ...[
-            const SizedBox(height: 8),
-            Text(
-              'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%'
-              ' · ${result.source}',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade700),
-            ),
-          ],
-          const SizedBox(height: 32),
-          if (indicate)
-            FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-              ),
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ReferralScreen(
-                      aiScreenResult: result.label,
-                      aiConfidence: result.confidence,
-                      aiModelVersion: result.modelVersion,
-                      initialVitals: vitals,
-                    ),
+            child: Icon(level.icon, size: 30, color: level.onColour),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  incomplete ? 'Incomplete' : level.word,
+                  style: text.headlineSmall?.copyWith(color: level.onColour),
+                ),
+                const SizedBox(height: 2),
+                Text(level.moewsName, style: text.labelLarge?.copyWith(color: level.onColour)),
+                if (detail.isNotEmpty)
+                  Text(
+                    detail,
+                    style: (incomplete ? text.bodyMedium : text.labelLarge)
+                        ?.copyWith(color: level.onColour),
                   ),
-                );
-              },
-              child: const Text('Confirm Referral'),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+
+    return Semantics(
+      key: const Key('result_risk_card'),
+      container: true,
+      label: 'Risk level: ${level.word}. ${level.moewsName}. $detail',
+      excludeSemantics: true,
+      child: incomplete
+          ? CustomPaint(
+              painter: const DashedBorderPainter(color: TriageColors.incompleteBorder),
+              child: DecoratedBox(
+                decoration: BoxDecoration(
+                  color: level.colour,
+                  borderRadius: BorderRadius.circular(YomaRadii.md),
+                ),
+                child: content,
+              ),
             )
-          else
-            FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
+          : DecoratedBox(
+              decoration: BoxDecoration(
+                color: level.colour,
+                borderRadius: BorderRadius.circular(YomaRadii.md),
+                boxShadow: YomaShadows.md,
               ),
-              onPressed: () =>
-                  Navigator.of(context).popUntil((route) => route.isFirst),
-              child: const Text('Continue Monitoring'),
+              child: content,
             ),
-          // Referral is always the CHO's call: no score can remove this option.
-          if (!indicate) ...[
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).push(
-                  MaterialPageRoute(
-                    builder: (_) => ReferralScreen(
-                      aiScreenResult: result.label,
-                      aiConfidence: result.confidence,
-                      aiModelVersion: result.modelVersion,
-                      initialVitals: vitals,
-                    ),
-                  ),
-                );
-              },
-              child: const Text('Refer with clinical judgment'),
-            ),
-          ] else if (indicate) ...[
-            const SizedBox(height: 12),
-            TextButton(
-              onPressed: () =>
-                  Navigator.of(context).popUntil((route) => route.isFirst),
-              child: const Text('Continue Monitoring'),
+    );
+  }
+}
+
+/// The acoustic screening, kept secondary: grey, no triage colours. Shown as the main
+/// card only when there are no vitals at all.
+class _AcousticCard extends StatelessWidget {
+  const _AcousticCard({required this.result, required this.primary, this.moews});
+
+  final ScreeningResult result;
+  final bool primary;
+  final MoewsResult? moews;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final m = moews;
+    return YomaCard(
+      key: const Key('result_acoustic'),
+      color: YomaColors.grey100,
+      shadow: const [],
+      radius: YomaRadii.md,
+      padding: const EdgeInsets.all(YomaSpacing.md),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              const Icon(Icons.graphic_eq, size: 18, color: YomaColors.grey600),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(
+                  primary ? result.label : 'Acoustic (advisory): ${result.label}',
+                  style: (primary ? text.titleLarge : text.labelMedium)
+                      ?.copyWith(color: YomaColors.grey800),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Text(result.reason, style: text.bodyMedium?.copyWith(color: YomaColors.grey700)),
+          const SizedBox(height: 2),
+          Text(
+            'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%'
+            ' · ${result.source}',
+            style: text.bodySmall?.copyWith(color: YomaColors.grey600),
+          ),
+          if (m != null && m.hrAbnormal) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Heart rate contributes MOEWS ${m.hrScore} '
+              '(abnormal band — escalate attention).',
+              style: text.bodyMedium?.copyWith(
+                color: YomaColors.grey900,
+                fontWeight: FontWeight.w700,
+              ),
             ),
           ],
         ],
+      ),
+    );
+  }
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: YomaSpacing.md),
+      child: Semantics(
+        header: true,
+        child: Text(
+          title,
+          style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+        ),
+      ),
+    );
+  }
+}
+
+/// A list row with a dot: filled for critical, outlined for borderline.
+class _DotRow extends StatelessWidget {
+  const _DotRow({
+    required this.text,
+    required this.colour,
+    required this.filled,
+    this.semanticPrefix,
+  });
+
+  final String text;
+  final Color colour;
+  final bool filled;
+  final String? semanticPrefix;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      label: semanticPrefix == null ? text : '$semanticPrefix: $text',
+      excludeSemantics: true,
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 10),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Padding(
+              padding: const EdgeInsets.only(top: 7),
+              child: Container(
+                width: 10,
+                height: 10,
+                decoration: BoxDecoration(
+                  shape: BoxShape.circle,
+                  color: filled ? colour : Colors.transparent,
+                  border: filled ? null : Border.all(color: colour, width: 2),
+                ),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text(
+                text,
+                style: Theme.of(context)
+                    .textTheme
+                    .bodyLarge
+                    ?.copyWith(color: YomaColors.grey800),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Bottom actions. Referral is always the CHO's call: no score removes that option.
+class _Actions extends StatelessWidget {
+  const _Actions({required this.indicate, required this.onConfirm, required this.onMonitor});
+
+  final bool indicate;
+  final VoidCallback onConfirm;
+  final VoidCallback onMonitor;
+
+  @override
+  Widget build(BuildContext context) {
+    final primary = FilledButton(
+      key: const Key('result_primary'),
+      style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(YomaSizes.primaryButton)),
+      onPressed: indicate ? onConfirm : onMonitor,
+      child: Text(indicate ? 'Confirm Referral' : 'Continue Monitoring'),
+    );
+    final secondary = OutlinedButton(
+      key: const Key('result_secondary'),
+      style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(YomaSizes.minTap)),
+      onPressed: indicate ? onMonitor : onConfirm,
+      child: Text(indicate ? 'Continue Monitoring' : 'Refer with clinical judgment'),
+    );
+    return DecoratedBox(
+      decoration: const BoxDecoration(
+        color: YomaColors.surface,
+        border: Border(top: BorderSide(color: YomaColors.grey100)),
+      ),
+      child: SafeArea(
+        top: false,
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(
+              YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.md),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [primary, const SizedBox(height: 10), secondary],
+          ),
+        ),
       ),
     );
   }

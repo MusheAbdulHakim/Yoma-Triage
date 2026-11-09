@@ -45,10 +45,10 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: VitalsScreen(result: result)));
 
     await fillVitals(tester, overrides: {'sbp': '70'});
-    await tester.tap(find.text('Continue to Result'));
+    await tester.tap(find.byKey(const Key('vitals_see_result')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Screening Result'), findsOneWidget);
+    expect(find.text('Result'), findsOneWidget);
     expect(find.text('Confirm Referral'), findsOneWidget);
   });
 
@@ -61,8 +61,8 @@ void main() {
     await tester.pump(const Duration(milliseconds: 800));
     await tester.pumpAndSettle();
 
-    expect(find.text('Record Vitals'), findsOneWidget);
-    expect(find.text('Screening Result'), findsNothing);
+    expect(find.text('Record vitals'), findsOneWidget);
+    expect(find.text('Result'), findsNothing);
   });
 
   testWidgets('screening-session vitals prefill the referral form',

@@ -21,8 +21,8 @@ void main() {
     await tester.waitFor(find.byKey(const Key('vitals_sbp')));
     await tester.fillVitals('vitals');
     await tester.shot('s4_1_vitals');
-    await tester.tapOn(find.text('Continue to Result'));
-    await tester.waitFor(find.text('Screening Result'));
+    await tester.tapOn(find.byKey(const Key('vitals_see_result')));
+    await tester.waitFor(find.text('Result'));
     await tester.shot('s4_2_result');
 
     await tester.tapOn(find.text('Confirm Referral'));
