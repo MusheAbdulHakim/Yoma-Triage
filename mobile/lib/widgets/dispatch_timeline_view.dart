@@ -1,0 +1,199 @@
+import 'package:flutter/material.dart';
+
+import '../services/dispatch_timeline.dart';
+import '../theme/yoma_theme.dart';
+
+/// The vertical dispatch timeline. Done: filled teal circle with a check. Current: teal
+/// ring with a dot. Future: grey outline. No triage colours.
+class DispatchTimelineView extends StatelessWidget {
+  const DispatchTimelineView({super.key, required this.steps});
+
+  final List<TimelineStep> steps;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        for (final (i, step) in steps.indexed)
+          _StepRow(step: step, isLast: i == steps.length - 1),
+      ],
+    );
+  }
+}
+
+class _StepRow extends StatelessWidget {
+  const _StepRow({required this.step, required this.isLast});
+
+  final TimelineStep step;
+  final bool isLast;
+
+  @override
+  Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final labelColour = switch (step.state) {
+      TimelineState.done => YomaColors.grey900,
+      TimelineState.current => YomaColors.brand,
+      TimelineState.future => YomaColors.grey600,
+    };
+    return Semantics(
+      key: Key('timeline_${step.id}_${step.state.name}'),
+      container: true,
+      liveRegion: step.state == TimelineState.current,
+      label: step.spoken,
+      excludeSemantics: true,
+      child: IntrinsicHeight(
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            SizedBox(
+              width: 28,
+              child: Column(
+                children: [
+                  const SizedBox(height: 2),
+                  _Dot(state: step.state),
+                  if (!isLast)
+                    Expanded(
+                      child: Container(
+                        width: 2,
+                        margin: const EdgeInsets.symmetric(vertical: 2),
+                        color: step.state == TimelineState.done
+                            ? YomaColors.brand.withValues(alpha: 0.5)
+                            : YomaColors.grey200,
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Padding(
+                padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      step.label,
+                      style: text.titleMedium?.copyWith(
+                        color: labelColour,
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                    if (step.detail != null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 4),
+                        child: Text(
+                          step.detail!,
+                          style: text.bodyMedium?.copyWith(color: YomaColors.grey700),
+                        ),
+                      ),
+                    if (step.note != null)
+                      Container(
+                        key: const Key('timeline_note'),
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+                        decoration: BoxDecoration(
+                          color: YomaColors.brandTint,
+                          borderRadius: BorderRadius.circular(YomaRadii.sm),
+                          border: Border.all(color: YomaColors.brand.withValues(alpha: 0.2)),
+                        ),
+                        child: Text(
+                          step.note!,
+                          style: text.bodyMedium?.copyWith(
+                            color: YomaColors.brand,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _Dot extends StatelessWidget {
+  const _Dot({required this.state});
+
+  final TimelineState state;
+
+  @override
+  Widget build(BuildContext context) {
+    return switch (state) {
+      TimelineState.done => Container(
+          width: 22,
+          height: 22,
+          decoration: const BoxDecoration(color: YomaColors.brand, shape: BoxShape.circle),
+          child: const Icon(Icons.check_rounded, size: 15, color: Colors.white),
+        ),
+      TimelineState.current => Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: YomaColors.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: YomaColors.brand, width: 2.5),
+          ),
+          alignment: Alignment.center,
+          child: Container(
+            width: 9,
+            height: 9,
+            decoration: const BoxDecoration(color: YomaColors.brand, shape: BoxShape.circle),
+          ),
+        ),
+      TimelineState.future => Container(
+          width: 22,
+          height: 22,
+          decoration: BoxDecoration(
+            color: YomaColors.surface,
+            shape: BoxShape.circle,
+            border: Border.all(color: YomaColors.grey400, width: 2),
+          ),
+        ),
+    };
+  }
+}
+
+/// The dark navy card over the Call/SMS rows when the CHO should reach someone
+/// themselves.
+class NavyHelpCard extends StatelessWidget {
+  const NavyHelpCard({super.key, required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      container: true,
+      liveRegion: true,
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: YomaColors.navy,
+          borderRadius: BorderRadius.circular(YomaRadii.md),
+          boxShadow: YomaShadows.md,
+        ),
+        child: Row(
+          children: [
+            // White, not amber: no triage colours on this screen.
+            const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Text(
+                text,
+                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      color: Colors.white,
+                      fontWeight: FontWeight.w700,
+                    ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
