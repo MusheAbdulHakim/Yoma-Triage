@@ -37,11 +37,9 @@ class AdvisoryHrReading {
 
   bool get isPlausibleSpo2 =>
       spo2Percent == null ||
-      (spo2Percent! >= Parameters.deviceSpo2Min &&
-          spo2Percent! <= Parameters.deviceSpo2Max);
+      (spo2Percent! >= Parameters.deviceSpo2Min && spo2Percent! <= Parameters.deviceSpo2Max);
 
-  String get confirmMessage =>
-      'Apply advisory ${source.label} reading of $heartRateBpm bpm'
+  String get confirmMessage => 'Apply advisory ${source.label} reading of $heartRateBpm bpm'
       '${spo2Percent != null ? ' / SpO₂ $spo2Percent%' : ''}? '
       'Confirm against your clinical check — device readings can be wrong.';
 }

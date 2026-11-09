@@ -258,7 +258,8 @@ class StatusStripItem extends StatelessWidget {
                       ],
                     ),
                   ),
-                  if (trailing != null) trailing!
+                  if (trailing != null)
+                    trailing!
                   else if (onTap != null)
                     Padding(
                       padding: const EdgeInsets.only(left: 4, right: 6),
@@ -303,10 +304,7 @@ class RiskBadge extends StatelessWidget {
             Flexible(
               child: Text(
                 label,
-                style: Theme.of(context)
-                    .textTheme
-                    .labelSmall
-                    ?.copyWith(color: level.onColour),
+                style: Theme.of(context).textTheme.labelSmall?.copyWith(color: level.onColour),
               ),
             ),
           ],

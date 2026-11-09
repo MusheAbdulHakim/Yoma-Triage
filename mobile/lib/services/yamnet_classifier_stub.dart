@@ -6,10 +6,8 @@ import 'yamnet_classifier_base.dart';
 /// Web and other platforms without TFLite: acoustic screening is unavailable.
 class YamnetClassifierStub implements YamnetClassifier {
   @override
-  Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async =>
-      unavailableResult(
-        reason:
-            'Acoustic screening unavailable on this platform — use clinical judgment',
+  Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async => unavailableResult(
+        reason: 'Acoustic screening unavailable on this platform — use clinical judgment',
       );
 
   @override
@@ -19,5 +17,4 @@ class YamnetClassifierStub implements YamnetClassifier {
   Future<void> dispose() async {}
 }
 
-Future<YamnetClassifier> createYamnetClassifier() async =>
-    YamnetClassifierStub();
+Future<YamnetClassifier> createYamnetClassifier() async => YamnetClassifierStub();

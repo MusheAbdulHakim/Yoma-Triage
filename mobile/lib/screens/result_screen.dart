@@ -23,8 +23,7 @@ class ResultScreen extends StatelessWidget {
 
   bool get _acousticDisabled => result.source == 'moews_only';
 
-  bool get _isDemoSource =>
-      result.source == 'stub' || result.source == 'simulator';
+  bool get _isDemoSource => result.source == 'stub' || result.source == 'simulator';
 
   void _openReferral(BuildContext context) {
     Navigator.of(context).push(
@@ -39,8 +38,7 @@ class ResultScreen extends StatelessWidget {
     );
   }
 
-  void _backHome(BuildContext context) =>
-      Navigator.of(context).popUntil((route) => route.isFirst);
+  void _backHome(BuildContext context) => Navigator.of(context).popUntil((route) => route.isFirst);
 
   @override
   Widget build(BuildContext context) {
@@ -403,10 +401,7 @@ class _DotRow extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: Theme.of(context)
-                    .textTheme
-                    .bodyLarge
-                    ?.copyWith(color: YomaColors.grey800),
+                style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: YomaColors.grey800),
               ),
             ),
           ],

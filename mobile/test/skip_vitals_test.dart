@@ -69,7 +69,7 @@ void main() {
   Future<void> chooseType(WidgetTester tester) async {
     await tester.tap(find.text('Emergency type'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Postpartum hemorrhage').last);
+    await tester.tap(find.text('Heavy bleeding').last);
     await tester.pumpAndSettle();
   }
 

@@ -2,10 +2,10 @@
 /// values are fixed (the server accepts exactly these); only the wording is shown.
 /// `tests/test_referral_validation.py` checks every value here is accepted by the API.
 const emergencyTypes = <(String, String)>[
-  ('respiratory_distress', 'Respiratory distress'),
-  ('pph', 'Postpartum hemorrhage'),
-  ('neonatal_asphyxia', 'Neonatal asphyxia'),
-  ('eclampsia', 'Eclampsia'),
+  ('pph', 'Heavy bleeding'),
+  ('eclampsia', 'Fits (eclampsia)'),
+  ('respiratory_distress', 'Breathing problem'),
+  ('neonatal_asphyxia', 'Newborn not breathing'),
 ];
 
 /// The words for an emergency type's API value; never the raw code.

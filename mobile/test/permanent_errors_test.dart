@@ -177,9 +177,9 @@ void main() {
         MaterialApp(home: ReferralScreen(queue: queue, api: api)),
       );
       await tester.tap(find.text('Emergency type'));
-      await pumpUntil(tester, find.text('Postpartum hemorrhage'));
+      await pumpUntil(tester, find.text('Heavy bleeding'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Postpartum hemorrhage').last);
+      await tester.tap(find.text('Heavy bleeding').last);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('referral_send_to')));
       await pumpUntil(tester, find.text('Choose receiving facility'));
@@ -203,9 +203,9 @@ void main() {
         MaterialApp(home: ReferralScreen(queue: queue, api: api)),
       );
       await tester.tap(find.text('Emergency type'));
-      await pumpUntil(tester, find.text('Postpartum hemorrhage'));
+      await pumpUntil(tester, find.text('Heavy bleeding'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Postpartum hemorrhage').last);
+      await tester.tap(find.text('Heavy bleeding').last);
       await tester.pumpAndSettle();
       await tester.tap(find.byKey(const Key('referral_send_to')));
       await pumpUntil(tester, find.text('Choose receiving facility'));

@@ -95,9 +95,7 @@ Future<int> purgeStaleRecordings({Directory? directory}) async {
     final dir = directory ?? await getTemporaryDirectory();
     await for (final entity in dir.list()) {
       final name = p.basename(entity.path);
-      if (entity is File &&
-          name.startsWith(_recordingPrefix) &&
-          name.endsWith('.wav')) {
+      if (entity is File && name.startsWith(_recordingPrefix) && name.endsWith('.wav')) {
         await entity.delete();
         removed++;
       }

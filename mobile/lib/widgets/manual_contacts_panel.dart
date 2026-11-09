@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/cho_store.dart';
 import '../services/contacts_store.dart';
+import '../services/friendly_time.dart';
 import '../theme/yoma_theme.dart';
 
 typedef ContactLauncher = Future<bool> Function(Uri uri);
@@ -44,12 +45,8 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
       'Yoma Triage: Emergency referral coming from $compoundName. '
       'Please prepare and call back.';
 
-  static String _updatedText(DateTime updatedAt) {
-    final local = updatedAt.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    return 'Contacts last updated: ${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}';
-  }
+  String _updatedText(DateTime updatedAt) =>
+      'Contacts last updated: ${friendlyWhen(context, updatedAt)}';
 
   Future<void> _open(Uri uri, String phone) async {
     widget.onContactUsed?.call();
@@ -123,8 +120,8 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
                   ),
                 );
                 // Side by side where both fit; stacked on a narrow screen or large text.
-                final sideBySide = constraints.maxWidth >=
-                    2 * 140 * MediaQuery.textScalerOf(context).scale(1);
+                final sideBySide =
+                    constraints.maxWidth >= 2 * 140 * MediaQuery.textScalerOf(context).scale(1);
                 return sideBySide
                     ? Row(
                         children: [
@@ -166,8 +163,8 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
             ),
           );
         }
-        final facilities = contacts.facilities
-            .where((facility) => widget.facilityIds.contains(facility.id));
+        final facilities =
+            contacts.facilities.where((facility) => widget.facilityIds.contains(facility.id));
         return Column(
           key: const Key('manual_contacts'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -198,8 +195,7 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
                 phone: driver.phone,
                 message: driverMessage(compoundName),
               ),
-            if (contacts.drivers.isEmpty)
-              const Text('No drivers are saved for this compound.'),
+            if (contacts.drivers.isEmpty) const Text('No drivers are saved for this compound.'),
           ],
         );
       },

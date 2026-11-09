@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../models/emergency_type.dart';
+import '../services/friendly_time.dart';
+
 import '../services/api_client.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
@@ -31,7 +34,8 @@ class _UnsentReferralsScreenState extends State<UnsentReferralsScreen> {
   String _statusText(QueuedReferral item) => switch (item.status) {
         'failed' => 'NOT sent: ${item.lastError ?? 'refused by the server'}',
         'needs_confirmation' => 'Waiting for your answer. Tap to answer.',
-        _ => 'Saved on this phone. Drivers have not been told.',
+        _ => 'Saved on this phone ${ago(DateTime.now().difference(item.createdAt))}. '
+            'Drivers have not been told.',
       };
 
   Future<void> _open(QueuedReferral item) async {
@@ -74,7 +78,7 @@ class _UnsentReferralsScreenState extends State<UnsentReferralsScreen> {
                     key: Key('unsent_${item.clientRequestId}'),
                     leading: const Icon(Icons.error, color: YomaColors.danger),
                     title: Text(
-                      item.payload['emergency_type']?.toString() ?? 'Referral',
+                      emergencyTypeLabel(item.payload['emergency_type']?.toString()),
                     ),
                     subtitle: Text(_statusText(item)),
                     onTap: () => _open(item),
@@ -85,8 +89,7 @@ class _UnsentReferralsScreenState extends State<UnsentReferralsScreen> {
                 ManualContactsPanel(
                   facilityIds: {
                     for (final item in items)
-                      if (item.payload['facility_id'] is int)
-                        item.payload['facility_id'] as int,
+                      if (item.payload['facility_id'] is int) item.payload['facility_id'] as int,
                   },
                   launcher: widget.launcher,
                   onContactUsed: () {

@@ -143,8 +143,7 @@ class _VitalsScreenState extends State<VitalsScreen> {
                     onPressed: () {
                       final bpm = int.tryParse(hrCtrl.text.trim());
                       final spo2Raw = spo2Ctrl.text.trim();
-                      final spo2 =
-                          spo2Raw.isEmpty ? null : int.tryParse(spo2Raw);
+                      final spo2 = spo2Raw.isEmpty ? null : int.tryParse(spo2Raw);
                       if (bpm == null) return;
                       final reading = AdvisoryHrReading(
                         heartRateBpm: bpm,

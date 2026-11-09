@@ -272,7 +272,7 @@ extension Drive on WidgetTester {
     await waitFor(find.textContaining('(confirmed)'));
   }
 
-  Future<void> chooseEmergency([String label = 'Postpartum hemorrhage']) async {
+  Future<void> chooseEmergency([String label = 'Heavy bleeding']) async {
     final field = find.text('Emergency type');
     await tapOn(field);
     await waitFor(find.text(label));

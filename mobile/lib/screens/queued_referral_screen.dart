@@ -76,8 +76,7 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
     } catch (error) {
       if (!mounted) return;
       setState(() {
-        _retryMessage =
-            'Sync could not complete. Referral remains saved on this device.';
+        _retryMessage = 'Sync could not complete. Referral remains saved on this device.';
       });
     } finally {
       if (mounted) setState(() => _retrying = false);
@@ -87,8 +86,7 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
   /// Moves to the screen for this referral's state: refused, stale, or dispatched. If
   /// it's still waiting, a Retry sync says so; a send by itself stays quiet.
   Future<void> _showWhereItIs({required bool automatic}) async {
-    final refused = (await _queue.failed())
-        .any((q) => q.clientRequestId == widget.clientRequestId);
+    final refused = (await _queue.failed()).any((q) => q.clientRequestId == widget.clientRequestId);
     if (!mounted || _leaving) return;
     if (refused) {
       _leaving = true;
@@ -99,8 +97,8 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
       );
       return;
     }
-    final stale = (await _queue.needsConfirmation())
-        .any((q) => q.clientRequestId == widget.clientRequestId);
+    final stale =
+        (await _queue.needsConfirmation()).any((q) => q.clientRequestId == widget.clientRequestId);
     if (!mounted || _leaving) return;
     if (stale) {
       _leaving = true;
@@ -120,8 +118,7 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
     if (dispatchId == null) {
       if (!automatic) {
         setState(() {
-          _retryMessage =
-              'Still waiting for coverage. Referral remains saved on this device.';
+          _retryMessage = 'Still waiting for coverage. Referral remains saved on this device.';
         });
       }
       return;
@@ -212,13 +209,11 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
             ManualContactsPanel(
               facilityIds: {if (widget.facilityId != null) widget.facilityId!},
               launcher: widget.launcher,
-              onContactUsed: () =>
-                  _queue.markManualContact(widget.clientRequestId),
+              onContactUsed: () => _queue.markManualContact(widget.clientRequestId),
             ),
             const SizedBox(height: 24),
             OutlinedButton(
-              onPressed: () =>
-                  Navigator.of(context).popUntil((route) => route.isFirst),
+              onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
               child: const Text('Back to Home'),
             ),
           ],

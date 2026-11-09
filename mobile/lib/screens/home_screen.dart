@@ -4,11 +4,13 @@ import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
+import '../release_settings.dart';
 import '../services/api_client.dart';
 import '../services/catalog_store.dart';
 import '../services/cho_store.dart';
 import '../services/contacts_store.dart';
 import '../services/offline_queue.dart';
+import '../services/friendly_time.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/ambulance_icon.dart';
@@ -264,7 +266,9 @@ class _HomeScreenState extends State<HomeScreen> {
           stripKey: const Key('home_warnings_summary'),
           dark: top.urgent,
           expanded: _warningsOpen,
-          title: top.title,
+          // Open, the header names how many; the items below say what they are, so the
+          // first one is never repeated in the header.
+          title: _warningsOpen ? countOf(warnings.length, 'warning') : top.title,
           subtitle: _warningsOpen
               ? 'Tap to hide'
               : more == 0
@@ -378,21 +382,23 @@ class _HomeScreenState extends State<HomeScreen> {
                                   label: 'Record vitals',
                                   onPressed: _openVitals,
                                 ),
-                              if (AppEnvironment.name != 'production')
-                                Padding(
-                                  padding: const EdgeInsets.only(top: YomaSpacing.md),
-                                  child: Text(
-                                    'Env: ${AppEnvironment.name} · model: '
-                                    '${ScreeningConfig.moewsOnly ? 'MOEWS_ONLY' : ScreeningConfig.model}',
-                                    textAlign: TextAlign.center,
-                                    style: text.bodySmall?.copyWith(color: YomaColors.grey600),
-                                  ),
-                                ),
                               const Spacer(),
                               if (warnings.isNotEmpty) ...[
                                 const SizedBox(height: YomaSpacing.lg),
                                 _warningsSummary(warnings),
                               ],
+                              // Test builds only: a small footer, never in the main content.
+                              if (yomaTestRelease)
+                                Padding(
+                                  padding: const EdgeInsets.only(top: YomaSpacing.md),
+                                  child: Text(
+                                    'Env: ${AppEnvironment.name} · model: '
+                                    '${ScreeningConfig.moewsOnly ? 'MOEWS_ONLY' : ScreeningConfig.model}',
+                                    key: const Key('home_env_footer'),
+                                    textAlign: TextAlign.center,
+                                    style: text.labelSmall?.copyWith(color: YomaColors.grey600),
+                                  ),
+                                ),
                             ],
                           ),
                         ),
@@ -449,7 +455,8 @@ class _EmergencyReferralButton extends StatelessWidget {
                       height: 44,
                       decoration: BoxDecoration(
                         shape: BoxShape.circle,
-                        border: Border.all(color: YomaColors.onPrimary.withValues(alpha: 0.9), width: 2),
+                        border: Border.all(
+                            color: YomaColors.onPrimary.withValues(alpha: 0.9), width: 2),
                       ),
                       alignment: Alignment.center,
                       child: const AmbulanceIcon(size: 26, color: YomaColors.onPrimary),

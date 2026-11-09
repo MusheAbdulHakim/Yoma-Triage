@@ -38,9 +38,8 @@ void registerFontLicence() {
 
 /// The app to run: the real one, or, if this build's settings are wrong, only the screen
 /// that says so.
-Widget rootApp(List<String> releaseProblems) => releaseProblems.isEmpty
-    ? const YomaApp()
-    : MisconfiguredBuildApp(problems: releaseProblems);
+Widget rootApp(List<String> releaseProblems) =>
+    releaseProblems.isEmpty ? const YomaApp() : MisconfiguredBuildApp(problems: releaseProblems);
 
 class YomaApp extends StatefulWidget {
   const YomaApp({super.key});

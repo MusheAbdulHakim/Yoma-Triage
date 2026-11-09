@@ -67,10 +67,7 @@ int _scoreBand(MoewsBand band, num value) {
   }
   final highMin = band.yellowHighMin;
   final highMax = band.yellowHighMax;
-  if (highMin != null &&
-      highMax != null &&
-      value >= highMin &&
-      value <= highMax) {
+  if (highMin != null && highMax != null && value >= highMin && value <= highMax) {
     return 1;
   }
   return 0;
@@ -112,8 +109,7 @@ MoewsResult calculateMoews({
   final rrScore = rr == null ? 0 : _scoreBand(Parameters.respiratoryRateBand, rr);
   final tempScore = temp == null ? 0 : _scoreBand(Parameters.temperatureBand, temp);
   final spo2Score = spo2 == null ? 0 : _scoreBand(Parameters.spo2Band, spo2);
-  final consciousnessScore =
-      consciousness == null ? 0 : _scoreConsciousness(consciousness);
+  final consciousnessScore = consciousness == null ? 0 : _scoreConsciousness(consciousness);
 
   final scores = <int>[
     if (sbp != null) sbpScore,

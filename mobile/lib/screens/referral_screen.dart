@@ -61,7 +61,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
   late final ApiClient _api = widget.api ?? ApiClient();
   final _catalogStore = CatalogStore();
 
-
   static const _notSetUp = 'This phone is not set up as a CHO, so it cannot send a referral. '
       'Call the driver and hospital directly.';
 
@@ -445,28 +444,13 @@ class _ReferralScreenState extends State<ReferralScreen> {
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey600),
                 ),
               ),
-            if (widget.aiScreenResult != null)
+            if (widget.aiScreenResult case final label?)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
-                child: YomaCard(
-                  color: YomaColors.grey100,
-                  shadow: const [],
-                  radius: YomaRadii.md,
-                  padding: const EdgeInsets.all(12),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text('AI screen: ${widget.aiScreenResult}',
-                          style: Theme.of(context).textTheme.labelMedium),
-                      Text(
-                        'Confidence: ${((widget.aiConfidence ?? 0) * 100).toStringAsFixed(0)}%',
-                        style: Theme.of(context)
-                            .textTheme
-                            .bodySmall
-                            ?.copyWith(color: YomaColors.grey600),
-                      ),
-                    ],
-                  ),
+                child: Text(
+                  'Breathing check (advisory): ${label.toUpperCase() == 'RED' ? 'Possible breathing problem' : "Couldn't tell"}',
+                  key: const Key('referral_breathing_note'),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey700),
                 ),
               ),
             const SizedBox(height: 12),

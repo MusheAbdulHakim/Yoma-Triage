@@ -83,8 +83,7 @@ class ScreeningService {
   }
 
   /// Web-only demo buttons.
-  ScreeningResult simulate({required bool forceRed}) =>
-      simulatorClassify(forceRed: forceRed);
+  ScreeningResult simulate({required bool forceRed}) => simulatorClassify(forceRed: forceRed);
 
   Future<void> dispose() async {
     try {

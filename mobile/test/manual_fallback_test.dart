@@ -243,8 +243,9 @@ void main() {
     testWidgets('shows when the list was last updated', (tester) async {
       await pumpPanel(tester);
       final text = tester.widget<Text>(find.byKey(const Key('contacts_updated'))).data!;
-      final local = DateTime.utc(2026, 11, 5, 14, 3).toLocal();
-      expect(text, startsWith('Contacts last updated: ${local.year}-11-'));
+      // A friendly date (the saved time is in the past), never a raw ISO timestamp.
+      expect(text, startsWith('Contacts last updated: 5 Nov, '));
+      expect(text, isNot(contains('2026-')));
     });
 
     testWidgets('says so when nothing has been saved yet', (tester) async {

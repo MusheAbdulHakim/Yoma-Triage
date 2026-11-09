@@ -1114,7 +1114,7 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
         tap_text(device, "Tamale Teaching Hospital", 20)
         wait_screen(device, "confirmed", 20)
         tap_text(device, "Emergency type", 20)
-        tap_text(device, "Postpartum hemorrhage", 20)
+        tap_text(device, "Heavy bleeding", 20)
         time.sleep(1)
         # The vitals came with the referral from Result (all Not measured); no name field.
         confirm = None

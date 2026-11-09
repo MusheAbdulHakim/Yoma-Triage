@@ -23,8 +23,7 @@ class BreathingPulse extends StatefulWidget {
   State<BreathingPulse> createState() => _BreathingPulseState();
 }
 
-class _BreathingPulseState extends State<BreathingPulse>
-    with SingleTickerProviderStateMixin {
+class _BreathingPulseState extends State<BreathingPulse> with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
 
   @override

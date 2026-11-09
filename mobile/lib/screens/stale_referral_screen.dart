@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../models/emergency_type.dart';
+import '../services/friendly_time.dart';
+
 import '../parameters.dart';
 
 import '../services/api_client.dart';
@@ -101,9 +104,8 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
         if (answer == _Answer.sendNow && mounted) await _explainExpired(e.reason);
         await widget.queue.removeResolved(id);
       } else {
-        problem = e.code == null
-            ? 'Could not save your answer. Try again, or call directly.'
-            : e.reason;
+        problem =
+            e.code == null ? 'Could not save your answer. Try again, or call directly.' : e.reason;
       }
     } catch (_) {
       problem = 'No connection, so your answer was not saved. '
@@ -186,10 +188,11 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             Text(
-              item.payload['emergency_type']?.toString() ?? 'Referral',
+              emergencyTypeLabel(item.payload['emergency_type']?.toString()),
               style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
             ),
-            Text('Waited $minutes minutes on this phone. Drivers have not been told.'),
+            Text('Waited ${countOf(minutes < 1 ? 1 : minutes, 'minute')} on this phone. '
+                'Drivers have not been told.'),
             if (item.manualContactMade)
               Text(
                 'You used Call or SMS for this referral.',
@@ -209,9 +212,7 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
             FilledButton(
               key: Key('stale_confirm_$id'),
               style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              onPressed: _chosen[id] == null || _sending.contains(id)
-                  ? null
-                  : () => _submit(item),
+              onPressed: _chosen[id] == null || _sending.contains(id) ? null : () => _submit(item),
               child: Text(_sending.contains(id) ? 'Saving…' : 'Confirm'),
             ),
           ],
@@ -227,8 +228,7 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          if (_loaded && _items.isEmpty)
-            const Text('Nothing is waiting for your answer.'),
+          if (_loaded && _items.isEmpty) const Text('Nothing is waiting for your answer.'),
           for (final item in _items) _card(item),
           const SizedBox(height: 16),
           if (_loaded)
@@ -236,8 +236,7 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
               key: ValueKey(_items.length),
               facilityIds: {
                 for (final item in _items)
-                  if (item.payload['facility_id'] is int)
-                    item.payload['facility_id'] as int,
+                  if (item.payload['facility_id'] is int) item.payload['facility_id'] as int,
               },
               launcher: widget.launcher,
               onContactUsed: () {

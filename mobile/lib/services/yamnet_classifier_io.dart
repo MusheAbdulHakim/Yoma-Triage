@@ -82,12 +82,10 @@ BackgroundJob<ScreeningResult> _startClassifying(
     if (inTensors.isEmpty || outTensors.isEmpty) {
       throw StateError('YAMNet has no input or output tensor');
     }
-    final inputSize = inTensors.first.shape.isEmpty
-        ? 15600
-        : inTensors.first.shape.reduce((a, b) => a * b);
-    final outputSize = outTensors.first.shape.isEmpty
-        ? 521
-        : outTensors.first.shape.reduce((a, b) => a * b);
+    final inputSize =
+        inTensors.first.shape.isEmpty ? 15600 : inTensors.first.shape.reduce((a, b) => a * b);
+    final outputSize =
+        outTensors.first.shape.isEmpty ? 521 : outTensors.first.shape.reduce((a, b) => a * b);
     if (inputSize <= 0 || outputSize <= 0) {
       throw StateError('YAMNet tensor sizes are invalid');
     }
@@ -209,8 +207,7 @@ double? _respiratoryAbnormalScore(List<double> scores) {
 
 class _UnavailableClassifier implements YamnetClassifier {
   @override
-  Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async =>
-      unavailableResult();
+  Future<ScreeningResult> classifyPcm16kHzMono(Uint8List pcmBytes) async => unavailableResult();
 
   @override
   void cancel() {}
@@ -219,5 +216,4 @@ class _UnavailableClassifier implements YamnetClassifier {
   Future<void> dispose() async {}
 }
 
-Future<YamnetClassifier> createYamnetClassifier() =>
-    YamnetClassifierIo.create();
+Future<YamnetClassifier> createYamnetClassifier() => YamnetClassifierIo.create();

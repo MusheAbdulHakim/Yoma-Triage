@@ -43,8 +43,7 @@ ScreeningResult mapOperaCeHeadToResult(List<double> logits) {
     return ScreeningResult(
       label: 'GREEN',
       confidence: probs[0],
-      reason:
-          'OPERA-CE low abnormal score — advisory only, not a clinical clear',
+      reason: 'OPERA-CE low abnormal score — advisory only, not a clinical clear',
       source: 'opera_ce',
       modelVersion: version,
     );

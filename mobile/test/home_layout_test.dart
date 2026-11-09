@@ -326,4 +326,22 @@ void main() {
     expect(find.text('Offline'), findsNothing);
     handle.dispose();
   });
+
+  testWidgets('open, the warning header never repeats the first item', (tester) async {
+    _screen(tester, const Size(360, 640));
+    await _openHome(tester, _everyWarning());
+    expect(find.text('2 referrals were NOT sent'), findsOneWidget);
+    await tester.tap(find.byKey(const Key('home_warnings_summary')));
+    await tester.pump();
+    // Header: how many; the item itself says what it is, once.
+    expect(find.text('5 warnings'), findsOneWidget);
+    expect(find.text('2 referrals were NOT sent', skipOffstage: false), findsOneWidget);
+  });
+
+  testWidgets('no Env/model line on Home outside test builds', (tester) async {
+    _screen(tester, const Size(360, 640));
+    await _openHome(tester, _Queue());
+    expect(find.textContaining('Env:'), findsNothing);
+    expect(find.byKey(const Key('home_env_footer')), findsNothing);
+  });
 }

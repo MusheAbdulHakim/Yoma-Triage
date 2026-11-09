@@ -216,8 +216,7 @@ ScreeningResult _classifyInBackground(OperaCeModels models, Uint8List pcmBytes) 
     return ScreeningResult(
       label: 'INCONCLUSIVE',
       confidence: 0.0,
-      reason:
-          'OPERA-CE encoder OK; classifier head not trained — use MOEWS and clinical judgment',
+      reason: 'OPERA-CE encoder OK; classifier head not trained — use MOEWS and clinical judgment',
       source: 'opera_ce',
       modelVersion: OperaCeClassifierIo.modelVersionEncoderOnly,
     );
@@ -254,5 +253,4 @@ class OperaCeUnavailable implements YamnetClassifier {
   Future<void> dispose() async {}
 }
 
-Future<YamnetClassifier> createOperaCeClassifier() =>
-    OperaCeClassifierIo.create();
+Future<YamnetClassifier> createOperaCeClassifier() => OperaCeClassifierIo.create();

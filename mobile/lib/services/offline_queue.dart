@@ -18,6 +18,7 @@ const _expiryWarnedAtKey = 'local_expiry_warned_at';
 class QueuedReferral {
   final String clientRequestId;
   final Map<String, dynamic> payload;
+
   /// pending: will be retried. sent: done. failed: the server refused it, so it
   /// will not be retried and the CHO has to coordinate manually. needs_confirmation:
   /// the server stored it as stale and is waiting for the CHO's answer.
@@ -39,8 +40,7 @@ class QueuedReferral {
   // Kept in the payload, under keys that are never sent to the server.
   int? get serverReferralId => payload[_serverReferralIdKey] as int?;
   bool get manualContactMade => payload[_manualContactKey] == true;
-  DateTime? get expiryWarnedAt =>
-      DateTime.tryParse(payload[_expiryWarnedAtKey] as String? ?? '');
+  DateTime? get expiryWarnedAt => DateTime.tryParse(payload[_expiryWarnedAtKey] as String? ?? '');
 
   /// How long this has waited, by this phone's clock. A clock set back reads as zero.
   int get ageSeconds {
@@ -64,10 +64,7 @@ class QueuedReferral {
       final payload = json['payload'];
       final status = json['status'];
       final created = json['created_at'];
-      if (id is! String ||
-          payload is! Map ||
-          status is! String ||
-          created is! String) {
+      if (id is! String || payload is! Map || status is! String || created is! String) {
         return null;
       }
       return QueuedReferral(
@@ -323,8 +320,7 @@ class OfflineQueue {
           await _persistUnlocked(queued);
         }
       }
-      needsConfirmationCount.value =
-          (await _withStatusUnlocked('needs_confirmation')).length;
+      needsConfirmationCount.value = (await _withStatusUnlocked('needs_confirmation')).length;
     });
   }
 
@@ -347,8 +343,7 @@ class OfflineQueue {
   /// Everything that hasn't reached a driver, oldest first.
   Future<List<QueuedReferral>> unsent() {
     return _serialized(() async {
-      return (await _unsentUnlocked())
-        ..sort((a, b) => a.createdAt.compareTo(b.createdAt));
+      return (await _unsentUnlocked())..sort((a, b) => a.createdAt.compareTo(b.createdAt));
     });
   }
 
@@ -403,8 +398,7 @@ class OfflineQueue {
         final expired = time.difference(queued.createdAt) >=
             const Duration(hours: Parameters.localRecordTtlHours);
         final warnedLongEnough = warnedAt != null &&
-            time.difference(warnedAt) >=
-                const Duration(hours: Parameters.localRecordWarningHours);
+            time.difference(warnedAt) >= const Duration(hours: Parameters.localRecordWarningHours);
         if (expired && warnedLongEnough) {
           queued.status = 'sent';
           await _persistUnlocked(queued);
@@ -413,11 +407,8 @@ class OfflineQueue {
       }
       if (deleted > 0) {
         failedCount.value = (await _failedUnlocked()).length;
-        needsConfirmationCount.value =
-            (await _withStatusUnlocked('needs_confirmation')).length;
-        expiringCount.value = expiringCount.value > deleted
-            ? expiringCount.value - deleted
-            : 0;
+        needsConfirmationCount.value = (await _withStatusUnlocked('needs_confirmation')).length;
+        expiringCount.value = expiringCount.value > deleted ? expiringCount.value - deleted : 0;
       }
       return deleted;
     });
@@ -485,14 +476,11 @@ class OfflineQueue {
               emergencyType: emergency,
               vitals: Map<String, dynamic>.from(vitalsRaw),
               aiScreenResult: queued.payload['ai_screen_result'] as String?,
-              aiConfidence:
-                  confidence == null ? null : (confidence as num).toDouble(),
+              aiConfidence: confidence == null ? null : (confidence as num).toDouble(),
               aiModelVersion: queued.payload['ai_model_version'] as String?,
               catalogVersion: queued.payload['catalog_version'] as String?,
-              originLat:
-                  originLat == null ? null : (originLat as num).toDouble(),
-              originLon:
-                  originLon == null ? null : (originLon as num).toDouble(),
+              originLat: originLat == null ? null : (originLat as num).toDouble(),
+              originLon: originLon == null ? null : (originLon as num).toDouble(),
               originSource: queued.payload['origin_source'] as String?,
               vitalsTaken: queued.payload['vitals_taken'] != false,
               queueAgeSeconds: queued.ageSeconds,
@@ -500,8 +488,7 @@ class OfflineQueue {
             ),
           );
           final referral = response['referral'];
-          if (referral is Map &&
-              referral['status'] == 'AWAITING_CONFIRMATION') {
+          if (referral is Map && referral['status'] == 'AWAITING_CONFIRMATION') {
             queued.status = 'needs_confirmation';
             queued.lastError = null;
             queued.updatedAt = DateTime.now();
@@ -530,8 +517,7 @@ class OfflineQueue {
         }
       }
       failedCount.value = (await _failedUnlocked()).length;
-      needsConfirmationCount.value =
-          (await _withStatusUnlocked('needs_confirmation')).length;
+      needsConfirmationCount.value = (await _withStatusUnlocked('needs_confirmation')).length;
       retryWarning.value = warning;
       changes.value++;
       return sent;
