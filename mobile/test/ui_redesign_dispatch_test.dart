@@ -28,6 +28,17 @@ class _ScriptedApi extends ApiClient {
     polls++;
     return r;
   }
+
+  int cancels = 0;
+
+  @override
+  Future<Map<String, dynamic>> cancelDispatch({
+    required int dispatchId,
+    required String choPhone,
+  }) async {
+    cancels++;
+    return {'status': 'CANCELLED'};
+  }
 }
 
 Map<String, dynamic> _dispatch(
@@ -98,6 +109,13 @@ Future<_ScriptedApi> _open(
   await tester.pump();
   await tester.pump(const Duration(milliseconds: 100));
   return api;
+}
+
+/// The waiting screen has a spinner, so pumpAndSettle would never return.
+Future<void> _settle(WidgetTester tester) async {
+  for (var i = 0; i < 5; i++) {
+    await tester.pump(const Duration(milliseconds: 100));
+  }
 }
 
 TimelineStep _step(DispatchTimeline t, String id) => t.steps.firstWhere((s) => s.id == id);
@@ -340,6 +358,52 @@ void main() {
       expect(find.text('Saved on this phone – will send when signal returns'), findsOneWidget);
       expect(find.textContaining('Drivers have not been notified'), findsOneWidget);
       expect(find.text('Urgent? Call a driver now', skipOffstage: false), findsOneWidget);
+    });
+  });
+
+  group('Call a driver instead, then "Did a driver agree to come?"', () {
+    Future<_ScriptedApi> callADriver(WidgetTester tester, {String status = 'TIER1_NOTIFIED'}) async {
+      SharedPreferences.setMockInitialValues({
+        ..._contactsPrefs(drivers: 2),
+        ...registeredChoPrefs(),
+      });
+      _screen(tester, const Size(360, 1200));
+      final api = await _open(tester, [_dispatch(status)]);
+      await tester.tap(find.text('Call a driver instead'));
+      await _settle(tester);
+      // No confirm: the call starts straight away.
+      await tester.tap(find.byKey(const Key('call_+233240001000')));
+      await _settle(tester);
+      expect(find.byKey(const Key('dispatch_driver_agreed')), findsNothing,
+          reason: 'asked only when the CHO comes back');
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.paused);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await _settle(tester);
+      return api;
+    }
+
+    testWidgets('Yes cancels the referral through the normal cancel', (tester) async {
+      final api = await callADriver(tester);
+      expect(find.text('Did a driver agree to come?'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('dispatch_driver_agreed_yes')));
+      await _settle(tester);
+      expect(api.cancels, 1);
+      expect(find.byKey(const Key('dispatch_status_CANCELLED')), findsOneWidget);
+    });
+
+    testWidgets('No keeps waiting', (tester) async {
+      final api = await callADriver(tester);
+      await tester.tap(find.byKey(const Key('dispatch_driver_agreed_no')));
+      await _settle(tester);
+      expect(api.cancels, 0);
+      expect(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), findsOneWidget);
+      // Asked once per call, not on every return.
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+      tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+      await _settle(tester);
+      expect(find.text('Did a driver agree to come?'), findsNothing);
     });
   });
 

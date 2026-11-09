@@ -41,7 +41,8 @@ class DispatchStatusScreen extends StatefulWidget {
   State<DispatchStatusScreen> createState() => _DispatchStatusScreenState();
 }
 
-class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
+class _DispatchStatusScreenState extends State<DispatchStatusScreen>
+    with WidgetsBindingObserver {
   late final ApiClient _api = widget.api ?? ApiClient();
   late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
   Timer? _timer;
@@ -99,8 +100,59 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _dispatchId = widget.dispatchId;
     unawaited(_bootstrap());
+  }
+
+  /// The CHO phoned a driver from this screen before any driver had accepted; ask on
+  /// return whether one agreed.
+  bool _askIfDriverAgreed = false;
+
+  /// No confirm before calling: the call starts at once, and the question waits for the
+  /// CHO to come back to the app.
+  Future<bool> _launchContact(Uri uri) async {
+    final opened = await widget.launcher(uri);
+    if (opened && uri.scheme == 'tel' && _canCancel && _driverName == null) {
+      _askIfDriverAgreed = true;
+    }
+    return opened;
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state != AppLifecycleState.resumed || !_askIfDriverAgreed) return;
+    _askIfDriverAgreed = false;
+    if (!mounted || _disposed || !_canCancel || _driverName != null) return;
+    unawaited(_askDriverAgreed());
+  }
+
+  /// Yes: the referral is cancelled through the normal cancel, so drivers stop being
+  /// alerted. No: nothing changes and the screen keeps waiting.
+  Future<void> _askDriverAgreed() async {
+    final agreed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        key: const Key('dispatch_driver_agreed'),
+        title: const Text('Did a driver agree to come?'),
+        content: const Text(
+          'If yes, this referral is cancelled so other drivers stop being alerted.',
+        ),
+        actions: [
+          TextButton(
+            key: const Key('dispatch_driver_agreed_no'),
+            onPressed: () => Navigator.of(context).pop(false),
+            child: const Text('No, keep waiting'),
+          ),
+          TextButton(
+            key: const Key('dispatch_driver_agreed_yes'),
+            onPressed: () => Navigator.of(context).pop(true),
+            child: const Text('Yes'),
+          ),
+        ],
+      ),
+    );
+    if (agreed == true && mounted && !_disposed && _canCancel) await _cancel();
   }
 
   Future<void> _bootstrap() async {
@@ -265,6 +317,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _disposed = true;
     _timer?.cancel();
     super.dispose();
@@ -409,7 +462,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
             ManualContactsPanel(
               key: ValueKey(_facilityId),
               facilityIds: {if (_facilityId != null) _facilityId!},
-              launcher: widget.launcher,
+              launcher: _launchContact,
             ),
           ],
           const SizedBox(height: 24),
