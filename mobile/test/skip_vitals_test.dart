@@ -74,7 +74,7 @@ void main() {
   }
 
   Future<void> chooseFacility(WidgetTester tester) async {
-    await tester.tap(find.byIcon(Icons.edit_location_alt));
+    await tester.tap(find.byKey(const Key('referral_send_to')));
     await pumpUntil(tester, find.text('Choose receiving facility'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(ListTile).first);
@@ -106,7 +106,7 @@ void main() {
       MaterialApp(home: ReferralScreen(queue: queue, api: api)),
     );
     // No wait: tap on the first frame, as a CHO on a slow phone might.
-    await tester.tap(find.byIcon(Icons.edit_location_alt));
+    await tester.tap(find.byKey(const Key('referral_send_to')));
     await pumpUntil(tester, find.text('Choose receiving facility'));
   });
 

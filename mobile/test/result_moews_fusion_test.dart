@@ -67,6 +67,7 @@ void main() {
 
   testWidgets('screening-session vitals prefill the referral form',
       (tester) async {
+    useTallScreen(tester);
     final result = ScreeningResult(
       label: 'GREEN',
       confidence: 0.6,

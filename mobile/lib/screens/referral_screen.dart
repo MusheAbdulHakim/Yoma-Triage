@@ -13,6 +13,7 @@ import '../services/patient_token.dart';
 import '../services/vital_limits.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/vital_field.dart';
+import '../widgets/yoma_components.dart';
 import 'dispatch_status_screen.dart';
 import 'facility_picker_screen.dart';
 import 'failed_referrals_screen.dart';
@@ -61,6 +62,14 @@ class _ReferralScreenState extends State<ReferralScreen> {
   late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
   late final ApiClient _api = widget.api ?? ApiClient();
   final _catalogStore = CatalogStore();
+
+  /// The app's emergency types (API value, label). Not the design's example list.
+  static const _emergencyTypes = [
+    ('respiratory_distress', 'Respiratory distress'),
+    ('pph', 'Postpartum hemorrhage'),
+    ('neonatal_asphyxia', 'Neonatal asphyxia'),
+    ('eclampsia', 'Eclampsia'),
+  ];
 
   static const _notSetUp =
       'This phone is not set up as a CHO, so it cannot send a referral. '
@@ -335,79 +344,165 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Emergency Referral — Vitals'),
+        title: const Text('Emergency referral'),
       ),
       body: Form(
         key: _formKey,
         child: ListView(
           padding: const EdgeInsets.all(16),
           children: [
-            Card(
-              color: YomaColors.brand.withValues(alpha: 0.08),
-              child: ListTile(
-                title: Text(
-                  _identity?.compoundName ??
-                      (_identityLoaded ? 'This phone is not set up' : '…'),
+            const _SectionLabel('Emergency type'),
+            FormField<String>(
+              key: ValueKey('referral_type_$_emergencyType'),
+              initialValue: _emergencyType,
+              validator: (v) => v == null ? 'Choose the emergency type' : null,
+              builder: (field) => Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  LayoutBuilder(
+                    builder: (context, constraints) {
+                      const gap = 10.0;
+                      final width = (constraints.maxWidth - gap) / 2;
+                      return Wrap(
+                        spacing: gap,
+                        runSpacing: gap,
+                        children: [
+                          // The app's current list of types, unchanged.
+                          for (final (value, label) in _emergencyTypes)
+                            SizedBox(
+                              width: width,
+                              child: YomaChoiceChip(
+                                key: Key('referral_type_$value'),
+                                label: label,
+                                selected: field.value == value,
+                                semanticsHint: 'Emergency type',
+                                onTap: () {
+                                  field.didChange(value);
+                                  setState(() {
+                                    _emergencyType = value;
+                                    _skipError = null;
+                                  });
+                                },
+                              ),
+                            ),
+                        ],
+                      );
+                    },
+                  ),
+                  if (field.hasError)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 6),
+                      child: Text(
+                        field.errorText!,
+                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                              color: YomaColors.error,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 20),
+            const _SectionLabel('Send to'),
+            Semantics(
+              button: true,
+              label: _facilityConfirmed
+                  ? 'Send to $facilityLabel, confirmed. Tap to change.'
+                  : 'Send to $facilityLabel. Tap to confirm facility.',
+              excludeSemantics: true,
+              child: Material(
+                color: YomaColors.surface,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(YomaRadii.md),
+                  side: BorderSide(
+                    color: _facilityConfirmed ? YomaColors.grey300 : YomaColors.brand,
+                    width: _facilityConfirmed ? 1 : 2,
+                  ),
                 ),
-                subtitle: Text(
-                  _facilityConfirmed
-                      ? '→ $facilityLabel (confirmed)'
-                      : '→ $facilityLabel (tap to confirm facility)',
+                child: InkWell(
+                  key: const Key('referral_send_to'),
+                  borderRadius: BorderRadius.circular(YomaRadii.md),
+                  onTap: _openPicker,
+                  child: ConstrainedBox(
+                    constraints: const BoxConstraints(minHeight: 56),
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                      child: Row(
+                        children: [
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  facilityLabel,
+                                  style: Theme.of(context).textTheme.titleMedium,
+                                ),
+                                Text(
+                                  _facilityConfirmed
+                                      ? '(confirmed)'
+                                      : '(tap to confirm facility)',
+                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                        color: _facilityConfirmed
+                                            ? YomaColors.grey600
+                                            : YomaColors.brand,
+                                        fontWeight: FontWeight.w600,
+                                      ),
+                                ),
+                                Text(
+                                  _identity?.compoundName ??
+                                      (_identityLoaded ? 'This phone is not set up' : '…'),
+                                  style: Theme.of(context)
+                                      .textTheme
+                                      .bodySmall
+                                      ?.copyWith(color: YomaColors.grey600),
+                                ),
+                              ],
+                            ),
+                          ),
+                          const Icon(Icons.expand_more, color: YomaColors.grey600),
+                        ],
+                      ),
+                    ),
+                  ),
                 ),
-                trailing: const Icon(Icons.edit_location_alt),
-                onTap: _openPicker,
               ),
             ),
             if (!_facilityConfirmed)
               Padding(
-                padding: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   _originBanner,
-                  style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
+                  style: Theme.of(context)
+                      .textTheme
+                      .bodySmall
+                      ?.copyWith(color: YomaColors.grey600),
                 ),
               ),
             if (widget.aiScreenResult != null)
-              Card(
-                color: Colors.blue.shade50,
-                child: ListTile(
-                  title: Text('AI screen: ${widget.aiScreenResult}'),
-                  subtitle: Text(
-                    'Confidence: ${((widget.aiConfidence ?? 0) * 100).toStringAsFixed(0)}%',
+              Padding(
+                padding: const EdgeInsets.only(top: 12),
+                child: YomaCard(
+                  color: YomaColors.grey100,
+                  shadow: const [],
+                  radius: YomaRadii.md,
+                  padding: const EdgeInsets.all(12),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text('AI screen: ${widget.aiScreenResult}',
+                          style: Theme.of(context).textTheme.labelMedium),
+                      Text(
+                        'Confidence: ${((widget.aiConfidence ?? 0) * 100).toStringAsFixed(0)}%',
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: YomaColors.grey600),
+                      ),
+                    ],
                   ),
                 ),
               ),
-            DropdownButtonFormField<String>(
-              key: ValueKey(_emergencyType),
-              initialValue: _emergencyType,
-              isExpanded: true,
-              decoration: const InputDecoration(labelText: 'Emergency type'),
-              validator: (v) => v == null ? 'Choose the emergency type' : null,
-              items: const [
-                DropdownMenuItem(
-                  value: 'respiratory_distress',
-                  child: Text('Respiratory distress'),
-                ),
-                DropdownMenuItem(
-                  value: 'pph',
-                  child: Text('Postpartum hemorrhage'),
-                ),
-                DropdownMenuItem(
-                  value: 'neonatal_asphyxia',
-                  child: Text('Neonatal asphyxia'),
-                ),
-                DropdownMenuItem(
-                  value: 'eclampsia',
-                  child: Text('Eclampsia'),
-                ),
-              ],
-              onChanged: (v) {
-                if (v == null) return;
-                setState(() {
-                  _emergencyType = v;
-                  _skipError = null;
-                });
-              },
-            ),
             const SizedBox(height: 12),
             FilledButton(
               key: const Key('referral_skip_vitals'),
@@ -506,19 +601,41 @@ class _ReferralScreenState extends State<ReferralScreen> {
             ),
             if (_error != null) ...[
               const SizedBox(height: 12),
-              Text(_error!, style: const TextStyle(color: Colors.orange)),
+              Text(
+                _error!,
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      color: YomaColors.warning,
+                      fontWeight: FontWeight.w600,
+                    ),
+              ),
             ],
             const SizedBox(height: 24),
             FilledButton(
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(52),
-                backgroundColor: YomaColors.danger,
               ),
               onPressed: _submitting ? null : _submit,
               child: Text(_submitting ? 'Submitting…' : 'Confirm Referral'),
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+class _SectionLabel extends StatelessWidget {
+  const _SectionLabel(this.text);
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Semantics(
+        header: true,
+        child: Text(text, style: Theme.of(context).textTheme.titleSmall),
       ),
     );
   }

@@ -205,7 +205,7 @@ void main() {
       await tester.pumpAndSettle();
       await tester.tap(find.text('Postpartum hemorrhage').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.edit_location_alt));
+      await tester.tap(find.byKey(const Key('referral_send_to')));
       await pumpUntil(tester, find.text('Choose receiving facility'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(ListTile).first);
