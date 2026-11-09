@@ -86,4 +86,39 @@ void main() {
         MaterialApp(home: ResultScreen(result: mapYamnetToResult(abnormalScore: 0.82))));
     expect(find.textContaining('Demo screening mode.'), findsNothing);
   });
+
+  // Nothing (e.g. Stable's "Oxygen saturation not measured" or the sign-off line) may hide
+  // behind the bottom buttons.
+  for (final (size, scale) in [
+    (const Size(360, 640), 1.0),
+    (const Size(320, 568), 1.0),
+    (const Size(360, 640), 1.3),
+    (const Size(320, 568), 1.3),
+  ]) {
+    testWidgets('content scrolls clear of the buttons at ${size.width} dp, ${scale}x text',
+        (tester) async {
+      tester.view.physicalSize = size;
+      tester.view.devicePixelRatio = 1;
+      addTearDown(tester.view.reset);
+      await tester.pumpWidget(MaterialApp(
+        theme: buildYomaTheme(),
+        builder: (context, child) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(scale)),
+          child: child!,
+        ),
+        home: _scored(spo2: null),
+      ));
+      expect(tester.takeException(), isNull);
+      final buttonsTop = tester.getRect(find.byType(FilledButton)).top;
+      for (final target in [
+        find.text('Oxygen saturation not measured'),
+        find.byKey(const Key('result_signoff_note')),
+      ]) {
+        await tester.scrollUntilVisible(target, 60, scrollable: find.byType(Scrollable).first);
+        await tester.pumpAndSettle();
+        expect(tester.getRect(target).bottom, lessThanOrEqualTo(buttonsTop), reason: '$target');
+        expect(target.hitTestable(), findsOneWidget);
+      }
+    });
+  }
 }
