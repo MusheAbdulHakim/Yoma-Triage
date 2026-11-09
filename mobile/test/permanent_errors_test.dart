@@ -12,6 +12,7 @@ import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
 import 'helpers/cho_helper.dart';
+import 'helpers/vitals_helper.dart';
 
 class _FailingApi extends ApiClient {
   _FailingApi(this.error);
@@ -173,6 +174,9 @@ void main() {
     testWidgets('a refused referral says why and to call manually',
         (tester) async {
       final api = _FailingApi(ApiException(404, '{"detail":"Facility not found","code":"FACILITY_NOT_FOUND"}'));
+      // Tall, so the whole not-sent-yet screen is built (its Retry sync now follows the
+      // contacts).
+      useTallScreen(tester);
       await tester.pumpWidget(
         MaterialApp(home: ReferralScreen(queue: queue, api: api)),
       );
@@ -199,6 +203,9 @@ void main() {
     testWidgets('a captive portal on a direct send keeps it queued and warns',
         (tester) async {
       final api = _FailingApi(ApiException(403, '<html>Log in to Wi-Fi</html>'));
+      // Tall, so the whole not-sent-yet screen is built (its Retry sync now follows the
+      // contacts).
+      useTallScreen(tester);
       await tester.pumpWidget(
         MaterialApp(home: ReferralScreen(queue: queue, api: api)),
       );
@@ -227,6 +234,9 @@ void main() {
         (tester) async {
       final api = _FailingApi(ApiException(422, '{"detail":"Bad","code":"VALIDATION_ERROR"}'));
       await tester.runAsync(() => queue.enqueue(_sample('a')));
+      // Tall, so the whole not-sent-yet screen is built (its Retry sync now follows the
+      // contacts).
+      useTallScreen(tester);
       await tester.pumpWidget(
         MaterialApp(
           home: QueuedReferralScreen(
@@ -244,6 +254,9 @@ void main() {
     testWidgets('a retryable error does not show as refused', (tester) async {
       final api = _FailingApi(ApiException(503, ''));
       await tester.runAsync(() => queue.enqueue(_sample('a')));
+      // Tall, so the whole not-sent-yet screen is built (its Retry sync now follows the
+      // contacts).
+      useTallScreen(tester);
       await tester.pumpWidget(
         MaterialApp(
           home: QueuedReferralScreen(
