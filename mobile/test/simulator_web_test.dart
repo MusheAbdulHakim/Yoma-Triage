@@ -45,7 +45,7 @@ void main() {
     await tester.tap(find.byKey(const Key('vitals_see_result')));
     await tester.pumpAndSettle();
     // MOEWS leads the result; the acoustic RED appears as the advisory row.
-    expect(find.text('MOEWS GREEN'), findsOneWidget);
+    expect(find.text('MOEWS GREEN'), findsNothing, reason: 'word and score only, as in the design');
     expect(find.text('Breathing check (advisory)'), findsOneWidget);
     expect(find.text('Possible breathing problem'), findsOneWidget);
     expect(find.text('Confirm referral'), findsOneWidget);

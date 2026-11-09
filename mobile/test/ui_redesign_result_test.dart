@@ -89,7 +89,7 @@ void main() {
       final card = tester.getSemantics(find.byKey(const Key('result_risk_card')));
       expect(card.label, startsWith('Risk level: Critical.'));
       expect(find.text('Critical'), findsOneWidget);
-      expect(find.text('MOEWS RED'), findsOneWidget);
+      expect(find.text('MOEWS RED'), findsNothing, reason: 'word and score only, as in the design');
       expect(_primary(tester), 'Confirm referral');
       expect(find.text('Systolic BP 185 mmHg – very high'), findsOneWidget);
     });

@@ -208,14 +208,9 @@ class _RiskCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final incomplete = level == TriageLevel.incomplete;
-    final partial = moews.missingVitals.any((name) => name != 'spo2');
     final score = moews.score;
-    final detail = incomplete
-        ? ''
-        : [
-            if (score != null) 'Score $score',
-            if (partial) 'from measured vitals',
-          ].join(' · ');
+    // As in the design: the word and the score only. What was not measured is listed below.
+    final detail = incomplete || score == null ? '' : 'Score $score';
 
     final content = Padding(
       padding: const EdgeInsets.all(YomaSpacing.lg),
@@ -244,8 +239,6 @@ class _RiskCard extends StatelessWidget {
                   incomplete ? 'Incomplete' : level.word,
                   style: text.headlineSmall?.copyWith(color: level.onColour),
                 ),
-                const SizedBox(height: 2),
-                Text(level.moewsName, style: text.labelLarge?.copyWith(color: level.onColour)),
                 if (detail.isNotEmpty)
                   Text(
                     detail,
@@ -262,7 +255,7 @@ class _RiskCard extends StatelessWidget {
     return Semantics(
       key: const Key('result_risk_card'),
       container: true,
-      label: 'Risk level: ${level.word}. ${level.moewsName}.${detail.isEmpty ? '' : ' $detail'}',
+      label: 'Risk level: ${level.word}.${detail.isEmpty ? '' : ' $detail.'}',
       excludeSemantics: true,
       child: incomplete
           ? CustomPaint(

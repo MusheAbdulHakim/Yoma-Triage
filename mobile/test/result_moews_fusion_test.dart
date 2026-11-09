@@ -28,7 +28,7 @@ void main() {
     );
 
     expect(find.text('Confirm referral'), findsOneWidget);
-    expect(find.text('MOEWS RED'), findsOneWidget);
+    expect(find.text('MOEWS RED'), findsNothing, reason: 'word and score only, as in the design');
     expect(find.text('Breathing check (advisory)'), findsOneWidget);
     // An acoustic GREEN is never shown as normal.
     expect(find.text("Couldn't tell"), findsOneWidget);

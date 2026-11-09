@@ -120,9 +120,10 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
-      expect(find.text('MOEWS RED'), findsOneWidget);
+      expect(find.text('Critical'), findsOneWidget);
+      expect(find.text('MOEWS RED'), findsNothing, reason: 'word and score only, as in the design');
+      // What was not measured is still said, below the card.
       expect(find.text('Not measured: Temperature'), findsOneWidget);
-      expect(find.textContaining('from measured vitals'), findsOneWidget);
       expect(find.text('Confirm referral'), findsOneWidget);
     });
 
@@ -133,7 +134,7 @@ void main() {
       await tester.pump();
       await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
-      expect(find.text('MOEWS GREEN'), findsOneWidget);
+      expect(find.text('MOEWS GREEN'), findsNothing, reason: 'word and score only, as in the design');
       expect(find.text('Oxygen saturation not measured'), findsOneWidget);
     });
 
@@ -142,7 +143,7 @@ void main() {
       await fillVitals(tester);
       await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
-      expect(find.text('MOEWS GREEN'), findsOneWidget);
+      expect(find.text('MOEWS GREEN'), findsNothing, reason: 'word and score only, as in the design');
       expect(find.byKey(const Key('moews_not_measured')), findsNothing);
     });
 
