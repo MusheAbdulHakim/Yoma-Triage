@@ -21,7 +21,7 @@ String plainMicrophoneError(Object error) => error.toString().toLowerCase().cont
     : 'The microphone could not start.';
 
 /// Below this level the microphone counts as hearing nothing (about -50 dBFS).
-const silentLevel = 0.1;
+const silentLevel = 5 / 35; // -50 dBFS on levelFromDbfs's scale
 
 /// How long the level must stay near silent before the hint shows.
 const silenceHintAfter = Duration(seconds: 3);

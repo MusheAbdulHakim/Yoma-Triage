@@ -11,8 +11,10 @@ abstract class AudioRecorderService {
   Stream<double> levels();
 }
 
-/// Maps a dBFS reading to 0–1. Below -55 dBFS reads as silence.
+/// Maps a dBFS reading to 0–1 for the pulse. Below -55 dBFS reads as silence; breathing
+/// close to the phone (about -40 to -25 dBFS) fills most of the range, and -20 dBFS or louder
+/// is full. Display only: the recording and the classifier never see this number.
 double levelFromDbfs(double dbfs) {
   if (dbfs.isNaN) return 0;
-  return ((dbfs + 55) / 50).clamp(0.0, 1.0);
+  return ((dbfs + 55) / 35).clamp(0.0, 1.0);
 }

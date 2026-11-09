@@ -282,6 +282,33 @@ class _RecordingPulseState extends State<RecordingPulse> with SingleTickerProvid
   }
 }
 
+/// One ring of the recording pulse: its radius and opacity.
+typedef PulseRing = ({double radius, double alpha});
+
+/// The rings for a microphone [level] (0–1) at animation [phase] (0–1), between
+/// [inner] (the frames' innermost ring) and [outer] (the edge of the 224 dp box).
+///
+/// As in the pulse frames: quiet keeps the rings close to the circle (frame 1); breathing
+/// sends them out until the outermost reaches the edge (frame 3). The faintest ring is still
+/// visible on white (about 18%).
+List<PulseRing> pulseRings({
+  required double level,
+  required double phase,
+  required double inner,
+  required double outer,
+  int count = 3,
+}) {
+  // 30% of the way when silent; the full way from a level of 0.7 (about -30 dBFS).
+  final reach = (outer - inner) * (0.30 + level.clamp(0.0, 0.70));
+  return [
+    for (var i = 0; i < count; i++)
+      () {
+        final t = (phase + i / count) % 1.0;
+        return (radius: inner + reach * t, alpha: 0.55 - 0.37 * t);
+      }(),
+  ];
+}
+
 class _PulsePainter extends CustomPainter {
   _PulsePainter({
     required this.phase,
@@ -311,16 +338,18 @@ class _PulsePainter extends CustomPainter {
       ..strokeWidth = 2;
 
     if (animate) {
-      // Quiet: the rings stay close. Louder: they travel out to the edge.
-      final reach = (outer - firstRing) * (0.35 + 0.65 * level.value.clamp(0.0, 1.0));
-      for (var i = 0; i < _rings; i++) {
-        final t = (phase.value + i / _rings) % 1.0;
-        // 40% opacity at the circle, fading to 8% at the edge, as in the frames.
-        ring.color = YomaColors.tertiary.withValues(alpha: 0.40 - 0.32 * t);
-        canvas.drawCircle(c, firstRing + reach * t, ring);
+      for (final r in pulseRings(
+        level: level.value,
+        phase: phase.value,
+        inner: firstRing,
+        outer: outer,
+        count: _rings,
+      )) {
+        ring.color = YomaColors.tertiary.withValues(alpha: r.alpha);
+        canvas.drawCircle(c, r.radius, ring);
       }
     } else {
-      ring.color = YomaColors.tertiary.withValues(alpha: 0.30);
+      ring.color = YomaColors.tertiary.withValues(alpha: 0.40);
       canvas.drawCircle(c, firstRing + (outer - firstRing) * 0.35, ring);
     }
 
