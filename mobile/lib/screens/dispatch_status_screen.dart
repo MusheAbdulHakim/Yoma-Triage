@@ -8,6 +8,7 @@ import '../services/cho_store.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
 import '../services/dispatch_timeline.dart';
+import '../services/friendly_time.dart';
 import '../widgets/dispatch_timeline_view.dart';
 import '../widgets/manual_contacts_panel.dart';
 
@@ -73,6 +74,18 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
 
   /// The last status check couldn't reach the server.
   bool _unreachable = false;
+
+  /// Until then a driver can still accept a FAILED dispatch (from the API).
+  DateTime? _lateClaimUntil;
+
+  /// How often to look again after FAILED, while a late acceptance is still possible.
+  static const lateClaimPoll = Duration(seconds: 30);
+
+  /// FAILED, but a driver can still claim it: keep checking, more slowly.
+  bool get _watchingForLateClaim =>
+      _status.toUpperCase() == 'FAILED' &&
+      _lateClaimUntil != null &&
+      DateTime.now().isBefore(_lateClaimUntil!);
 
   bool get _needsManualHelp => _status == 'FAILED' || _status == 'QUEUED' || _unreachable;
 
@@ -156,6 +169,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       final divertedFrom = data['diverted_from'] as String?;
       final referralId = data['referral_id'];
       final rawTimes = data['step_times'];
+      final lateUntil = data['late_claim_until'];
       setState(() {
         _unreachable = false;
         _status = status;
@@ -172,8 +186,10 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
         _facilityName = facilityName;
         _divertedFrom = divertedFrom;
         _driverName = driverName;
-        _pollSeconds = 2;
-        if (_terminalStates.contains(status.toUpperCase())) {
+        if (lateUntil is String) _lateClaimUntil = DateTime.tryParse(lateUntil);
+        _pollSeconds = _watchingForLateClaim ? lateClaimPoll.inSeconds : 2;
+        // FAILED stays open until the late-claim window ends, so a late acceptance shows.
+        if (_terminalStates.contains(status.toUpperCase()) && !_watchingForLateClaim) {
           _terminal = true;
           _timer?.cancel();
         }
@@ -377,6 +393,16 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
           if (help != null) ...[
             const SizedBox(height: 20),
             NavyHelpCard(key: const Key('dispatch_help'), text: help),
+            if (_watchingForLateClaim)
+              Padding(
+                padding: const EdgeInsets.only(top: 8),
+                child: Text(
+                  'Still checking: a driver can accept until '
+                  '${clockTime(context, _lateClaimUntil!.toLocal())}.',
+                  key: const Key('dispatch_late_claim_watch'),
+                  style: text.bodySmall?.copyWith(color: YomaColors.grey700),
+                ),
+              ),
           ],
           if (showContacts) ...[
             const SizedBox(height: 16),

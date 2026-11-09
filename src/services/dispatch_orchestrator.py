@@ -135,12 +135,16 @@ def build_cho_accept_message(*, referral_id: int, driver: Driver, facility_name:
     )
 
 
-def _late_claim_open(dispatch: Dispatch) -> bool:
+def late_claim_until(dispatch: Dispatch) -> datetime:
+    """When a driver can no longer claim this dispatch late (UTC)."""
     initiated_at = dispatch.initiated_at
     if initiated_at.tzinfo is None:
         initiated_at = initiated_at.replace(tzinfo=UTC)
-    window = timedelta(minutes=settings.LATE_CLAIM_WINDOW_MINUTES)
-    return datetime.now(UTC) - initiated_at <= window
+    return initiated_at + timedelta(minutes=settings.LATE_CLAIM_WINDOW_MINUTES)
+
+
+def _late_claim_open(dispatch: Dispatch) -> bool:
+    return datetime.now(UTC) <= late_claim_until(dispatch)
 
 
 class DispatchOrchestrator:

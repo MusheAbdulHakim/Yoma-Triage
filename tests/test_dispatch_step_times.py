@@ -1,7 +1,7 @@
 """The dispatch status API says when each step happened, from data the backend already logs."""
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import UTC, datetime, timedelta
 
 import pytest
 
@@ -84,3 +84,20 @@ async def test_hospital_code_is_still_not_in_the_response(
     body = (await client.get(f"/api/v1/dispatch/{dispatch_id}")).json()
     assert "hospital_code" not in body
     assert "hospital_code" not in str(body["step_times"])
+
+
+@pytest.mark.asyncio
+async def test_late_claim_until_is_sent_plus_the_window(
+    client, db_session, seeded_db, sample_referral_payload
+):
+    from src.config import settings
+
+    response = await client.post("/api/v1/referral", json=sample_referral_payload)
+    dispatch_id = response.json()["dispatch"]["id"]
+    body = (await client.get(f"/api/v1/dispatch/{dispatch_id}")).json()
+    sent = _parse(body["step_times"]["sent"])
+    until = datetime.fromisoformat(body["late_claim_until"])
+    assert until.tzinfo is not None, "with an offset, so the phone reads it right"
+    if sent.tzinfo is None:
+        sent = sent.replace(tzinfo=UTC)
+    assert until - sent == timedelta(minutes=settings.LATE_CLAIM_WINDOW_MINUTES)

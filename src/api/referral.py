@@ -33,6 +33,7 @@ from src.services.dispatch_orchestrator import (
     ASSIGNED,
     DispatchNotCancellableError,
     DispatchOrchestrator,
+    late_claim_until,
 )
 from src.services.referral_expiry import EXPIRED_UNCONFIRMED
 from src.tools.clinical_summary import build_clinical_summary
@@ -223,6 +224,8 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
         "status": dispatch.status,
         "current_tier": dispatch.current_tier,
         "step_times": _step_times(dispatch, logs),
+        # Until then a driver can still accept after FAILED; the app keeps checking.
+        "late_claim_until": late_claim_until(dispatch).isoformat(),
     }
 
 

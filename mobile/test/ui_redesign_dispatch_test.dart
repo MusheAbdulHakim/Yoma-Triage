@@ -274,17 +274,46 @@ void main() {
       expect((note.decoration! as BoxDecoration).color, YomaColors.brandTint);
     });
 
-    testWidgets('a driver who accepts after the cascade failed shows as accepted, late',
+    Map<String, dynamic> lateWindow(Map<String, dynamic> d, Duration fromNow) => {
+          ...d,
+          'late_claim_until': DateTime.now().toUtc().add(fromNow).toIso8601String(),
+        };
+
+    testWidgets('after FAILED it keeps checking every 30 s and shows a late acceptance',
         (tester) async {
-      await _open(tester, [_dispatch('FAILED'), _dispatch('HOSPITAL_NOTIFIED', driver: 'Ibrahim')]);
+      final api = await _open(tester, [
+        lateWindow(_dispatch('FAILED'), const Duration(minutes: 40)),
+        lateWindow(_dispatch('FAILED'), const Duration(minutes: 40)),
+        lateWindow(_dispatch('HOSPITAL_NOTIFIED', driver: 'Ibrahim'), const Duration(minutes: 40)),
+      ]);
       expect(find.byKey(const Key('dispatch_status_FAILED')), findsOneWidget);
-      await tester.pump(const Duration(seconds: 3));
+      expect(find.byKey(const Key('dispatch_late_claim_watch')), findsOneWidget);
+      final afterFirst = api.polls;
+
+      // Not the 2 s of an active dispatch: nothing new before 30 s.
+      await tester.pump(const Duration(seconds: 29));
+      expect(api.polls, afterFirst);
+      await tester.pump(const Duration(seconds: 1));
       await tester.pump();
-      // FAILED is terminal for polling today, so the late acceptance only shows if the
-      // screen is opened again; check the mapping the screen uses instead.
-      final t =
-          dispatchTimeline(status: 'HOSPITAL_NOTIFIED', driverName: 'Ibrahim', acceptedLate: true);
-      expect(_step(t, 'driver').detail, contains('Accepted after the alerts had stopped'));
+      expect(api.polls, afterFirst + 1);
+      expect(find.byKey(const Key('dispatch_status_FAILED')), findsOneWidget);
+
+      await tester.pump(const Duration(seconds: 30));
+      await tester.pump();
+      expect(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), findsOneWidget);
+      expect(find.textContaining('Accepted after the alerts had stopped'), findsOneWidget);
+      expect(find.byKey(const Key('dispatch_late_claim_watch')), findsNothing);
+    });
+
+    testWidgets('once the late-claim window has ended, FAILED stops checking', (tester) async {
+      final api = await _open(tester, [
+        lateWindow(_dispatch('FAILED'), const Duration(minutes: -1)),
+        lateWindow(_dispatch('HOSPITAL_NOTIFIED', driver: 'Ibrahim'), const Duration(minutes: -1)),
+      ]);
+      final polls = api.polls;
+      await tester.pump(const Duration(minutes: 2));
+      expect(api.polls, polls);
+      expect(find.byKey(const Key('dispatch_late_claim_watch')), findsNothing);
     });
 
     testWidgets('the hospital code never appears', (tester) async {
