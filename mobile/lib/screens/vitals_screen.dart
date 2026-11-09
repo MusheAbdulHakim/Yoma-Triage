@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../services/advisory_hr.dart';
 import '../services/moews_calculator.dart';
@@ -40,6 +41,12 @@ class _VitalsScreenState extends State<VitalsScreen> {
   late String? _avpu = AvpuField.fromVitals(widget.initialVitals);
   int _hrScore = 0;
   AdvisoryHrReading? _advisoryApplied;
+
+  /// One key per card, so "See result" can scroll to the first vital still missing.
+  final _cardKeys = {for (final id in _VitalId.values) id: GlobalKey()};
+
+  /// The card "See result" last pointed at; cleared on the next change.
+  _VitalId? _flagged;
 
   @override
   void initState() {
@@ -199,8 +206,69 @@ class _VitalsScreenState extends State<VitalsScreen> {
     _recomputeHrBand();
   }
 
+  /// The first vital that still needs an answer (or has a wrong value), in screen order,
+  /// with what a screen reader should say about it.
+  (_VitalId, String)? _firstProblem() {
+    String? problem(VitalInput input, VitalLimits limits,
+            {bool decimal = false, bool optional = false}) =>
+        vitalProblem(input, limits, decimal: decimal, optional: optional);
+    String say(String name, bool missing, String? problem) => switch ((name, missing)) {
+          ('Consciousness', true) => '$name missing. Choose a level or tick Not measured.',
+          (_, true) => '$name missing. Enter a value or tick Not measured.',
+          _ => '$name: $problem',
+        };
+    final checks = <(_VitalId, String, bool, String?)>[
+      (
+        _VitalId.bp,
+        'Blood pressure',
+        !(_sbp.answered && _dbp.answered),
+        problem(_sbp, VitalLimits.systolicBp) ?? problem(_dbp, VitalLimits.diastolicBp),
+      ),
+      (_VitalId.hr, 'Heart rate', !_hr.answered, problem(_hr, VitalLimits.heartRate)),
+      (_VitalId.rr, 'Breathing rate', !_rr.answered, problem(_rr, VitalLimits.respiratoryRate)),
+      (
+        _VitalId.temp,
+        'Temperature',
+        !_temp.answered,
+        problem(_temp, VitalLimits.temperature, decimal: true),
+      ),
+      (
+        _VitalId.spo2,
+        'Oxygen saturation',
+        false,
+        problem(_spo2, VitalLimits.spo2, optional: true),
+      ),
+      (_VitalId.avpu, 'Consciousness', _avpu == null, _avpu == null ? 'missing' : null),
+    ];
+    for (final (id, name, missing, issue) in checks) {
+      if (missing || issue != null) return (id, say(name, missing, issue));
+    }
+    return null;
+  }
+
+  void _pointAtFirstProblem() {
+    final first = _firstProblem();
+    if (first == null) return;
+    final (id, message) = first;
+    setState(() => _flagged = id);
+    final card = _cardKeys[id]!.currentContext;
+    if (card != null) {
+      Scrollable.ensureVisible(
+        card,
+        alignment: 0.1,
+        duration: MediaQuery.disableAnimationsOf(context)
+            ? Duration.zero
+            : const Duration(milliseconds: 250),
+      );
+    }
+    SemanticsService.sendAnnouncement(View.of(context), message, TextDirection.ltr);
+  }
+
   void _continue() {
-    if (!_formKey.currentState!.validate()) return;
+    if (!_formKey.currentState!.validate()) {
+      _pointAtFirstProblem();
+      return;
+    }
 
     final consciousness = AvpuField.apiValue(_avpu);
     final vitals = <String, Object?>{
@@ -237,20 +305,17 @@ class _VitalsScreenState extends State<VitalsScreen> {
     );
   }
 
-  /// Answers the form still needs before it can show a result: every vital it validates
-  /// as required. Today that includes SpO₂, which the form still asks for (a value or Not
-  /// measured); see docs/audit/UI_REDESIGN.md.
+  /// Required vitals still unanswered: blood pressure (one item), heart rate, breathing
+  /// rate, temperature and consciousness. Oxygen saturation is optional and never counted.
   int get _remaining => [
-        _sbp.answered,
-        _dbp.answered,
+        _sbp.answered && _dbp.answered,
         _hr.answered,
         _rr.answered,
         _temp.answered,
-        _spo2.answered,
         _avpu != null,
       ].where((answered) => !answered).length;
 
-  void _changed() => setState(() {});
+  void _changed() => setState(() => _flagged = null);
 
   @override
   Widget build(BuildContext context) {
@@ -259,81 +324,109 @@ class _VitalsScreenState extends State<VitalsScreen> {
     final remaining = _remaining;
     return Scaffold(
       appBar: AppBar(title: const Text('Record vitals')),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.fromLTRB(
-              YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.lg),
-          children: [
-            BloodPressureField(
-              systolic: _sbp,
-              diastolic: _dbp,
-              systolicKey: 'vitals_sbp',
-              diastolicKey: 'vitals_dbp',
-              onChanged: _changed,
-            ),
-            VitalField(
-              input: _hr,
-              limits: VitalLimits.heartRate,
-              label: 'Heart rate',
-              unit: 'bpm',
-              fieldKey: 'vitals_hr',
-              highlight: hrAbnormal,
-              onChanged: _changed,
-              helperText: hrAbnormal
-                  ? 'MOEWS HR band elevated (score $_hrScore) — may escalate referral'
-                  : 'Normal adult band roughly 60–110 bpm (GHS MOEWS)',
-            ),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: TextButton.icon(
-                key: const Key('advisory_hr_open'),
-                onPressed: _openAdvisoryHrSheet,
-                icon: const Icon(Icons.watch_outlined, size: 20),
-                label: const Text('Fill HR from device (advisory)'),
+      // Form.validate() would announce its first raw error ("Select AVPU or Not
+      // measured"); "See result" announces the first missing vital by name instead.
+      body: Builder(
+        builder: (context) => MediaQuery(
+          data: MediaQuery.of(context).copyWith(supportsAnnounce: false),
+          child: Form(
+            key: _formKey,
+            // A plain scroll view (not a lazy list) so every card exists for "See result" to
+            // scroll to.
+            child: SingleChildScrollView(
+              padding: const EdgeInsets.fromLTRB(
+                  YomaSpacing.gutter, YomaSpacing.sm, YomaSpacing.gutter, YomaSpacing.sm),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  BloodPressureField(
+                    key: _cardKeys[_VitalId.bp],
+                    systolic: _sbp,
+                    diastolic: _dbp,
+                    systolicKey: 'vitals_sbp',
+                    diastolicKey: 'vitals_dbp',
+                    flagged: _flagged == _VitalId.bp,
+                    onChanged: _changed,
+                  ),
+                  VitalField(
+                    key: _cardKeys[_VitalId.hr],
+                    input: _hr,
+                    limits: VitalLimits.heartRate,
+                    label: 'Heart rate',
+                    unit: 'bpm',
+                    fieldKey: 'vitals_hr',
+                    highlight: hrAbnormal,
+                    flagged: _flagged == _VitalId.hr,
+                    onChanged: _changed,
+                    helperText: hrAbnormal
+                        ? 'MOEWS HR band elevated (score $_hrScore) — may escalate referral'
+                        : _advisoryApplied == null
+                            ? null
+                            : 'Applied ${_advisoryApplied!.source.label}: '
+                                '${_advisoryApplied!.heartRateBpm} bpm — confirm clinically.',
+                    footer: TextButton(
+                      key: const Key('advisory_hr_open'),
+                      onPressed: _openAdvisoryHrSheet,
+                      style: TextButton.styleFrom(
+                        padding: EdgeInsets.zero,
+                        alignment: Alignment.centerLeft,
+                        textStyle: text.labelSmall,
+                      ),
+                      child: const Text(
+                        'From device ›',
+                        semanticsLabel: 'Fill heart rate from a device (advisory)',
+                      ),
+                    ),
+                  ),
+                  VitalField(
+                    key: _cardKeys[_VitalId.rr],
+                    input: _rr,
+                    limits: VitalLimits.respiratoryRate,
+                    label: 'Breathing rate',
+                    unit: '/min',
+                    fieldKey: 'vitals_rr',
+                    flagged: _flagged == _VitalId.rr,
+                    onChanged: _changed,
+                  ),
+                  VitalField(
+                    key: _cardKeys[_VitalId.temp],
+                    input: _temp,
+                    limits: VitalLimits.temperature,
+                    label: 'Temperature',
+                    unit: '°C',
+                    fieldKey: 'vitals_temp',
+                    decimal: true,
+                    flagged: _flagged == _VitalId.temp,
+                    onChanged: _changed,
+                  ),
+                  VitalField(
+                    key: _cardKeys[_VitalId.spo2],
+                    input: _spo2,
+                    limits: VitalLimits.spo2,
+                    label: 'Oxygen saturation',
+                    unit: '%',
+                    fieldKey: 'vitals_spo2',
+                    optional: true,
+                    flagged: _flagged == _VitalId.spo2,
+                    onChanged: _changed,
+                  ),
+                  KeyedSubtree(
+                    key: _cardKeys[_VitalId.avpu],
+                    child: AvpuField(
+                      key: const Key('vitals_avpu'),
+                      idPrefix: 'vitals_avpu',
+                      value: _avpu,
+                      flagged: _flagged == _VitalId.avpu,
+                      onChanged: (value) => setState(() {
+                        _avpu = value;
+                        _flagged = null;
+                      }),
+                    ),
+                  ),
+                ],
               ),
             ),
-            if (_advisoryApplied != null)
-              Padding(
-                padding: const EdgeInsets.only(left: 12, bottom: YomaSpacing.sm),
-                child: Text(
-                  'Applied ${_advisoryApplied!.source.label}: '
-                  '${_advisoryApplied!.heartRateBpm} bpm — confirm clinically.',
-                  style: text.bodySmall?.copyWith(color: YomaColors.grey700),
-                ),
-              ),
-            VitalField(
-              input: _rr,
-              limits: VitalLimits.respiratoryRate,
-              label: 'Breathing rate',
-              unit: '/min',
-              fieldKey: 'vitals_rr',
-              onChanged: _changed,
-            ),
-            VitalField(
-              input: _temp,
-              limits: VitalLimits.temperature,
-              label: 'Temperature',
-              unit: '°C',
-              fieldKey: 'vitals_temp',
-              decimal: true,
-              onChanged: _changed,
-            ),
-            VitalField(
-              input: _spo2,
-              limits: VitalLimits.spo2,
-              label: 'Oxygen saturation',
-              unit: '%',
-              fieldKey: 'vitals_spo2',
-              onChanged: _changed,
-            ),
-            AvpuField(
-              key: const Key('vitals_avpu'),
-              idPrefix: 'vitals_avpu',
-              value: _avpu,
-              onChanged: (value) => setState(() => _avpu = value),
-            ),
-          ],
+          ),
         ),
       ),
       bottomNavigationBar: DecoratedBox(
@@ -344,13 +437,13 @@ class _VitalsScreenState extends State<VitalsScreen> {
         child: SafeArea(
           child: Padding(
             padding: const EdgeInsets.fromLTRB(
-                YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.md),
+                YomaSpacing.gutter, YomaSpacing.sm, YomaSpacing.gutter, YomaSpacing.sm),
             child: FilledButton(
               key: const Key('vitals_see_result'),
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(YomaSizes.primaryButton),
               ),
-              // Always enabled, as before: a tap with gaps shows what is missing.
+              // Always enabled: a tap with gaps scrolls to the first missing vital and says so.
               onPressed: _continue,
               child: Text(
                 widget.returnVitals
@@ -364,3 +457,6 @@ class _VitalsScreenState extends State<VitalsScreen> {
     );
   }
 }
+
+/// The vitals in screen order.
+enum _VitalId { bp, hr, rr, temp, spo2, avpu }

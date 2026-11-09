@@ -16,8 +16,11 @@ const _ids = ['sbp', 'dbp', 'hr', 'rr', 'temp', 'spo2'];
 String _text(WidgetTester tester, String key) =>
     tester.widget<TextFormField>(find.byKey(Key(key))).controller!.text;
 
+/// The "Not measured" toggles: blood pressure has one for both fields.
+const _toggleIds = ['bp', 'hr', 'rr', 'temp', 'spo2'];
+
 Future<void> _tickAllNotMeasured(WidgetTester tester, String prefix) async {
-  for (final id in _ids) {
+  for (final id in _toggleIds) {
     await tester.tap(find.byKey(Key('${prefix}_${id}_not_measured')));
     await tester.pump();
   }
@@ -49,11 +52,16 @@ void main() {
       await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
       expect(find.byType(ResultScreen), findsNothing);
-      // Each vital shows its own message, whole, below its field.
-      for (final id in _ids) {
+      // Each required vital shows its own message, whole, below its field; blood pressure
+      // says it once for both halves, and Oxygen saturation (optional) says nothing.
+      for (final id in ['hr', 'rr', 'temp']) {
         final shown = tester.widget<Text>(find.byKey(Key('vitals_${id}_error')));
-        expect(shown.data, endsWith('Enter a value or tick Not measured'), reason: id);
+        expect(shown.data, 'Enter a value or tick Not measured', reason: id);
       }
+      expect(tester.widget<Text>(find.byKey(const Key('vitals_sbp_error'))).data,
+          'Enter both values or tick Not measured');
+      expect(find.byKey(const Key('vitals_dbp_error')), findsNothing);
+      expect(find.byKey(const Key('vitals_spo2_error')), findsNothing);
       expect(find.text('Select AVPU or Not measured'), findsOneWidget);
     });
 
@@ -152,9 +160,11 @@ void main() {
     testWidgets('ticking not measured clears a typed value', (tester) async {
       await open(tester);
       await tester.enterText(find.byKey(const Key('vitals_sbp')), '120');
-      await tester.tap(find.byKey(const Key('vitals_sbp_not_measured')));
+      await tester.enterText(find.byKey(const Key('vitals_dbp')), '80');
+      await tester.tap(find.byKey(const Key('vitals_bp_not_measured')));
       await tester.pump();
       expect(_text(tester, 'vitals_sbp'), isEmpty);
+      expect(_text(tester, 'vitals_dbp'), isEmpty, reason: 'one toggle covers both');
     });
   });
 
@@ -206,7 +216,7 @@ void main() {
         tester,
         vitals: const {
           'systolic_bp': null,
-          'diastolic_bp': 80,
+          'diastolic_bp': null,
           'heart_rate': 80,
           'respiratory_rate': 18,
           'temperature': 37.0,
@@ -219,14 +229,15 @@ void main() {
       await tester.pumpAndSettle();
       // Not measured stays not measured; values stay values.
       expect(_text(tester, 'vitals_sbp'), isEmpty);
-      expect(markedNotMeasured('vitals_sbp_not_measured'), isTrue);
-      expect(_text(tester, 'vitals_dbp'), '80');
+      expect(markedNotMeasured('vitals_bp_not_measured'), isTrue);
+      expect(_text(tester, 'vitals_hr'), '80');
       expect(markedNotMeasured('vitals_avpu_not_measured'), isTrue);
 
       // Saving hands the vitals back to the form, which scores them.
-      await tester.tap(find.byKey(const Key('vitals_sbp_not_measured')));
+      await tester.tap(find.byKey(const Key('vitals_bp_not_measured')));
       await tester.pump();
       await tester.enterText(find.byKey(const Key('vitals_sbp')), '185');
+      await tester.enterText(find.byKey(const Key('vitals_dbp')), '80');
       await selectAvpu(tester, avpu: 'A — Alert');
       await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();

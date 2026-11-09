@@ -43,16 +43,23 @@ class VitalInput {
 
 /// The validation every vital field uses. Messages are unchanged from before the
 /// redesign.
-String? _validateVital(VitalInput input, VitalLimits limits, bool decimal, String? value) {
+String? _validateVital(VitalInput input, VitalLimits limits, bool decimal, String? value,
+    {bool optional = false}) {
   if (input.notMeasured) return null;
   final raw = value?.trim() ?? '';
-  if (raw.isEmpty) return 'Enter a value or tick Not measured';
+  if (raw.isEmpty) return optional ? null : 'Enter a value or tick Not measured';
   final parsed = decimal ? double.tryParse(raw) : int.tryParse(raw);
   if (parsed == null) {
     return decimal ? 'Invalid number' : 'Invalid whole number';
   }
   return limits.errorFor(parsed);
 }
+
+/// What is wrong with [input] right now, as its field would show it; null when it is fine.
+/// Used to find the first vital that still needs attention.
+String? vitalProblem(VitalInput input, VitalLimits limits,
+        {bool decimal = false, bool optional = false}) =>
+    _validateVital(input, limits, decimal, input.controller.text, optional: optional);
 
 /// The "Not measured" / "Clear" toggle under a field. At least 48 dp to tap.
 class _NotMeasuredToggle extends StatelessWidget {
@@ -61,11 +68,15 @@ class _NotMeasuredToggle extends StatelessWidget {
     required this.notMeasured,
     required this.onTap,
     required this.label,
+    this.compact = false,
   });
 
   final Key toggleKey;
   final bool notMeasured;
   final VoidCallback onTap;
+
+  /// Two short lines ("Not / measured") so it fits on the row beside the value.
+  final bool compact;
 
   /// What the toggle is for, for screen readers.
   final String label;
@@ -97,9 +108,19 @@ class _NotMeasuredToggle extends StatelessWidget {
           child: Padding(
             padding: const EdgeInsets.symmetric(horizontal: 4),
             child: Align(
-              alignment: Alignment.centerLeft,
+              alignment: compact ? Alignment.center : Alignment.centerLeft,
               widthFactor: 1,
-              child: Text(notMeasured ? 'Clear' : 'Not measured', style: style),
+              child: compact
+                  ? ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 60),
+                      child: Text(
+                        notMeasured ? 'Clear' : 'Not measured',
+                        style: style,
+                        textAlign: TextAlign.center,
+                        maxLines: 2,
+                      ),
+                    )
+                  : Text(notMeasured ? 'Clear' : 'Not measured', style: style),
             ),
           ),
         ),
@@ -121,7 +142,11 @@ class _VitalTextField extends StatelessWidget {
     required this.onChanged,
     required this.semanticLabel,
     required this.onError,
+    this.optional = false,
   });
+
+  /// May be left blank (Oxygen saturation).
+  final bool optional;
 
   /// What a screen reader calls this field, e.g. "Heart rate".
   final String semanticLabel;
@@ -166,7 +191,7 @@ class _VitalTextField extends StatelessWidget {
               textAlign: TextAlign.end,
               style: notMeasured
                   ? text.labelSmall?.copyWith(color: YomaColors.grey700, letterSpacing: 0.6)
-                  : text.headlineSmall?.copyWith(fontSize: 20, color: YomaColors.grey500),
+                  : text.titleLarge?.copyWith(color: YomaColors.grey500),
             ),
           ),
         ),
@@ -185,7 +210,7 @@ class _VitalTextField extends StatelessWidget {
         errorStyle: const TextStyle(fontSize: 0, height: 0),
         errorMaxLines: 1,
         isDense: true,
-        contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
+        contentPadding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
         fillColor: notMeasured
             ? YomaColors.grey200
             : highlight
@@ -199,7 +224,7 @@ class _VitalTextField extends StatelessWidget {
             : null,
       ),
       validator: (value) {
-        final error = _validateVital(input, limits, decimal, value);
+        final error = _validateVital(input, limits, decimal, value, optional: optional);
         onError(error);
         return error;
       },
@@ -233,8 +258,12 @@ class _VitalError extends StatelessWidget {
   }
 }
 
-/// One vital sign in its own compact card: label left, value right, and a
-/// "Not measured" toggle under the label.
+/// The card border for a vital: red and thicker while "See result" has pointed at it.
+Color _cardBorder({required bool flagged, bool error = false}) =>
+    flagged || error ? YomaColors.error : YomaColors.grey200;
+
+/// One vital sign in a compact card, as in the design: label left, then "Not measured",
+/// then the value. On a narrow screen or with large text the toggle goes under the label.
 class VitalField extends StatefulWidget {
   const VitalField({
     super.key,
@@ -245,7 +274,10 @@ class VitalField extends StatefulWidget {
     this.unit,
     this.decimal = false,
     this.highlight = false,
+    this.optional = false,
+    this.flagged = false,
     this.helperText,
+    this.footer,
     this.onChanged,
   });
 
@@ -258,7 +290,16 @@ class VitalField extends StatefulWidget {
   final String? unit;
   final bool decimal;
   final bool highlight;
+
+  /// May be left blank; shows "(optional)" under the label and is never counted as missing.
+  final bool optional;
+
+  /// "See result" pointed here because this vital still needs an answer.
+  final bool flagged;
   final String? helperText;
+
+  /// A small extra control inside the card (Heart rate's "Fill from device" link).
+  final Widget? footer;
 
   /// Called whenever the value or the not-measured state changes.
   final VoidCallback? onChanged;
@@ -288,19 +329,28 @@ class _VitalFieldState extends State<VitalField> {
     final notMeasured = widget.input.notMeasured;
     // The field carries the name for screen readers; this is the visible copy.
     final label = ExcludeSemantics(
-      child: Text(
-        widget.label,
-        style: text.titleMedium?.copyWith(
-          color: notMeasured ? YomaColors.grey600 : YomaColors.grey800,
-        ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            widget.label,
+            style: text.titleMedium?.copyWith(
+              color: notMeasured ? YomaColors.grey600 : YomaColors.grey800,
+            ),
+          ),
+          if (widget.optional)
+            Text('(optional)', style: text.bodySmall?.copyWith(color: YomaColors.grey600)),
+        ],
       ),
     );
-    final toggle = _NotMeasuredToggle(
-      toggleKey: Key('${widget.fieldKey}_not_measured'),
-      notMeasured: notMeasured,
-      label: widget.label,
-      onTap: () => _setNotMeasured(!notMeasured),
-    );
+    _NotMeasuredToggle toggle({bool compact = false}) => _NotMeasuredToggle(
+          toggleKey: Key('${widget.fieldKey}_not_measured'),
+          notMeasured: notMeasured,
+          label: widget.label,
+          compact: compact,
+          onTap: () => _setNotMeasured(!notMeasured),
+        );
     Widget field(double width) => SizedBox(
           width: width,
           child: _VitalTextField(
@@ -308,8 +358,9 @@ class _VitalFieldState extends State<VitalField> {
             input: widget.input,
             limits: widget.limits,
             decimal: widget.decimal,
+            optional: widget.optional,
             label: widget.label,
-            semanticLabel: widget.label,
+            semanticLabel: widget.optional ? '${widget.label}, optional' : widget.label,
             unit: widget.unit,
             highlight: widget.highlight,
             onChanged: () => widget.onChanged?.call(),
@@ -318,42 +369,44 @@ class _VitalFieldState extends State<VitalField> {
         );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: YomaSpacing.sm),
+      padding: const EdgeInsets.only(bottom: 6),
       child: YomaCard(
         color: notMeasured ? YomaColors.grey100 : YomaColors.surface,
         shadow: notMeasured ? const [] : YomaShadows.sm,
-        padding: const EdgeInsets.fromLTRB(14, 4, 10, 4),
+        borderColor: _cardBorder(flagged: widget.flagged),
+        borderWidth: widget.flagged ? 2 : 1,
+        padding: const EdgeInsets.fromLTRB(14, 4, 8, 4),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Label and value side by side where they fit; on a narrow screen or with large
-            // text the toggle goes under the label instead.
             final oneRow = constraints.maxWidth >= 290 &&
                 MediaQuery.textScalerOf(context).scale(16) <= 16 * 1.15;
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                if (oneRow) ...[
-                  // As in the design: label and value on one row, "Not measured" under
-                  // the value on the right.
-                  Padding(
-                    padding: const EdgeInsets.only(top: 8),
-                    child: Row(
-                      children: [
-                        Expanded(child: label),
-                        const SizedBox(width: YomaSpacing.sm),
-                        field(120),
-                      ],
-                    ),
-                  ),
-                  Align(alignment: Alignment.centerRight, child: toggle),
-                ] else
+                if (oneRow)
+                  Row(
+                    children: [
+                      Expanded(
+                        child: widget.footer == null
+                            ? label
+                            : Column(
+                                crossAxisAlignment: CrossAxisAlignment.start,
+                                children: [const SizedBox(height: 8), label, widget.footer!],
+                              ),
+                      ),
+                      toggle(compact: true),
+                      const SizedBox(width: 4),
+                      field(100),
+                    ],
+                  )
+                else
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
                       Expanded(
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [const SizedBox(height: 10), label, toggle],
+                          children: [const SizedBox(height: 10), label, toggle()],
                         ),
                       ),
                       const SizedBox(width: YomaSpacing.sm),
@@ -372,6 +425,7 @@ class _VitalFieldState extends State<VitalField> {
                       ),
                     ),
                   ),
+                if (widget.footer != null && !oneRow) widget.footer!,
               ],
             );
           },
@@ -381,8 +435,8 @@ class _VitalFieldState extends State<VitalField> {
   }
 }
 
-/// Systolic and diastolic in one card, each with its own field and toggle on a row under
-/// the label. Each is still a separate vital, as before.
+/// Blood pressure in one card: systolic and diastolic fields and ONE "Not measured" that
+/// covers both. It counts as one vital.
 class BloodPressureField extends StatefulWidget {
   const BloodPressureField({
     super.key,
@@ -390,6 +444,8 @@ class BloodPressureField extends StatefulWidget {
     required this.diastolic,
     required this.systolicKey,
     required this.diastolicKey,
+    this.toggleKey = 'vitals_bp_not_measured',
+    this.flagged = false,
     this.onChanged,
   });
 
@@ -397,6 +453,8 @@ class BloodPressureField extends StatefulWidget {
   final VitalInput diastolic;
   final String systolicKey;
   final String diastolicKey;
+  final String toggleKey;
+  final bool flagged;
   final VoidCallback? onChanged;
 
   @override
@@ -410,99 +468,140 @@ class _BloodPressureFieldState extends State<BloodPressureField> {
     if (_errors[name] != error && mounted) setState(() => _errors[name] = error);
   }
 
-  void _toggle(VitalInput input) {
+  bool get _notMeasured => widget.systolic.notMeasured && widget.diastolic.notMeasured;
+
+  void _toggle() {
+    final next = !_notMeasured;
     setState(() {
-      input.notMeasured = !input.notMeasured;
-      if (input.notMeasured) input.controller.clear();
+      for (final input in [widget.systolic, widget.diastolic]) {
+        input.notMeasured = next;
+        if (next) input.controller.clear();
+      }
     });
     widget.onChanged?.call();
   }
 
   Widget _half(String name, VitalInput input, String key, VitalLimits limits) {
-    final text = Theme.of(context).textTheme;
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        ExcludeSemantics(
-          child: Text(name, style: text.bodySmall?.copyWith(color: YomaColors.grey600)),
-        ),
-        const SizedBox(height: 4),
-        _VitalTextField(
-          fieldKey: key,
-          input: input,
-          limits: limits,
-          decimal: false,
-          label: name,
-          semanticLabel: '$name blood pressure',
-          unit: 'mmHg',
-          highlight: false,
-          onChanged: () => widget.onChanged?.call(),
-          onError: (error) => _onError(name, error),
-        ),
-        _NotMeasuredToggle(
-          toggleKey: Key('${key}_not_measured'),
-          notMeasured: input.notMeasured,
-          label: '$name blood pressure',
-          onTap: () => _toggle(input),
-        ),
-      ],
+    return _VitalTextField(
+      fieldKey: key,
+      input: input,
+      limits: limits,
+      decimal: false,
+      label: name,
+      semanticLabel: '$name blood pressure',
+      unit: null,
+      highlight: false,
+      onChanged: () => widget.onChanged?.call(),
+      onError: (error) => _onError(name, error),
     );
   }
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final both = widget.systolic.notMeasured && widget.diastolic.notMeasured;
-    return Padding(
-      padding: const EdgeInsets.only(bottom: YomaSpacing.sm),
-      child: YomaCard(
-        color: both ? YomaColors.grey100 : YomaColors.surface,
-        shadow: both ? const [] : YomaShadows.sm,
-        padding: const EdgeInsets.fromLTRB(14, 12, 12, 2),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text('Blood pressure', style: text.titleMedium?.copyWith(color: YomaColors.grey800)),
-            const SizedBox(height: 6),
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Expanded(
-                  child: _half(
-                      'Systolic', widget.systolic, widget.systolicKey, VitalLimits.systolicBp),
-                ),
-                Padding(
-                  padding: const EdgeInsets.fromLTRB(8, 30, 8, 0),
-                  child: Text('/', style: text.titleLarge?.copyWith(color: YomaColors.grey500)),
-                ),
-                Expanded(
-                  child: _half(
-                      'Diastolic', widget.diastolic, widget.diastolicKey, VitalLimits.diastolicBp),
-                ),
-              ],
+    final notMeasured = _notMeasured;
+    final title = ExcludeSemantics(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            'Blood pressure',
+            style: text.titleMedium?.copyWith(
+              color: notMeasured ? YomaColors.grey600 : YomaColors.grey800,
             ),
-            for (final name in const ['Systolic', 'Diastolic'])
-              if (_errors[name] case final error?)
-                _VitalError(
-                  text: '$name: $error',
-                  errorKey: Key(name == 'Systolic'
-                      ? '${widget.systolicKey}_error'
-                      : '${widget.diastolicKey}_error'),
-                ),
-          ],
+          ),
+          Text('mmHg', style: text.bodySmall?.copyWith(color: YomaColors.grey600)),
+        ],
+      ),
+    );
+    _NotMeasuredToggle toggle({bool compact = false}) => _NotMeasuredToggle(
+          toggleKey: Key(widget.toggleKey),
+          notMeasured: notMeasured,
+          label: 'Blood pressure',
+          compact: compact,
+          onTap: _toggle,
+        );
+    final slash = ExcludeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: 4),
+        child: Text('/', style: text.titleLarge?.copyWith(color: YomaColors.grey500)),
+      ),
+    );
+    final sys = _half('Systolic', widget.systolic, widget.systolicKey, VitalLimits.systolicBp);
+    final dia =
+        _half('Diastolic', widget.diastolic, widget.diastolicKey, VitalLimits.diastolicBp);
+    // One message when both halves say the same thing.
+    final errors = [
+      for (final (name, key) in [
+        ('Systolic', widget.systolicKey),
+        ('Diastolic', widget.diastolicKey),
+      ])
+        if (_errors[name] case final error?) (name, key, error),
+    ];
+    final sameError = errors.length == 2 && errors[0].$3 == errors[1].$3;
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 6),
+      child: YomaCard(
+        color: notMeasured ? YomaColors.grey100 : YomaColors.surface,
+        shadow: notMeasured ? const [] : YomaShadows.sm,
+        borderColor: _cardBorder(flagged: widget.flagged),
+        borderWidth: widget.flagged ? 2 : 1,
+        padding: const EdgeInsets.fromLTRB(14, 4, 8, 4),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final oneRow = constraints.maxWidth >= 290 &&
+                MediaQuery.textScalerOf(context).scale(16) <= 16 * 1.15;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                if (oneRow)
+                  Row(
+                    children: [
+                      Expanded(child: title),
+                      SizedBox(width: 66, child: sys),
+                      slash,
+                      SizedBox(width: 66, child: dia),
+                      toggle(compact: true),
+                    ],
+                  )
+                else ...[
+                  Row(children: [Expanded(child: title), toggle()]),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Row(
+                      children: [Expanded(child: sys), slash, Expanded(child: dia)],
+                    ),
+                  ),
+                ],
+                if (sameError)
+                  _VitalError(
+                    text: errors[0].$3 == 'Enter a value or tick Not measured'
+                        ? 'Enter both values or tick Not measured'
+                        : 'Systolic and diastolic: ${errors[0].$3}',
+                    errorKey: Key('${widget.systolicKey}_error'),
+                  )
+                else
+                  for (final (name, key, error) in errors)
+                    _VitalError(text: '$name: $error', errorKey: Key('${key}_error')),
+              ],
+            );
+          },
         ),
       ),
     );
   }
 }
 
-/// AVPU as four large chips: starts unset, and "Not measured" is sent as null.
+/// AVPU as four chips: starts unset, and "Not measured" is sent as null.
 class AvpuField extends StatelessWidget {
   const AvpuField({
     super.key,
     required this.value,
     required this.onChanged,
     this.idPrefix = 'avpu',
+    this.flagged = false,
   });
 
   static const notMeasured = 'NOT_MEASURED';
@@ -526,6 +625,7 @@ class AvpuField extends StatelessWidget {
 
   final String? value;
   final ValueChanged<String?> onChanged;
+  final bool flagged;
 
   /// Chip keys are `<idPrefix>_A` … `<idPrefix>_U` and `<idPrefix>_not_measured`.
   final String idPrefix;
@@ -546,22 +646,34 @@ class AvpuField extends StatelessWidget {
 
         final isNotMeasured = field.value == notMeasured;
         return Padding(
-          padding: const EdgeInsets.only(bottom: YomaSpacing.sm),
+          padding: const EdgeInsets.only(bottom: 6),
           child: YomaCard(
             color: isNotMeasured ? YomaColors.grey100 : YomaColors.surface,
             shadow: isNotMeasured ? const [] : YomaShadows.sm,
-            borderColor: field.hasError ? YomaColors.error : YomaColors.grey200,
-            padding: const EdgeInsets.fromLTRB(14, 12, 12, 2),
+            borderColor: _cardBorder(flagged: flagged, error: field.hasError),
+            borderWidth: flagged ? 2 : 1,
+            padding: const EdgeInsets.fromLTRB(14, 0, 8, 10),
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Text(
-                  'Consciousness',
-                  style: text.titleMedium?.copyWith(
-                    color: isNotMeasured ? YomaColors.grey600 : YomaColors.grey800,
-                  ),
+                Row(
+                  children: [
+                    Expanded(
+                      child: Text(
+                        'Consciousness',
+                        style: text.titleMedium?.copyWith(
+                          color: isNotMeasured ? YomaColors.grey600 : YomaColors.grey800,
+                        ),
+                      ),
+                    ),
+                    _NotMeasuredToggle(
+                      toggleKey: Key('${idPrefix}_not_measured'),
+                      notMeasured: isNotMeasured,
+                      label: 'Consciousness',
+                      onTap: () => choose(isNotMeasured ? null : notMeasured),
+                    ),
+                  ],
                 ),
-                const SizedBox(height: 8),
                 LayoutBuilder(
                   builder: (context, constraints) {
                     const gap = 8.0;
@@ -578,6 +690,7 @@ class AvpuField extends StatelessWidget {
                               label: label,
                               selected: field.value == code,
                               semanticsHint: 'Consciousness',
+                              minHeight: YomaSizes.minTap,
                               onTap: () => choose(code),
                             ),
                           ),
@@ -585,28 +698,17 @@ class AvpuField extends StatelessWidget {
                     );
                   },
                 ),
-                Row(
-                  children: [
-                    if (field.hasError)
-                      Expanded(
-                        child: Text(
-                          field.errorText!,
-                          style: text.bodySmall?.copyWith(
-                            color: YomaColors.error,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      )
-                    else
-                      const Spacer(),
-                    _NotMeasuredToggle(
-                      toggleKey: Key('${idPrefix}_not_measured'),
-                      notMeasured: isNotMeasured,
-                      label: 'Consciousness',
-                      onTap: () => choose(isNotMeasured ? null : notMeasured),
+                if (field.hasError)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      field.errorText!,
+                      style: text.bodySmall?.copyWith(
+                        color: YomaColors.error,
+                        fontWeight: FontWeight.w600,
+                      ),
                     ),
-                  ],
-                ),
+                  ),
               ],
             ),
           ),

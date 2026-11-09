@@ -359,7 +359,7 @@ void main() {
     }
   });
 
-  testWidgets('Record vitals: six named editable fields and seven separate toggles',
+  testWidgets('Record vitals: six named editable fields and six separate toggles',
       (tester) async {
     tester.view.physicalSize = const Size(1000, 2600);
     tester.view.devicePixelRatio = 1.0;
@@ -384,7 +384,8 @@ void main() {
         .where((n) => n.flagsCollection.isButton && n.label.endsWith('not measured'))
         .map((n) => n.label)
         .toList();
-    expect(toggles, hasLength(7), reason: '$toggles');
+    expect(toggles, hasLength(6), reason: '$toggles');
+    expect(toggles, contains('Blood pressure not measured'), reason: 'one toggle for both');
     expect(toggles, contains('Heart rate not measured'));
     expect(toggles, contains('Consciousness not measured'));
     handle.dispose();
