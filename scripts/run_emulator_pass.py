@@ -113,6 +113,9 @@ SCENARIOS: dict[str, dict] = {
 }
 SMALL_SCREEN_SCENARIOS = ["3", "4", "5", "6", "7", "banners", "ui"]
 
+# Emulator deaths seen during the run (round 7), reported at the end.
+CRASHES: list[str] = []
+
 # Read-only views the tests may ask for.
 QUERIES = {
     "outbox": "select id, recipient, purpose, status, body, attempts, dispatch_id "
@@ -239,6 +242,11 @@ class Device:
                 break
             time.sleep(5)
         log(f"Settled: {self.shell('cat /proc/loadavg').strip()}")
+
+    def alive(self) -> bool:
+        """The emulator still answers adb."""
+        state = run([ADB, "-s", self.serial, "get-state"], check=False, timeout=30).strip()
+        return state == "device"
 
     def wait_booted(self) -> None:
         deadline = time.time() + 300
@@ -1334,45 +1342,61 @@ def main() -> int:
             device.boot()
             try:
                 for scenario in args.scenarios:
-                    if scenario == "2" or (scenario == "timings" and apk is None):
-                        apk = apk or build_release()
-                    if scenario == "2":
-                        all_passed &= scenario_2(device, apk)
-                    elif scenario == "timings":
-                        cold_start(device)
-                        release_confirm_timing(device)
-                    elif scenario in ("9", "banners"):
-                        device.shell(f"wm size {SMALL_WIDTH_PX}x{SMALL_HEIGHT_PX}")
-                        device.shell(f"wm density {SMALL_DENSITY}")
-                        try:
-                            inner = SMALL_SCREEN_SCENARIOS if scenario == "9" else ["banners"]
-                            for name in inner:
-                                all_passed &= run_integration(device, name, small=True)
-                        finally:
-                            device.reset_screen()
-                    elif scenario in FIDELITY_SCENARIOS:
-                        device.shell(f"wm size {FIDELITY_WIDTH_PX}x{FIDELITY_HEIGHT_PX}")
-                        device.shell(f"wm density {FIDELITY_DENSITY}")
-                        # Animations on, so the breathing pulse is drawn as it moves.
-                        for key in ANIMATION_SCALES:
-                            device.shell(f"settings put global {key} 1")
-                        try:
-                            all_passed &= run_integration(
-                                device, FIDELITY_SCENARIOS[scenario], prefix="fid_"
-                            )
-                        finally:
-                            device.shell("settings put system font_scale 1.0")
+                    # The emulator's host-GPU renderer has died mid-run (round 7). Record it
+                    # against the scenario that was running and boot again, instead of
+                    # losing the rest of the pass.
+                    if not device.alive():
+                        CRASHES.append(f"{avd}: emulator died before {scenario}")
+                        log(f"  EMULATOR DIED before {scenario}. Booting again.")
+                        device.process = None
+                        device.boot()
+                    try:
+                        if scenario == "2" or (scenario == "timings" and apk is None):
+                            apk = apk or build_release()
+                        if scenario == "2":
+                            all_passed &= scenario_2(device, apk)
+                        elif scenario == "timings":
+                            cold_start(device)
+                            release_confirm_timing(device)
+                        elif scenario in ("9", "banners"):
+                            device.shell(f"wm size {SMALL_WIDTH_PX}x{SMALL_HEIGHT_PX}")
+                            device.shell(f"wm density {SMALL_DENSITY}")
+                            try:
+                                inner = SMALL_SCREEN_SCENARIOS if scenario == "9" else ["banners"]
+                                for name in inner:
+                                    all_passed &= run_integration(device, name, small=True)
+                            finally:
+                                device.reset_screen()
+                        elif scenario in FIDELITY_SCENARIOS:
+                            device.shell(f"wm size {FIDELITY_WIDTH_PX}x{FIDELITY_HEIGHT_PX}")
+                            device.shell(f"wm density {FIDELITY_DENSITY}")
+                            # Animations on, so the breathing pulse is drawn as it moves.
                             for key in ANIMATION_SCALES:
-                                device.shell(f"settings put global {key} 0")
-                            device.reset_screen()
-                    else:
-                        all_passed &= run_integration(device, scenario)
+                                device.shell(f"settings put global {key} 1")
+                            try:
+                                all_passed &= run_integration(
+                                    device, FIDELITY_SCENARIOS[scenario], prefix="fid_"
+                                )
+                            finally:
+                                device.shell("settings put system font_scale 1.0")
+                                for key in ANIMATION_SCALES:
+                                    device.shell(f"settings put global {key} 0")
+                                device.reset_screen()
+                        else:
+                            all_passed &= run_integration(device, scenario)
+                    except (RuntimeError, subprocess.TimeoutExpired) as error:
+                        # Usually the emulator dying under the scenario; the next one boots it again.
+                        all_passed = False
+                        CRASHES.append(f"{avd}: {scenario} stopped: {str(error).splitlines()[0][:160]}")
+                        log(f"  {scenario} STOPPED: {error}")
             finally:
                 save_results(device)
                 device.shutdown()
     finally:
         backend.stop()
         server.shutdown()
+    for crash in CRASHES:
+        log(f"Emulator crash: {crash}")
     log("All passed" if all_passed else "Some scenarios FAILED")
     return 0 if all_passed else 1
 
