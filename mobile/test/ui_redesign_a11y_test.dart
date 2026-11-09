@@ -15,11 +15,13 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/screens/result_screen.dart';
+import 'package:yoma_triage/screens/screening_screen.dart';
 import 'package:yoma_triage/screens/vitals_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/moews_calculator.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
 import 'package:yoma_triage/services/screening_result.dart';
+import 'package:yoma_triage/services/screening_service.dart';
 import 'package:yoma_triage/theme/yoma_theme.dart';
 
 import 'helpers/cho_helper.dart';
@@ -81,6 +83,35 @@ ResultScreen _result(Map<String, Object?> v) => ResultScreen(
       ),
     );
 
+/// A breathing check that records nothing; it can fail to start.
+class _Breathing extends ScreeningService {
+  _Breathing({this.failStart});
+
+  final Object? failStart;
+
+  @override
+  Future<void> startRecording() async {
+    if (failStart != null) throw failStart!;
+  }
+
+  @override
+  Stream<double> microphoneLevels() => const Stream.empty();
+
+  @override
+  Future<ScreeningResult> stopAndClassify() async => unavailableResult();
+
+  @override
+  Future<void> dispose() async {}
+}
+
+ScreeningResult _acoustic(String label) => ScreeningResult(
+      label: label,
+      confidence: 0.7,
+      reason: 'test',
+      source: 'yamnet',
+      modelVersion: 'test',
+    );
+
 /// Every redesigned screen, in the states that matter.
 final Map<String, Widget Function()> _screens = {
   'Home (MOEWS-only, every warning)': () => HomeScreen(
@@ -97,6 +128,20 @@ final Map<String, Widget Function()> _screens = {
   'Result GREEN': () => _result(_vitals(spo2: null)),
   'Result INCOMPLETE': () => _result(_vitals(avpu: null)),
   'Emergency referral form': () => ReferralScreen(api: _offline()),
+  // Round 2: the breathing check.
+  'Breathing: Ready': () =>
+      ScreeningScreen(forceWebSimulator: false, service: _Breathing(), showReadyStep: true),
+  'Breathing: Recording': () => ScreeningScreen(forceWebSimulator: false, service: _Breathing()),
+  'Breathing: Microphone blocked': () => ScreeningScreen(
+        forceWebSimulator: false,
+        service: _Breathing(failStart: StateError('Microphone permission denied')),
+      ),
+  'Result with breathing advisory': () => ResultScreen(
+        result: _acoustic('RED'),
+        vitals: _vitals(hr: 118),
+        moews: calculateMoews(
+            sbp: 120, dbp: 80, hr: 118, rr: 18, temp: 37.0, spo2: 98, consciousness: 'A'),
+      ),
 };
 
 void _screen(WidgetTester tester, Size size) {
