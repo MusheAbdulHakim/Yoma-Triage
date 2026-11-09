@@ -6,6 +6,8 @@ import '../parameters.dart';
 import '../services/api_client.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
+import '../services/dispatch_timeline.dart';
+import '../widgets/dispatch_timeline_view.dart';
 import '../widgets/manual_contacts_panel.dart';
 import 'dispatch_status_screen.dart';
 import 'failed_referrals_screen.dart';
@@ -141,49 +143,44 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
     return Scaffold(
-      appBar: AppBar(title: const Text('Referral Queued')),
+      appBar: AppBar(title: const Text('Referral status')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(24),
+          key: const Key('queued_referral'),
+          padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
-            const Icon(
-              Icons.check_circle,
-              size: 72,
-              color: YomaColors.safe,
-            ),
-            const SizedBox(height: 24),
-            const Text(
+            DispatchTimelineView(steps: queuedTimeline().steps),
+            const SizedBox(height: 16),
+            // The offline policy's honesty copy: nobody has been told yet.
+            Text(
               'Referral saved on this device. Drivers have not been notified yet. '
               'They will be contacted when this phone has coverage.',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 18, height: 1.4),
+              style: text.bodyLarge?.copyWith(color: YomaColors.grey900),
             ),
             const SizedBox(height: 8),
             Text(
               'If it waits more than ${Parameters.staleAfterMinutes} minutes, or you call or '
               'SMS someone below, the app will ask you before alerting drivers.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade800),
+              style: text.bodyMedium?.copyWith(color: YomaColors.grey700),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: 8),
             Text(
               'Request: ${widget.clientRequestId}',
-              textAlign: TextAlign.center,
-              style: TextStyle(fontSize: 12, color: Colors.grey.shade700),
+              style: text.bodySmall?.copyWith(color: YomaColors.grey600),
             ),
             ValueListenableBuilder<String?>(
               valueListenable: _queue.retryWarning,
               builder: (context, warning, _) {
                 if (warning == null) return const SizedBox.shrink();
                 return Padding(
-                  padding: const EdgeInsets.only(top: 16),
+                  padding: const EdgeInsets.only(top: 12),
                   child: Text(
                     warning,
                     key: const Key('queued_retry_warning'),
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(
-                      color: YomaColors.caution,
+                    style: text.bodyMedium?.copyWith(
+                      color: YomaColors.warning,
                       fontWeight: FontWeight.w700,
                     ),
                   ),
@@ -191,16 +188,16 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
               },
             ),
             if (_retryMessage != null) ...[
-              const SizedBox(height: 16),
+              const SizedBox(height: 12),
               Text(
                 _retryMessage!,
-                textAlign: TextAlign.center,
-                style: const TextStyle(color: YomaColors.caution),
+                style: text.bodyMedium?.copyWith(color: YomaColors.warning),
               ),
             ],
-            const SizedBox(height: 24),
-            FilledButton.icon(
+            const SizedBox(height: 16),
+            OutlinedButton.icon(
               onPressed: _retrying ? null : _retrySync,
+              style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
               icon: _retrying
                   ? const SizedBox.square(
                       dimension: 18,
@@ -209,18 +206,20 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
                   : const Icon(Icons.sync),
               label: Text(_retrying ? 'Syncing…' : 'Retry sync'),
             ),
-            const SizedBox(height: 12),
-            OutlinedButton(
-              onPressed: () =>
-                  Navigator.of(context).popUntil((route) => route.isFirst),
-              child: const Text('Back to Home'),
-            ),
-            const SizedBox(height: 24),
+            const SizedBox(height: 20),
+            const NavyHelpCard(key: Key('queued_help'), text: 'Urgent? Call a driver now'),
+            const SizedBox(height: 8),
             ManualContactsPanel(
               facilityIds: {if (widget.facilityId != null) widget.facilityId!},
               launcher: widget.launcher,
               onContactUsed: () =>
                   _queue.markManualContact(widget.clientRequestId),
+            ),
+            const SizedBox(height: 24),
+            OutlinedButton(
+              onPressed: () =>
+                  Navigator.of(context).popUntil((route) => route.isFirst),
+              child: const Text('Back to Home'),
             ),
           ],
         ),

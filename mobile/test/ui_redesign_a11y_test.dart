@@ -12,7 +12,9 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:yoma_triage/screens/dispatch_status_screen.dart';
 import 'package:yoma_triage/screens/home_screen.dart';
+import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/screens/result_screen.dart';
 import 'package:yoma_triage/screens/screening_screen.dart';
@@ -112,6 +114,36 @@ ScreeningResult _acoustic(String label) => ScreeningResult(
       modelVersion: 'test',
     );
 
+/// A dispatch that always reports [status].
+class _Dispatch extends ApiClient {
+  _Dispatch(this.status, {this.driver, this.divertedFrom});
+
+  final String status;
+  final String? driver;
+  final String? divertedFrom;
+
+  @override
+  Future<Map<String, dynamic>> getDispatch(int id) async => {
+        'id': id,
+        'referral_id': 4821,
+        'facility_id': 1,
+        'facility_name': 'Tamale Teaching Hospital',
+        'diverted_from': divertedFrom,
+        'driver_name': driver,
+        'status': status,
+        'current_tier': 1,
+      };
+}
+
+Widget _dispatchScreen(String status, {String? driver, String? divertedFrom}) =>
+    DispatchStatusScreen(
+      dispatchId: 9,
+      clientRequestId: 'req-1',
+      facilityId: 1,
+      api: _Dispatch(status, driver: driver, divertedFrom: divertedFrom),
+      launcher: (_) async => true,
+    );
+
 /// Every redesigned screen, in the states that matter.
 final Map<String, Widget Function()> _screens = {
   'Home (MOEWS-only, every warning)': () => HomeScreen(
@@ -136,6 +168,14 @@ final Map<String, Widget Function()> _screens = {
         forceWebSimulator: false,
         service: _Breathing(failStart: StateError('Microphone permission denied')),
       ),
+  // Round 3: dispatch status and the not-sent-yet screen.
+  'Dispatch: waiting for drivers': () => _dispatchScreen('TIER1_NOTIFIED'),
+  'Dispatch: driver accepted': () => _dispatchScreen('HOSPITAL_NOTIFIED', driver: 'Ibrahim'),
+  'Dispatch: no driver': () => _dispatchScreen('FAILED'),
+  'Dispatch: diverted': () => _dispatchScreen('HOSPITAL_NOTIFIED',
+      driver: 'Ibrahim', divertedFrom: 'Navrongo War Memorial Hospital'),
+  'Not sent yet': () => QueuedReferralScreen(
+      clientRequestId: 'req-1', facilityId: 1, launcher: (_) async => true),
   'Result with breathing advisory': () => ResultScreen(
         result: _acoustic('RED'),
         vitals: _vitals(hr: 118),

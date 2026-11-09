@@ -72,28 +72,44 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
     required String phone,
     required String message,
   }) {
-    return Card(
-      child: Padding(
+    final text = Theme.of(context).textTheme;
+    return Padding(
+      padding: const EdgeInsets.only(top: YomaSpacing.sm),
+      child: Container(
         padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: YomaColors.surface,
+          borderRadius: BorderRadius.circular(YomaRadii.md),
+          border: Border.all(color: YomaColors.grey200),
+          boxShadow: YomaShadows.sm,
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text('$subtitle · $phone'),
+            Text(title, style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+            Text(
+              '$subtitle · $phone',
+              style: text.bodySmall?.copyWith(color: YomaColors.grey600),
+            ),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Expanded(
+            LayoutBuilder(
+              builder: (context, constraints) {
+                final call = Semantics(
+                  button: true,
+                  label: 'Call $title',
+                  excludeSemantics: true,
                   child: FilledButton.icon(
                     key: Key('call_$phone'),
                     style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
                     onPressed: () => _open(Uri(scheme: 'tel', path: phone), phone),
-                    icon: const Icon(Icons.call),
+                    icon: const Icon(Icons.call, size: 20),
                     label: const Text('Call'),
                   ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
+                );
+                final sms = Semantics(
+                  button: true,
+                  label: 'SMS $title',
+                  excludeSemantics: true,
                   child: OutlinedButton.icon(
                     key: Key('sms_$phone'),
                     style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
@@ -102,11 +118,26 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
                       Uri.parse('sms:$phone?body=${Uri.encodeComponent(message)}'),
                       phone,
                     ),
-                    icon: const Icon(Icons.sms),
+                    icon: const Icon(Icons.sms_outlined, size: 20),
                     label: const Text('SMS'),
                   ),
-                ),
-              ],
+                );
+                // Side by side where both fit; stacked on a narrow screen or large text.
+                final sideBySide = constraints.maxWidth >=
+                    2 * 140 * MediaQuery.textScalerOf(context).scale(1);
+                return sideBySide
+                    ? Row(
+                        children: [
+                          Expanded(child: call),
+                          const SizedBox(width: 8),
+                          Expanded(child: sms),
+                        ],
+                      )
+                    : Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [call, const SizedBox(height: 8), sms],
+                      );
+              },
             ),
           ],
         ),
@@ -141,20 +172,18 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
           key: const Key('manual_contacts'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
+            Text(
               'Reach them yourself',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: YomaColors.brand,
-              ),
+              style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                    color: YomaColors.grey900,
+                  ),
             ),
             Text(
               _updatedText(contacts.updatedAt),
               key: const Key('contacts_updated'),
-              style: TextStyle(color: Colors.grey.shade700),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey700),
             ),
-            const SizedBox(height: 8),
             for (final facility in facilities)
               _contact(
                 title: facility.name,
