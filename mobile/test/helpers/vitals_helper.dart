@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:yoma_triage/widgets/yoma_components.dart';
 
 /// Gives the long vitals forms room so every field is built and tappable.
 void useTallScreen(WidgetTester tester) {
@@ -33,13 +34,31 @@ Future<void> fillVitals(
   await selectAvpu(tester, prefix: prefix, avpu: avpu);
 }
 
+/// Picks a consciousness level by its old dropdown label ('A — Alert', 'Not measured'),
+/// which is now a chip.
 Future<void> selectAvpu(
   WidgetTester tester, {
   String prefix = 'vitals',
   String avpu = 'A — Alert',
 }) async {
-  await tester.tap(find.byKey(Key('${prefix}_avpu')));
+  final id = avpu == 'Not measured' ? 'not_measured' : avpu.substring(0, 1);
+  final chip = find.byKey(Key('${prefix}_avpu_$id'));
+  await tester.ensureVisible(chip);
+  await tester.tap(chip);
   await tester.pumpAndSettle();
-  await tester.tap(find.text(avpu).last);
-  await tester.pumpAndSettle();
+}
+
+/// True when the field's toggle offers Clear, i.e. it is marked not measured.
+bool markedNotMeasured(String toggleKey) => find
+    .descendant(of: find.byKey(Key(toggleKey)), matching: find.text('Clear'))
+    .evaluate()
+    .isNotEmpty;
+
+/// No consciousness chip is selected.
+void expectNoAvpuSelected(WidgetTester tester, String prefix) {
+  for (final code in const ['A', 'V', 'P', 'U']) {
+    final chip = tester.widget<YomaChoiceChip>(find.byKey(Key('${prefix}_avpu_$code')));
+    expect(chip.selected, isFalse, reason: code);
+  }
+  expect(markedNotMeasured('${prefix}_avpu_not_measured'), isFalse);
 }

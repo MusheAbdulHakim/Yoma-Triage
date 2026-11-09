@@ -41,7 +41,7 @@ void main() {
     );
     await tester.tap(find.text('Record vitals'));
     await tester.pumpAndSettle();
-    expect(find.text('Continue to Result'), findsOneWidget);
+    expect(find.byKey(const Key('vitals_see_result')), findsOneWidget);
     expect(find.text('Stop & Analyze Early'), findsNothing);
   });
 

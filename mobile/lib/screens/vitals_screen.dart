@@ -4,6 +4,7 @@ import '../services/advisory_hr.dart';
 import '../services/moews_calculator.dart';
 import '../services/screening_result.dart';
 import '../services/vital_limits.dart';
+import '../theme/yoma_theme.dart';
 import '../widgets/vital_field.dart';
 import 'result_screen.dart';
 
@@ -221,91 +222,123 @@ class _VitalsScreenState extends State<VitalsScreen> {
     );
   }
 
+  /// Answers the form still needs before it can show a result: every vital it validates
+  /// as required. Today that includes SpO₂, which the form still asks for (a value or Not
+  /// measured); see docs/audit/UI_REDESIGN.md.
+  int get _remaining => [
+        _sbp.answered,
+        _dbp.answered,
+        _hr.answered,
+        _rr.answered,
+        _temp.answered,
+        _spo2.answered,
+        _avpu != null,
+      ].where((answered) => !answered).length;
+
+  void _changed() => setState(() {});
+
   @override
   Widget build(BuildContext context) {
     final hrAbnormal = _hrScore > 0;
+    final text = Theme.of(context).textTheme;
+    final remaining = _remaining;
     return Scaffold(
-      appBar: AppBar(title: const Text('Record Vitals')),
+      appBar: AppBar(title: const Text('Record vitals')),
       body: Form(
         key: _formKey,
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.fromLTRB(
+              YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.lg),
           children: [
-            const Text('Enter current vitals before viewing the result.'),
-            const SizedBox(height: 12),
-            OutlinedButton.icon(
-              key: const Key('advisory_hr_open'),
-              onPressed: _openAdvisoryHrSheet,
-              icon: const Icon(Icons.watch),
-              label: const Text('Fill HR from device (advisory)'),
-            ),
-            if (_advisoryApplied != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                'Applied ${_advisoryApplied!.source.label}: '
-                '${_advisoryApplied!.heartRateBpm} bpm — confirm clinically.',
-                style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-              ),
-            ],
-            const SizedBox(height: 12),
-            VitalField(
-              input: _sbp,
-              limits: VitalLimits.systolicBp,
-              label: 'Systolic BP',
-              fieldKey: 'vitals_sbp',
-            ),
-            VitalField(
-              input: _dbp,
-              limits: VitalLimits.diastolicBp,
-              label: 'Diastolic BP',
-              fieldKey: 'vitals_dbp',
+            BloodPressureField(
+              systolic: _sbp,
+              diastolic: _dbp,
+              systolicKey: 'vitals_sbp',
+              diastolicKey: 'vitals_dbp',
+              onChanged: _changed,
             ),
             VitalField(
               input: _hr,
               limits: VitalLimits.heartRate,
               label: 'Heart rate',
+              unit: 'bpm',
               fieldKey: 'vitals_hr',
               highlight: hrAbnormal,
+              onChanged: _changed,
               helperText: hrAbnormal
                   ? 'MOEWS HR band elevated (score $_hrScore) — may escalate referral'
                   : 'Normal adult band roughly 60–110 bpm (GHS MOEWS)',
             ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton.icon(
+                key: const Key('advisory_hr_open'),
+                onPressed: _openAdvisoryHrSheet,
+                icon: const Icon(Icons.watch_outlined, size: 20),
+                label: const Text('Fill HR from device (advisory)'),
+              ),
+            ),
+            if (_advisoryApplied != null)
+              Padding(
+                padding: const EdgeInsets.only(left: 12, bottom: YomaSpacing.sm),
+                child: Text(
+                  'Applied ${_advisoryApplied!.source.label}: '
+                  '${_advisoryApplied!.heartRateBpm} bpm — confirm clinically.',
+                  style: text.bodySmall?.copyWith(color: YomaColors.grey700),
+                ),
+              ),
             VitalField(
               input: _rr,
               limits: VitalLimits.respiratoryRate,
-              label: 'Respiratory rate',
+              label: 'Breathing rate',
+              unit: '/min',
               fieldKey: 'vitals_rr',
+              onChanged: _changed,
             ),
             VitalField(
               input: _temp,
               limits: VitalLimits.temperature,
               label: 'Temperature',
+              unit: '°C',
               fieldKey: 'vitals_temp',
               decimal: true,
+              onChanged: _changed,
             ),
             VitalField(
               input: _spo2,
               limits: VitalLimits.spo2,
-              label: 'SpO2',
+              label: 'Oxygen saturation',
+              unit: '%',
               fieldKey: 'vitals_spo2',
+              onChanged: _changed,
             ),
             AvpuField(
               key: const Key('vitals_avpu'),
+              idPrefix: 'vitals_avpu',
               value: _avpu,
               onChanged: (value) => setState(() => _avpu = value),
             ),
           ],
         ),
       ),
-      bottomNavigationBar: SafeArea(
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: FilledButton(
-            style: FilledButton.styleFrom(
-              minimumSize: const Size.fromHeight(56),
+      bottomNavigationBar: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: YomaColors.canvas,
+          border: Border(top: BorderSide(color: YomaColors.grey200)),
+        ),
+        child: SafeArea(
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(
+                YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.md),
+            child: FilledButton(
+              key: const Key('vitals_see_result'),
+              style: FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(YomaSizes.primaryButton),
+              ),
+              // Always enabled, as before: a tap with gaps shows what is missing.
+              onPressed: _continue,
+              child: Text(remaining == 0 ? 'See result' : 'See result – $remaining left'),
             ),
-            onPressed: _continue,
-            child: const Text('Continue to Result'),
           ),
         ),
       ),

@@ -39,10 +39,10 @@ void main() {
     await tester.tap(find.text('Demo Code Red'));
     await tester.pump();
     expect(find.byKey(const Key('breathing_pulse_rings')), findsOneWidget);
-    await pumpUntilFound(tester, find.text('Continue to Result'));
-    expect(find.text('Record Vitals'), findsOneWidget);
+    await pumpUntilFound(tester, find.byKey(const Key('vitals_see_result')));
+    expect(find.text('Record vitals'), findsOneWidget);
     await fillVitals(tester);
-    await tester.tap(find.text('Continue to Result'));
+    await tester.tap(find.byKey(const Key('vitals_see_result')));
     await tester.pumpAndSettle();
     // MOEWS leads the result; the acoustic RED appears as an advisory card.
     expect(find.text('MOEWS GREEN'), findsOneWidget);
