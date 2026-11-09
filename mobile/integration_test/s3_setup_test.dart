@@ -28,14 +28,9 @@ void main() {
     await tester.shot('s3_2_unregistered');
 
     await tester.setUpCho();
+    // The compound the server set up shows on Home (since round 5 the referral form no
+    // longer repeats it under Send to).
+    await tester.waitFor(find.text(compoundName), reason: 'the CHO\'s compound on Home');
     await tester.shot('s3_3_home');
-    await Host.note(
-      'Home shows the compound name: '
-      '${find.text(compoundName).evaluate().isNotEmpty}',
-    );
-
-    await tester.tapOn(find.text('Emergency referral'));
-    await tester.waitFor(find.text(compoundName), reason: 'the CHO\'s compound');
-    await tester.shot('s3_4_compound');
   });
 }
