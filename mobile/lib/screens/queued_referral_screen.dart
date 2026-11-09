@@ -144,7 +144,17 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
           padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
           children: [
             DispatchTimelineView(steps: queuedTimeline().steps),
+            // Calling a driver comes first, right under the timeline, so the first Call row
+            // is on screen at 360×640 without scrolling. The explanation and Retry sync follow.
             const SizedBox(height: 16),
+            const NavyHelpCard(key: Key('queued_help'), text: 'Urgent? Call a driver now'),
+            const SizedBox(height: 8),
+            ManualContactsPanel(
+              facilityIds: {if (widget.facilityId != null) widget.facilityId!},
+              launcher: widget.launcher,
+              onContactUsed: () => _queue.markManualContact(widget.clientRequestId),
+            ),
+            const SizedBox(height: 20),
             // The offline policy's honesty copy: nobody has been told yet.
             Text(
               'Referral saved on this device. Drivers have not been notified yet. '
@@ -201,14 +211,6 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
                     )
                   : const Icon(Icons.sync),
               label: Text(_retrying ? 'Syncing…' : 'Retry sync'),
-            ),
-            const SizedBox(height: 20),
-            const NavyHelpCard(key: Key('queued_help'), text: 'Urgent? Call a driver now'),
-            const SizedBox(height: 8),
-            ManualContactsPanel(
-              facilityIds: {if (widget.facilityId != null) widget.facilityId!},
-              launcher: widget.launcher,
-              onContactUsed: () => _queue.markManualContact(widget.clientRequestId),
             ),
             const SizedBox(height: 16),
             // Quiet, as on the status screen (round 7).

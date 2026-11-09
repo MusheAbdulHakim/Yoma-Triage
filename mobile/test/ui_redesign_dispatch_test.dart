@@ -376,8 +376,11 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Saved on this phone – will send when signal returns'), findsOneWidget);
-      expect(find.textContaining('Drivers have not been notified'), findsOneWidget);
       expect(find.text('Urgent? Call a driver now', skipOffstage: false), findsOneWidget);
+      // The explanation now follows the contacts (pre-merge fix).
+      final explanation = find.textContaining('Drivers have not been notified');
+      await tester.scrollUntilVisible(explanation, 200, scrollable: find.byType(Scrollable).first);
+      expect(explanation, findsOneWidget);
     });
   });
 

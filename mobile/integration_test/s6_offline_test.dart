@@ -29,6 +29,8 @@ void main() {
     await tester.tapOn(confirm);
 
     await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
+    // Below the contacts since the pre-merge fixes.
+    await tester.reveal(find.textContaining('Drivers have not been notified'));
     expect(find.textContaining('Drivers have not been notified'), findsOneWidget);
     await tester.shot('s6_1_queued');
 
