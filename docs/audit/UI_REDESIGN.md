@@ -1133,7 +1133,7 @@ Same branch. Before starting:
 
 - The tree was cleaned by committing the deletion of 42 older device screenshots and round
   5's Flutter-render side-by-sides (`9415e0c`; your decision).
-- Three older lines in `docs/testing/EMULATOR_PASS.md` still name removed files.
+- `docs/testing/EMULATOR_PASS.md` embedded 42 of those screenshots in its older sections. They are now named in plain text, with how to recover them from git history (pre-merge fixes).
 
 Flutter skills used:
 

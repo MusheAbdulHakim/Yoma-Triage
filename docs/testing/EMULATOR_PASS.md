@@ -61,8 +61,10 @@ though, the API 34 emulator died about ten times and API 24 once.
   complete. Running them needs more free memory: close other heavy apps first, or use a
   machine with more RAM.
 - **Results:** in `docs/audit/UI_REDESIGN.md`, round 7, step 6.
-- **Stale references:** three lines in the older sections below still name screenshots that
-  were removed in round 7 (`9415e0c`).
+- **Removed screenshots:** the older sections below used to show screenshots that were
+  removed from the repo in round 7 (`9415e0c`). Each is now named in plain text, for example
+  (`api34_s4_accepted.png`). To see one, use
+  `git show 9415e0c^:docs/testing/screenshots/<file> > <file>`.
 
 ## Batch 5 rerun
 
@@ -154,7 +156,7 @@ and open, then taps it through the hit test and expects the referral form.
 It doesn't move when the banner opens or Home scrolls. Cosmetic: with the banner open, its
 header repeats the first card's title.
 
-![320 dp, closed](screenshots/b5_api24_320dp_banners_closed.png) ![320 dp, open](screenshots/b5_api24_320dp_banners_open.png) ![360 dp, closed](screenshots/b5_api24_360dp_banners_closed.png)
+320 dp, closed (`b5_api24_320dp_banners_closed.png`) 320 dp, open (`b5_api24_320dp_banners_open.png`) 360 dp, closed (`b5_api24_360dp_banners_closed.png`)
 
 ### A3 and A5: release build
 
@@ -177,7 +179,7 @@ header repeats the first card's title.
   `libflutter.so` 12.3 MB, the compiled Dart 5.9 MB, the TFLite runtime 5.0 MB, YAMNet 3.9 MB and
   the unused TFLite GPU library 3.8 MB.
 
-![Labelled test release](screenshots/b5_api34_s2_release_home_labelled.png)
+Labelled test release (`b5_api34_s2_release_home_labelled.png`)
 
 ### A4 and B2: scenario 6
 
@@ -191,7 +193,7 @@ header repeats the first card's title.
 - A second referral, queued offline with no Call or SMS, dispatches when signal returns, and the
   queued screen moves on to TIER1_NOTIFIED by itself (A4).
 
-![Question after Call or SMS](screenshots/b5_api24_s6_manual_contact_question.png) ![Dispatched by itself](screenshots/b5_api24_s6_dispatched_by_itself.png)
+Question after Call or SMS (`b5_api24_s6_manual_contact_question.png`) Dispatched by itself (`b5_api24_s6_dispatched_by_itself.png`)
 
 ### Timings (full pass)
 
@@ -358,7 +360,7 @@ Built with `flutter build apk --release --dart-define=MOEWS_ONLY=false` (debug s
 - Mic allowed → `INCONCLUSIVE … yamnet`, so the release build's TFLite and model work end to end.
 - Home in a release build shows `Env: development · model: yamnet` (B7).
 
-![Release Home](screenshots/api34_s2_release_home.png) ![Mic denied](screenshots/api34_s2_mic_denied_screen.png) ![Result after denial](screenshots/api34_s2_result_mic_denied.png) ![Mic allowed](screenshots/api24_s2_result_mic_allowed.png)
+Release Home (`api34_s2_release_home.png`) Mic denied (`api34_s2_mic_denied_screen.png`) Result after denial (`api34_s2_result_mic_denied.png`) Mic allowed (`api24_s2_result_mic_allowed.png`)
 
 ### 3. CHO setup — PASS on both
 
@@ -368,7 +370,7 @@ Built with `flutter build apk --release --dart-define=MOEWS_ONLY=false` (debug s
   referral form as the referring location.
 - Home itself doesn't name the compound (minor, B11).
 
-![Setup](screenshots/api34_s3_setup.png) ![Unregistered](screenshots/api34_s3_unregistered.png) ![Compound on the form](screenshots/api34_s3_compound_on_form.png)
+Setup (`api34_s3_setup.png`) Unregistered (`api34_s3_unregistered.png`) Compound on the form (`api34_s3_compound_on_form.png`)
 
 ### 4. Full referral — PASS on both
 
@@ -395,7 +397,7 @@ The dispatch log (`GET /api/v1/dispatch/{id}/logs`) lists `sms_send` (driver), `
 
 The patient name ("Zebra Testpatient") appears in no SMS body and no referral row.
 
-![Vitals](screenshots/api34_s4_vitals.png) ![Tier 1](screenshots/api34_s4_tier1.png) ![Accepted](screenshots/api34_s4_accepted.png) ![Completed](screenshots/api34_s4_completed.png)
+Vitals (`api34_s4_vitals.png`) Tier 1 (`api34_s4_tier1.png`) Accepted (`api34_s4_accepted.png`) Completed (`api34_s4_completed.png`)
 
 ### 5. Skip vitals — PASS on both
 
@@ -417,7 +419,7 @@ Dispatch: #1
 Reply CONFIRM 1 or DIVERT 1 <facility_id>
 ```
 
-![Form](screenshots/api34_s5_form.png) ![Tier 1](screenshots/api34_s5_tier1.png)
+Form (`api34_s5_form.png`) Tier 1 (`api34_s5_tier1.png`)
 
 ### 6. Offline — PASS on both
 
@@ -436,7 +438,7 @@ The test used real airplane mode, checked by ping.
 - When signal returns, the queue sends by itself. The queued screen doesn't update, though (B5).
 - The patient name never reached the server.
 
-![Queued](screenshots/api24_s6_queued.png) ![Contacts](screenshots/api24_s6_contacts.png) ![Dialler](screenshots/api24_s6_dialler.png) ![Chooser](screenshots/api24_s6_sms_chooser.png) ![Messages](screenshots/api24_s6_messaging.png) ![Messages API 34](screenshots/api34_s6_messaging.png)
+Queued (`api24_s6_queued.png`) Contacts (`api24_s6_contacts.png`) Dialler (`api24_s6_dialler.png`) Chooser (`api24_s6_sms_chooser.png`) Messages (`api24_s6_messaging.png`) Messages API 34 (`api34_s6_messaging.png`)
 
 ### 7. Stale referral — PASS on both
 
@@ -454,7 +456,7 @@ app wasn't changed. Three referrals were queued offline, then the test waited 70
 | Cancel | CANCELLED | none | referral_cancel |
 | Send now | CONFIRMED | one, with driver offers only for it | referral_send_now |
 
-![Three queued](screenshots/api34_s7_three_queued.png) ![Prompt](screenshots/api34_s7_prompt.png) ![Send now](screenshots/api34_s7_send_now_dispatched.png)
+Three queued (`api34_s7_three_queued.png`) Prompt (`api34_s7_prompt.png`) Send now (`api34_s7_send_now_dispatched.png`)
 
 ### 8. Backend restart — PASS on both
 
@@ -470,7 +472,7 @@ The backend ran with `CASCADE_TIER_SECONDS=30` for this test only.
 5. Each driver was offered exactly once (`+233240000001`, `…002`, `…003`), with no repeat after
    the restart. Escalation SMS went to `+233240000100` and to the CHO, `+233240000777`.
 
-![Backend down](screenshots/api34_s8_backend_down.png) ![Tier 2 after restart](screenshots/api34_s8_tier2_after_restart.png) ![Failed](screenshots/api34_s8_failed_with_contacts.png)
+Backend down (`api34_s8_backend_down.png`) Tier 2 after restart (`api34_s8_tier2_after_restart.png`) Failed (`api34_s8_failed_with_contacts.png`)
 
 ### 9. Small screen (320 dp) — FAIL on API 24, PASS on API 34
 
@@ -501,9 +503,9 @@ measures where Emergency Referral ends against the bottom of the screen:
 The button is 72 dp tall. The 360 dp screenshots are from a debug build, which draws the
 overflow stripes; a release build simply cuts the button off.
 
-![Home none](screenshots/api24_320dp_banners_none.png) ![Two banners](screenshots/api24_320dp_banners_2.png) ![Three banners](screenshots/api24_320dp_banners_3.png) ![360 dp, three banners](screenshots/api24_360dp_banners_3.png) ![360 dp, four banners](screenshots/api24_360dp_banners_4.png)
+Home none (`api24_320dp_banners_none.png`) Two banners (`api24_320dp_banners_2.png`) Three banners (`api24_320dp_banners_3.png`) 360 dp, three banners (`api24_360dp_banners_3.png`) 360 dp, four banners (`api24_360dp_banners_4.png`)
 
-Other 320 dp screens: ![Form](screenshots/api24_320dp_s4_form.png) ![Accepted](screenshots/api24_320dp_s4_accepted.png) ![Contacts](screenshots/api24_320dp_s6_contacts.png) ![Prompt](screenshots/api24_320dp_s7_prompt.png)
+Other 320 dp screens: Form (`api24_320dp_s4_form.png`) Accepted (`api24_320dp_s4_accepted.png`) Contacts (`api24_320dp_s6_contacts.png`) Prompt (`api24_320dp_s7_prompt.png`)
 
 ## Timings
 
@@ -580,7 +582,7 @@ Evidence:
 - ANR trace from `/data/system/dropbox/data_app_anr@…` on the API 34 AVD: `Subject: Input
   dispatching timed out (… gh.yomatriage.yoma_triage/.MainActivity … Waited 5002ms for
   MotionEvent …)`. The `"main"` thread is `state=R`, in `TfLiteInterpreterInvoke`.
-- Screenshot: ![ANR dialog](screenshots/api34_s2_anr_dialog.png), from the 07:58 run.
+- Screenshot: ANR dialog (`api34_s2_anr_dialog.png`), from the 07:58 run.
 
 A budget phone with a slower CPU will take longer than these emulators, so a CHO who touches the
 screen while waiting is likely to see the dialog. "Close app" loses the screening result.
@@ -628,7 +630,7 @@ Retry sync, which then went to the dispatch screen. This happened on both AVDs.
 
 A CHO could phone drivers who have already been offered the trip, or not know the referral went.
 
-![Stale queued screen](screenshots/api24_s6_stale_after_auto_send.png)
+Stale queued screen (`api24_s6_stale_after_auto_send.png`)
 
 ### B6. Raw exception text on the dispatch screen (medium)
 
