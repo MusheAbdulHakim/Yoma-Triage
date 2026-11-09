@@ -11,13 +11,17 @@ import 'package:yoma_triage/services/opera_ce_classifier.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('pubspec bundles YAMNet and the catalog, and nothing else from assets/models', () {
+  test('pubspec bundles YAMNet, the catalog and the font licence, and nothing else from assets/models', () {
     final pubspec = File('pubspec.yaml').readAsStringSync();
     final assets = RegExp(r'^\s+- (assets/\S+)', multiLine: true)
         .allMatches(pubspec)
         .map((m) => m.group(1))
         .toList();
-    expect(assets, ['assets/models/yamnet.tflite', 'assets/catalog/northern_bootstrap.json']);
+    expect(assets, [
+      'assets/models/yamnet.tflite',
+      'assets/catalog/northern_bootstrap.json',
+      'assets/fonts/atkinson_hyperlegible_next/OFL.txt',
+    ]);
   });
 
   test('the OPERA-CE files are kept in the repo for the export script', () {
