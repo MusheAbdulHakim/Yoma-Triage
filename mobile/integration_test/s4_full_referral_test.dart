@@ -28,7 +28,6 @@ void main() {
     await tester.tapOn(find.text('Confirm Referral'));
     await tester.chooseFacility();
     await tester.chooseEmergency();
-    await tester.fillPatientName('Zebra Testpatient');
     await tester.shot('s4_3_form');
 
     // Spec timing: from tapping Send referral to the screen showing drivers notified.

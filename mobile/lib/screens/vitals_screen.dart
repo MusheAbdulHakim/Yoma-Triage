@@ -9,9 +9,21 @@ import '../widgets/vital_field.dart';
 import 'result_screen.dart';
 
 class VitalsScreen extends StatefulWidget {
-  const VitalsScreen({super.key, required this.result});
+  const VitalsScreen({
+    super.key,
+    required this.result,
+    this.initialVitals,
+    this.returnVitals = false,
+  });
 
   final ScreeningResult result;
+
+  /// Values recorded earlier (from the referral form), shown for editing.
+  final Map<String, Object?>? initialVitals;
+
+  /// Opened from the referral form: "See result" hands the vitals back to the form
+  /// (Navigator.pop) instead of going on to the Result screen. Vitals are entered here only.
+  final bool returnVitals;
 
   @override
   State<VitalsScreen> createState() => _VitalsScreenState();
@@ -19,13 +31,13 @@ class VitalsScreen extends StatefulWidget {
 
 class _VitalsScreenState extends State<VitalsScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _sbp = VitalInput();
-  final _dbp = VitalInput();
-  final _hr = VitalInput();
-  final _rr = VitalInput();
-  final _temp = VitalInput();
-  final _spo2 = VitalInput();
-  String? _avpu;
+  late final _sbp = VitalInput.fromVitals(widget.initialVitals, 'systolic_bp');
+  late final _dbp = VitalInput.fromVitals(widget.initialVitals, 'diastolic_bp');
+  late final _hr = VitalInput.fromVitals(widget.initialVitals, 'heart_rate');
+  late final _rr = VitalInput.fromVitals(widget.initialVitals, 'respiratory_rate');
+  late final _temp = VitalInput.fromVitals(widget.initialVitals, 'temperature');
+  late final _spo2 = VitalInput.fromVitals(widget.initialVitals, 'spo2');
+  late String? _avpu = AvpuField.fromVitals(widget.initialVitals);
   int _hrScore = 0;
   AdvisoryHrReading? _advisoryApplied;
 
@@ -201,6 +213,10 @@ class _VitalsScreenState extends State<VitalsScreen> {
       'spo2': _spo2.intValue,
       'consciousness_level': consciousness,
     };
+    if (widget.returnVitals) {
+      Navigator.of(context).pop(vitals);
+      return;
+    }
     final moews = calculateMoews(
       sbp: _sbp.intValue,
       dbp: _dbp.intValue,
@@ -337,7 +353,11 @@ class _VitalsScreenState extends State<VitalsScreen> {
               ),
               // Always enabled, as before: a tap with gaps shows what is missing.
               onPressed: _continue,
-              child: Text(remaining == 0 ? 'See result' : 'See result – $remaining left'),
+              child: Text(
+                widget.returnVitals
+                    ? (remaining == 0 ? 'Save vitals' : 'Save vitals – $remaining left')
+                    : (remaining == 0 ? 'See result' : 'See result – $remaining left'),
+              ),
             ),
           ),
         ),

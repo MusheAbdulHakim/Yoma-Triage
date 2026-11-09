@@ -7,8 +7,6 @@ class ReferralRequest {
   /// The registered CHO sending this. The server rejects anyone else.
   final String choPhone;
 
-  /// In-memory display label only — never serialized to outbox/API JSON.
-  final String? patientName;
   final String emergencyType;
   final Map<String, dynamic> vitals;
   final String? aiScreenResult;
@@ -36,7 +34,6 @@ class ReferralRequest {
     required this.facilityId,
     required this.patientHash,
     required this.choPhone,
-    this.patientName,
     required this.emergencyType,
     required this.vitals,
     this.aiScreenResult,

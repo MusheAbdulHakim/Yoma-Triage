@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show FlutterExceptionHandler;
 import 'package:flutter/material.dart';
+import 'package:yoma_triage/screens/dispatch_status_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
@@ -308,21 +309,18 @@ extension Drive on WidgetTester {
     await chooseEmergency();
   }
 
-  Future<void> fillPatientName(String name) async {
-    final field = find.ancestor(
-      of: find.text('Patient name (local only)'),
-      matching: find.byType(TextField),
-    );
-    await reveal(field);
-    await enterText(field, name);
-    await pump(const Duration(milliseconds: 100));
+  /// From the referral form: open Record vitals from the summary row, fill it, save.
+  Future<void> recordVitalsFromForm() async {
+    await tapOn(find.byKey(const Key('referral_vitals_summary')));
+    await waitFor(find.byKey(const Key('vitals_see_result')));
+    await fillVitals('vitals');
+    await tapOn(find.byKey(const Key('vitals_see_result')));
+    await waitFor(find.byKey(const Key('referral_send')));
   }
 
-  /// The text "Dispatch #12 · tier 1" holds the id the rest of the test needs.
-  int dispatchIdOnScreen() {
-    final text = widget<Text>(find.textContaining('Dispatch #').first).data!;
-    return int.parse(RegExp(r'Dispatch #(\d+)').firstMatch(text)!.group(1)!);
-  }
+  /// The id of the dispatch the status screen is following.
+  int dispatchIdOnScreen() =>
+      widget<DispatchStatusScreen>(find.byType(DispatchStatusScreen)).dispatchId!;
 }
 
 /// A driver's USSD reply, as Africa's Talking would deliver it. Mock SMS, no live traffic.

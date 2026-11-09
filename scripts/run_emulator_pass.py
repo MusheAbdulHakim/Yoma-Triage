@@ -1116,29 +1116,7 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
         tap_text(device, "Emergency type", 20)
         tap_text(device, "Postpartum hemorrhage", 20)
         time.sleep(1)
-        # Every vital is marked Not measured, so the name is the only field still enabled.
-        field = None
-        for _ in range(8):
-            field = next(
-                (
-                    n
-                    for n in device.dump()
-                    if n.get("class") == "android.widget.EditText" and n.get("enabled") == "true"
-                ),
-                None,
-            )
-            if field:
-                break
-            device.shell("input swipe 300 900 300 600 300")
-            time.sleep(0.5)
-        if field is None:
-            raise RuntimeError(f"No name field. Screen: {screen_text(device.dump())[:500]}")
-        tap_node(device, field)
-        time.sleep(1)
-        device.shell("input text 'Unknown'")
-        time.sleep(0.5)
-        device.shell("input keyevent KEYCODE_BACK")
-        time.sleep(1)
+        # The vitals came with the referral from Result (all Not measured); no name field.
         confirm = None
         for _ in range(12):
             nodes = device.dump()

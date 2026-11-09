@@ -10,7 +10,6 @@ import 'package:integration_test/integration_test.dart';
 
 import 'support/harness.dart';
 
-const _patient = 'Zebra Testpatient';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -25,8 +24,7 @@ void main() {
     await tester.wait(const Duration(seconds: 2));
 
     await tester.openReferralForm();
-    await tester.fillPatientName(_patient);
-    await tester.fillVitals('referral');
+    await tester.recordVitalsFromForm();
     final confirm = find.byKey(const Key('referral_send'));
     await tester.tapOn(confirm);
 

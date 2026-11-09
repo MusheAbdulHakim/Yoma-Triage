@@ -98,9 +98,12 @@ void main() {
     await tester.tap(find.text('Confirm Referral'));
     await tester.pumpAndSettle();
 
-    final sbp = tester.widget<TextFormField>(
-      find.byKey(const Key('referral_sbp')),
-    );
+    // The form carries the session's vitals: scored on its summary row, and
+    // shown again when the CHO opens Record vitals from it.
+    expect(find.byKey(const Key('referral_vitals_summary')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('referral_vitals_summary')));
+    await tester.pumpAndSettle();
+    final sbp = tester.widget<TextFormField>(find.byKey(const Key('vitals_sbp')));
     expect(sbp.controller?.text, '70');
   });
 }

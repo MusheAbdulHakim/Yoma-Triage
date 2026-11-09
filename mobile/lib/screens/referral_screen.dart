@@ -11,14 +11,14 @@ import '../services/geo.dart';
 import '../services/moews_calculator.dart';
 import '../services/offline_queue.dart';
 import '../services/patient_token.dart';
-import '../services/vital_limits.dart';
+import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
-import '../widgets/vital_field.dart';
 import '../widgets/yoma_components.dart';
 import 'dispatch_status_screen.dart';
 import 'facility_picker_screen.dart';
 import 'failed_referrals_screen.dart';
 import 'queued_referral_screen.dart';
+import 'vitals_screen.dart';
 
 class ReferralScreen extends StatefulWidget {
   final String? aiScreenResult;
@@ -46,15 +46,11 @@ class ReferralScreen extends StatefulWidget {
 
 class _ReferralScreenState extends State<ReferralScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _patientName = TextEditingController();
-  late final VitalInput _sbp;
-  late final VitalInput _dbp;
-  late final VitalInput _hr;
-  late final VitalInput _rr;
-  late final VitalInput _temp;
-  late final VitalInput _spo2;
 
-  String? _avpu;
+  /// The vitals for this referral, entered on Record vitals only (from the vitals step,
+  /// or via the summary row). Null until recorded.
+  late Map<String, Object?>? _vitals = widget.initialVitals;
+
   String? _emergencyType;
   bool _submitting = false;
   String? _error;
@@ -72,8 +68,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
     ('eclampsia', 'Eclampsia'),
   ];
 
-  static const _notSetUp =
-      'This phone is not set up as a CHO, so it cannot send a referral. '
+  static const _notSetUp = 'This phone is not set up as a CHO, so it cannot send a referral. '
       'Call the driver and hospital directly.';
 
   late final Future<void> _catalogReady;
@@ -90,14 +85,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
   @override
   void initState() {
     super.initState();
-    final vitals = widget.initialVitals;
-    _sbp = VitalInput.fromVitals(vitals, 'systolic_bp');
-    _dbp = VitalInput.fromVitals(vitals, 'diastolic_bp');
-    _hr = VitalInput.fromVitals(vitals, 'heart_rate');
-    _rr = VitalInput.fromVitals(vitals, 'respiratory_rate');
-    _temp = VitalInput.fromVitals(vitals, 'temperature');
-    _spo2 = VitalInput.fromVitals(vitals, 'spo2');
-    _avpu = AvpuField.fromVitals(vitals);
     _catalogReady = unawaitedLoadCatalog();
   }
 
@@ -154,13 +141,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   @override
   void dispose() {
-    _patientName.dispose();
-    _sbp.dispose();
-    _dbp.dispose();
-    _hr.dispose();
-    _rr.dispose();
-    _temp.dispose();
-    _spo2.dispose();
     super.dispose();
   }
 
@@ -206,10 +186,10 @@ class _ReferralScreenState extends State<ReferralScreen> {
     final problem = _identity == null
         ? _notSetUp
         : _emergencyType == null
-        ? 'Choose the emergency type first'
-        : !_facilityConfirmed || _selectedFacility == null
-            ? 'Tap above to choose the receiving facility first'
-            : null;
+            ? 'Choose the emergency type first'
+            : !_facilityConfirmed || _selectedFacility == null
+                ? 'Tap above to choose the receiving facility first'
+                : null;
     if (problem != null) {
       setState(() => _skipError = problem);
       return;
@@ -227,9 +207,13 @@ class _ReferralScreenState extends State<ReferralScreen> {
     }
     if (_selectedFacility == null || !_facilityConfirmed) {
       setState(() {
-        _error =
-            'Choose receiving facility (manual confirmation required before submit)';
+        _error = 'Choose receiving facility (manual confirmation required before submit)';
       });
+      return;
+    }
+    if (_vitals == null) {
+      setState(() => _error = 'Record vitals first (tap Vitals above), '
+          'or use Emergency: skip vitals');
       return;
     }
     await _send(vitalsTaken: true);
@@ -253,19 +237,12 @@ class _ReferralScreenState extends State<ReferralScreen> {
         choPhone: _identity!.phone,
         facilityId: _selectedFacility!.id,
         patientHash: token,
-        patientName: _patientName.text.trim(),
         emergencyType: _emergencyType!,
         vitalsTaken: vitalsTaken,
         vitals: !vitalsTaken
             ? const <String, dynamic>{}
             : {
-                'systolic_bp': _sbp.intValue,
-                'diastolic_bp': _dbp.intValue,
-                'heart_rate': _hr.intValue,
-                'respiratory_rate': _rr.intValue,
-                'temperature': _temp.doubleValue,
-                'spo2': _spo2.intValue,
-                'consciousness_level': AvpuField.apiValue(_avpu),
+                for (final key in _vitalKeys) key: _vitals?[key],
               },
         aiScreenResult: widget.aiScreenResult,
         aiConfidence: widget.aiConfidence,
@@ -340,8 +317,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final facilityLabel =
-        _selectedFacility?.name ?? FacilityConfig.facilityLabel;
+    final facilityLabel = _selectedFacility?.name ?? FacilityConfig.facilityLabel;
 
     return Scaffold(
       appBar: AppBar(
@@ -440,9 +416,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
                                   style: Theme.of(context).textTheme.titleMedium,
                                 ),
                                 Text(
-                                  _facilityConfirmed
-                                      ? '(confirmed)'
-                                      : '(tap to confirm facility)',
+                                  _facilityConfirmed ? '(confirmed)' : '(tap to confirm facility)',
                                   style: Theme.of(context).textTheme.bodySmall?.copyWith(
                                         color: _facilityConfirmed
                                             ? YomaColors.grey600
@@ -474,10 +448,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 padding: const EdgeInsets.only(top: 6),
                 child: Text(
                   _originBanner,
-                  style: Theme.of(context)
-                      .textTheme
-                      .bodySmall
-                      ?.copyWith(color: YomaColors.grey600),
+                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey600),
                 ),
               ),
             if (widget.aiScreenResult != null)
@@ -504,83 +475,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
                   ),
                 ),
               ),
-            if (_vitalsSummary() case final summary?) ...[
-              const SizedBox(height: 12),
-              summary,
-            ],
-            const SizedBox(height: 16),
-            const Divider(),
-            TextFormField(
-              controller: _patientName,
-              decoration: const InputDecoration(
-                labelText: 'Patient name (local only)',
-                hintText: 'Name, or type Unknown',
-                helperText: 'Not sent over network — unlinkable token used',
-              ),
-              validator: (v) => (v == null || v.trim().isEmpty)
-                  ? 'Enter the name, or type Unknown'
-                  : null,
-            ),
             const SizedBox(height: 12),
-            const Text(
-              'Vitals',
-              style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
-            ),
-            VitalField(
-              input: _sbp,
-              limits: VitalLimits.systolicBp,
-              label: 'Systolic BP',
-              unit: 'mmHg',
-              fieldKey: 'referral_sbp',
-              onChanged: () => setState(() {}),
-            ),
-            VitalField(
-              input: _dbp,
-              limits: VitalLimits.diastolicBp,
-              label: 'Diastolic BP',
-              unit: 'mmHg',
-              fieldKey: 'referral_dbp',
-              onChanged: () => setState(() {}),
-            ),
-            VitalField(
-              input: _hr,
-              limits: VitalLimits.heartRate,
-              label: 'Heart rate',
-              unit: 'bpm',
-              fieldKey: 'referral_hr',
-              onChanged: () => setState(() {}),
-            ),
-            VitalField(
-              input: _rr,
-              limits: VitalLimits.respiratoryRate,
-              label: 'Respiratory rate',
-              unit: '/min',
-              fieldKey: 'referral_rr',
-              onChanged: () => setState(() {}),
-            ),
-            VitalField(
-              input: _temp,
-              limits: VitalLimits.temperature,
-              label: 'Temperature',
-              unit: '°C',
-              fieldKey: 'referral_temp',
-              onChanged: () => setState(() {}),
-              decimal: true,
-            ),
-            VitalField(
-              input: _spo2,
-              limits: VitalLimits.spo2,
-              label: 'SpO2',
-              unit: '%',
-              fieldKey: 'referral_spo2',
-              onChanged: () => setState(() {}),
-            ),
-            AvpuField(
-              key: const Key('referral_avpu'),
-              idPrefix: 'referral_avpu',
-              value: _avpu,
-              onChanged: (value) => setState(() => _avpu = value),
-            ),
+            _vitalsSummary(),
             if (_error != null) ...[
               const SizedBox(height: 12),
               Text(
@@ -624,10 +520,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
                     'Vitals not taken – the hospital will be told',
                     key: const Key('referral_vitals_not_taken'),
                     textAlign: TextAlign.center,
-                    style: Theme.of(context)
-                        .textTheme
-                        .bodySmall
-                        ?.copyWith(color: YomaColors.grey700),
+                    style:
+                        Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey700),
                   ),
                 ),
                 if (_skipError != null)
@@ -671,45 +565,95 @@ class _ReferralScreenState extends State<ReferralScreen> {
     );
   }
 
-  /// The risk level of the vitals in this form, scored live by the app's own MOEWS, so it
-  /// can never disagree with the fields below it. Shown when the form came from the
-  /// vitals step, or once any vital has been answered here.
-  Widget? _vitalsSummary() {
-    final inputs = [_sbp, _dbp, _hr, _rr, _temp, _spo2];
-    final anyAnswered = inputs.any((i) => i.answered) || _avpu != null;
-    if (widget.initialVitals == null && !anyAnswered) return null;
-    final moews = calculateMoews(
-      sbp: _sbp.intValue,
-      dbp: _dbp.intValue,
-      hr: _hr.intValue,
-      rr: _rr.intValue,
-      temp: _temp.doubleValue,
-      spo2: _spo2.intValue,
-      consciousness: AvpuField.apiValue(_avpu),
-    );
-    final level = TriageLevel.fromMoews(moews.riskLevel);
-    if (level == null) return null;
-    return Container(
-      key: const Key('referral_vitals_summary'),
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
-      decoration: BoxDecoration(
-        color: YomaColors.surface,
-        borderRadius: BorderRadius.circular(YomaRadii.md),
-        border: Border.all(color: YomaColors.grey200),
-        boxShadow: YomaShadows.sm,
+  static const _vitalKeys = [
+    'systolic_bp',
+    'diastolic_bp',
+    'heart_rate',
+    'respiratory_rate',
+    'temperature',
+    'spo2',
+    'consciousness_level',
+  ];
+
+  /// Opens Record vitals with the current values; what it saves comes back here.
+  Future<void> _editVitals() async {
+    final saved = await Navigator.of(context).push<Map<String, Object?>>(
+      MaterialPageRoute(
+        builder: (_) => VitalsScreen(
+          result: moewsOnlyResult(),
+          initialVitals: _vitals,
+          returnVitals: true,
+        ),
       ),
-      child: Wrap(
-        alignment: WrapAlignment.spaceBetween,
-        crossAxisAlignment: WrapCrossAlignment.center,
-        spacing: 8,
-        runSpacing: 6,
-        children: [
-          Text('Vitals:', style: Theme.of(context).textTheme.labelMedium),
-          RiskBadge(
-            level: level,
-            score: level == TriageLevel.incomplete ? null : moews.score,
+    );
+    if (saved != null && mounted) {
+      setState(() {
+        _vitals = saved;
+        _error = null;
+      });
+    }
+  }
+
+  /// One line: the risk level of the recorded vitals (scored by the app's MOEWS), or
+  /// "Not recorded". Tapping it opens Record vitals; vitals are entered there only.
+  Widget _vitalsSummary() {
+    final v = _vitals;
+    final text = Theme.of(context).textTheme;
+    Widget trailing;
+    String spoken;
+    if (v == null) {
+      trailing = Text(
+        'Not recorded',
+        style: text.labelMedium?.copyWith(color: YomaColors.grey700),
+      );
+      spoken = 'Vitals: not recorded. Tap to record vitals.';
+    } else {
+      final moews = calculateMoews(
+        sbp: v['systolic_bp'] as int?,
+        dbp: v['diastolic_bp'] as int?,
+        hr: v['heart_rate'] as int?,
+        rr: v['respiratory_rate'] as int?,
+        temp: (v['temperature'] as num?)?.toDouble(),
+        spo2: v['spo2'] as int?,
+        consciousness: v['consciousness_level'] as String?,
+      );
+      final level = TriageLevel.fromMoews(moews.riskLevel) ?? TriageLevel.incomplete;
+      final score = level == TriageLevel.incomplete ? null : moews.score;
+      trailing = RiskBadge(level: level, score: score);
+      spoken = 'Vitals: ${level.word}${score == null ? '' : ', score $score'}. '
+          'Tap to change vitals.';
+    }
+    return Semantics(
+      button: true,
+      label: spoken,
+      excludeSemantics: true,
+      child: Material(
+        color: YomaColors.surface,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(YomaRadii.md),
+          side: const BorderSide(color: YomaColors.grey200),
+        ),
+        child: InkWell(
+          key: const Key('referral_vitals_summary'),
+          borderRadius: BorderRadius.circular(YomaRadii.md),
+          onTap: _editVitals,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(minHeight: 56),
+            child: Padding(
+              padding: const EdgeInsets.fromLTRB(14, 10, 8, 10),
+              child: Row(
+                children: [
+                  Text('Vitals:', style: text.labelMedium),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: Align(alignment: Alignment.centerRight, child: trailing),
+                  ),
+                  const Icon(Icons.chevron_right, color: YomaColors.grey600),
+                ],
+              ),
+            ),
           ),
-        ],
+        ),
       ),
     );
   }

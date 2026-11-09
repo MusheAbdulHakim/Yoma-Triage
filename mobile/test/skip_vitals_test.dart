@@ -148,7 +148,6 @@ void main() {
     expect(api.sent.single['emergency_type'], 'pph');
     expect(api.sent.single['vitals'], isEmpty);
     expect(api.sent.single.containsKey('patient_name'), isFalse);
-    expect(find.text('Enter the name, or type Unknown'), findsNothing);
     expect(find.byType(QueuedReferralScreen), findsOneWidget);
   });
 
@@ -184,8 +183,13 @@ void main() {
     await tester.tap(find.byKey(const Key('referral_type_pph')));
     await tester.pump();
     await tester.tap(send);
-    await tester.pumpAndSettle();
-    expect(find.text('Enter the name, or type Unknown'), findsOneWidget);
+    await pumpUntil(tester, find.textContaining('Choose receiving facility'));
+    expect(api.sent, isEmpty);
+
+    // Facility confirmed, still no vitals: it asks for them (or skip vitals).
+    await chooseFacility(tester);
+    await tester.tap(send);
+    await pumpUntil(tester, find.textContaining('Record vitals first'));
     expect(api.sent, isEmpty);
   });
 

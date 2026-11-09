@@ -170,19 +170,17 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('name and every vital start empty', (tester) async {
+    testWidgets('no name field and no vital fields: one summary row, not recorded',
+        (tester) async {
       await open(tester);
-      expect(find.text('Ama Mensah'), findsNothing);
-      for (final id in _ids) {
-        expect(_text(tester, 'referral_$id'), isEmpty, reason: id);
-      }
-      expectNoAvpuSelected(tester, 'referral');
+      expect(find.byType(TextField), findsNothing, reason: 'vitals are entered in one place');
+      expect(find.text('Not recorded'), findsOneWidget);
       for (final fake in ['70', '50', '140', '35', '39.5', '85']) {
         expect(find.text(fake), findsNothing, reason: fake);
       }
     });
 
-    testWidgets('untouched form asks for each answer', (tester) async {
+    testWidgets('untouched form asks for vitals before it sends', (tester) async {
       await open(tester);
       // Send stays disabled until a type is chosen, and says so.
       final send = find.byKey(const Key('referral_send'));
@@ -191,33 +189,49 @@ void main() {
       await tester.tap(find.byKey(const Key('referral_type_pph')));
       await tester.pump();
       expect(tester.widget<FilledButton>(send).onPressed, isNotNull);
-      // Facility confirmation is checked after validation.
+      // Facility confirmation is checked after the type (once the catalog has loaded,
+      // which only advances in real time here).
       await tester.tap(send);
-      await tester.pumpAndSettle();
-      expect(find.text('Enter the name, or type Unknown'), findsOneWidget);
-      // Each vital shows its own message, whole, below its field.
-      for (final id in _ids) {
-        final shown = tester.widget<Text>(find.byKey(Key('referral_${id}_error')));
-        expect(shown.data, endsWith('Enter a value or tick Not measured'), reason: id);
+      for (var i = 0; i < 100; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+        await tester.pump();
+        if (find.textContaining('Choose receiving facility').evaluate().isNotEmpty) break;
       }
-      expect(find.text('Select AVPU or Not measured'), findsOneWidget);
+      expect(find.textContaining('Choose receiving facility'), findsOneWidget);
     });
 
-    testWidgets('not measured carries over from the vitals step',
+    testWidgets('the summary opens Record vitals with the values carried over',
         (tester) async {
       await open(
         tester,
         vitals: const {
           'systolic_bp': null,
           'diastolic_bp': 80,
+          'heart_rate': 80,
+          'respiratory_rate': 18,
+          'temperature': 37.0,
+          'spo2': 98,
           'consciousness_level': null,
         },
       );
-      expect(_text(tester, 'referral_sbp'), isEmpty);
-      expect(markedNotMeasured('referral_sbp_not_measured'), isTrue);
-      expect(_text(tester, 'referral_dbp'), '80');
-      expect(markedNotMeasured('referral_dbp_not_measured'), isFalse);
-      expect(markedNotMeasured('referral_avpu_not_measured'), isTrue);
+      expect(find.text('Incomplete'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('referral_vitals_summary')));
+      await tester.pumpAndSettle();
+      // Not measured stays not measured; values stay values.
+      expect(_text(tester, 'vitals_sbp'), isEmpty);
+      expect(markedNotMeasured('vitals_sbp_not_measured'), isTrue);
+      expect(_text(tester, 'vitals_dbp'), '80');
+      expect(markedNotMeasured('vitals_avpu_not_measured'), isTrue);
+
+      // Saving hands the vitals back to the form, which scores them.
+      await tester.tap(find.byKey(const Key('vitals_sbp_not_measured')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('vitals_sbp')), '185');
+      await selectAvpu(tester, avpu: 'A — Alert');
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ReferralScreen), findsOneWidget);
+      expect(find.text('Critical (Score 3)'), findsOneWidget);
     });
   });
 
