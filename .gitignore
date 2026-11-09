@@ -23,3 +23,16 @@ data/lab_set/synthetic_smoke/opera_ce_head.*
 mobile/assets/models/opera_ce_head.onnx
 mobile/assets/models/opera_ce_head.tflite
 mobile/assets/models/opera_ce_head.json
+
+# Acoustic feasibility research: audio, datasets, model weights and caches never go in git.
+research/acoustic/data/
+research/acoustic/cache/
+research/acoustic/.venv/
+research/acoustic/**/*.wav
+research/acoustic/**/*.npy
+research/acoustic/**/*.npz
+research/acoustic/**/*.ckpt
+research/acoustic/**/*.pt
+research/acoustic/**/*.h5
+research/acoustic/**/*.zip
+research/acoustic/**/*.tar*

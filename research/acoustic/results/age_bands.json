@@ -1,0 +1,170 @@
+{
+  "sprsound": {
+    "<2 mo": {
+      "recordings": 10,
+      "rec_crackle": 3,
+      "patients": 2,
+      "pat_crackle": 1
+    },
+    "2-11 mo": {
+      "rec_no_patient_id": 20,
+      "recordings": 354,
+      "rec_wheeze": 120,
+      "rec_crackle": 106,
+      "rec_stridor": 10,
+      "rec_rhonchi": 1,
+      "patients": 55,
+      "pat_wheeze": 26,
+      "pat_crackle": 24,
+      "pat_stridor": 3,
+      "pat_rhonchi": 1
+    },
+    "1-5 y": {
+      "rec_no_patient_id": 288,
+      "recordings": 3331,
+      "rec_crackle": 738,
+      "rec_wheeze": 366,
+      "rec_rhonchi": 62,
+      "rec_stridor": 18,
+      "patients": 484,
+      "pat_crackle": 144,
+      "pat_wheeze": 98,
+      "pat_rhonchi": 30,
+      "pat_stridor": 5
+    },
+    "older": {
+      "recordings": 2482,
+      "rec_crackle": 404,
+      "rec_wheeze": 120,
+      "rec_no_patient_id": 82,
+      "rec_rhonchi": 12,
+      "rec_stridor": 1,
+      "patients": 330,
+      "pat_crackle": 86,
+      "pat_wheeze": 33,
+      "pat_rhonchi": 6,
+      "pat_stridor": 1
+    }
+  },
+  "sprsound_meta": {
+    "unique_recordings": 6567,
+    "recordings_with_anonymised_pid": 390,
+    "recordings_per_event_type": {
+      "Normal": 4980,
+      "Fine Crackle": 1140,
+      "Wheeze": 548,
+      "Wheeze+Crackle": 97,
+      "Coarse Crackle": 74,
+      "Stridor": 31,
+      "Rhonchi": 77
+    }
+  },
+  "circor": {
+    "Child (1-11 y)": {
+      "patients": 664,
+      "recordings": 2386,
+      "murmur_Absent": 495,
+      "outcome_Abnormal": 321,
+      "murmur_Present": 132,
+      "murmur_Unknown": 37,
+      "outcome_Normal": 343
+    },
+    "Adolescent (12-18 y)": {
+      "patients": 72,
+      "recordings": 259,
+      "murmur_Present": 16,
+      "outcome_Abnormal": 40,
+      "murmur_Absent": 53,
+      "outcome_Normal": 32,
+      "murmur_Unknown": 3
+    },
+    "Infant (28 d-1 y)": {
+      "patients": 126,
+      "recordings": 269,
+      "murmur_Unknown": 25,
+      "outcome_Abnormal": 79,
+      "murmur_Absent": 76,
+      "murmur_Present": 25,
+      "outcome_Normal": 47
+    },
+    "unknown": {
+      "patients": 74,
+      "recordings": 239,
+      "murmur_Absent": 67,
+      "outcome_Normal": 61,
+      "murmur_Present": 5,
+      "outcome_Abnormal": 13,
+      "murmur_Unknown": 2
+    },
+    "Neonate (0-27 d)": {
+      "patients": 6,
+      "recordings": 10,
+      "murmur_Unknown": 1,
+      "outcome_Abnormal": 3,
+      "murmur_Absent": 4,
+      "outcome_Normal": 3,
+      "murmur_Present": 1
+    }
+  },
+  "icbhi": {
+    "2-11 mo": {
+      "patients": 8,
+      "recordings": 13,
+      "devices": {
+        "Meditron": 13
+      },
+      "diagnoses": {
+        "Bronchiolitis": 1,
+        "Healthy": 5,
+        "LRTI": 1,
+        "URTI": 1
+      }
+    },
+    "1-5 y": {
+      "patients": 28,
+      "recordings": 45,
+      "devices": {
+        "Meditron": 45
+      },
+      "diagnoses": {
+        "Bronchiolitis": 5,
+        "Healthy": 11,
+        "LRTI": 1,
+        "Pneumonia": 1,
+        "URTI": 10
+      }
+    },
+    "older": {
+      "patients": 89,
+      "recordings": 856,
+      "devices": {
+        "LittC2SE": 86,
+        "Litt3200": 60,
+        "Meditron": 64,
+        "AKGC417L": 646
+      },
+      "diagnoses": {
+        "Asthma": 1,
+        "Bronchiectasis": 7,
+        "COPD": 63,
+        "Healthy": 10,
+        "Pneumonia": 5,
+        "URTI": 3
+      }
+    },
+    "unknown": {
+      "patients": 1,
+      "recordings": 6,
+      "devices": {
+        "Meditron": 6
+      },
+      "diagnoses": {
+        "COPD": 1
+      }
+    }
+  },
+  "coswara_participants": {
+    "older": 2741,
+    "1-5 y": 5
+  }
+}
