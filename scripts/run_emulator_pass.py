@@ -73,10 +73,12 @@ SCENARIOS: dict[str, dict] = {
     # Batch 6: a hospital diverts the patient; the screen follows the trip to the new one.
     "11": {"file": "s11_diversion_test.dart"},
     "banners": {"file": "s9_home_banners_test.dart"},
+    # UI redesign: every redesigned screen and state, for the side-by-side screenshots.
+    "ui": {"file": "s12_ui_redesign_test.dart"},
     # The same test at the device's own size. It can fail there too: that's a finding.
     "banners_native": {"file": "s9_home_banners_test.dart"},
 }
-SMALL_SCREEN_SCENARIOS = ["3", "4", "5", "6", "7", "banners"]
+SMALL_SCREEN_SCENARIOS = ["3", "4", "5", "6", "7", "banners", "ui"]
 
 # Read-only views the tests may ask for.
 QUERIES = {
@@ -1167,11 +1169,12 @@ def main() -> int:
             "7",
             "8",
             "11",
+            "ui",
             "9",
             "banners_native",
             "timings",
         ],
-        help="1-9, 11, responsive, banners, banners_native and timings",
+        help="1-9, 11, ui, responsive, banners, banners_native and timings",
     )
     parser.add_argument(
         "--keep-running",

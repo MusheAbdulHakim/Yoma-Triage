@@ -509,7 +509,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
               style: FilledButton.styleFrom(
                 minimumSize: const Size.fromHeight(56),
                 backgroundColor: YomaColors.danger,
-                textStyle: const TextStyle(fontSize: 18),
+                textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 18),
               ),
               onPressed: _submitting ? null : _skipVitals,
               child: const Text('Emergency: skip vitals'),

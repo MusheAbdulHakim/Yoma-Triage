@@ -216,71 +216,89 @@ class _VitalFieldState extends State<VitalField> {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final notMeasured = widget.input.notMeasured;
+    final label = Text(
+      widget.label,
+      style: text.titleMedium?.copyWith(
+        color: notMeasured ? YomaColors.grey600 : YomaColors.grey800,
+      ),
+    );
+    final toggle = _NotMeasuredToggle(
+      toggleKey: Key('${widget.fieldKey}_not_measured'),
+      notMeasured: notMeasured,
+      label: widget.label,
+      onTap: () => _setNotMeasured(!notMeasured),
+    );
+    Widget field(double width) => SizedBox(
+          width: width,
+          child: Semantics(
+            label: widget.label,
+            child: _VitalTextField(
+              fieldKey: widget.fieldKey,
+              input: widget.input,
+              limits: widget.limits,
+              decimal: widget.decimal,
+              label: widget.label,
+              unit: widget.unit,
+              highlight: widget.highlight,
+              onChanged: () => widget.onChanged?.call(),
+            ),
+          ),
+        );
+
     return Padding(
       padding: const EdgeInsets.only(bottom: YomaSpacing.sm),
       child: YomaCard(
         color: notMeasured ? YomaColors.grey100 : YomaColors.surface,
         shadow: notMeasured ? const [] : YomaShadows.sm,
-        padding: const EdgeInsets.fromLTRB(14, 6, 12, 6),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.start,
+        padding: const EdgeInsets.fromLTRB(14, 4, 10, 4),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            // One row (label, toggle, value) where it fits, so most of the form shows on
+            // 360×640. On a narrow screen or with large text, the toggle goes under the label.
+            final oneRow = constraints.maxWidth >= 290 &&
+                MediaQuery.textScalerOf(context).scale(16) <= 16 * 1.15;
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: Column(
+                if (oneRow)
+                  Padding(
+                    padding: const EdgeInsets.symmetric(vertical: 4),
+                    child: Row(
+                      children: [
+                        Expanded(child: label),
+                        toggle,
+                        const SizedBox(width: 6),
+                        field(104),
+                      ],
+                    ),
+                  )
+                else
+                  Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      const SizedBox(height: 8),
-                      Text(
-                        widget.label,
-                        style: text.titleMedium?.copyWith(
-                          color: notMeasured ? YomaColors.grey600 : YomaColors.grey800,
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [const SizedBox(height: 10), label, toggle],
                         ),
                       ),
-                      _NotMeasuredToggle(
-                        toggleKey: Key('${widget.fieldKey}_not_measured'),
-                        notMeasured: notMeasured,
-                        label: widget.label,
-                        onTap: () => _setNotMeasured(!notMeasured),
-                      ),
+                      const SizedBox(width: YomaSpacing.sm),
+                      Padding(padding: const EdgeInsets.only(top: 6), child: field(120)),
                     ],
                   ),
-                ),
-                const SizedBox(width: YomaSpacing.sm),
-                Padding(
-                  padding: const EdgeInsets.only(top: 6),
-                  child: SizedBox(
-                    width: 132,
-                    child: Semantics(
-                      label: widget.label,
-                      child: _VitalTextField(
-                        fieldKey: widget.fieldKey,
-                        input: widget.input,
-                        limits: widget.limits,
-                        decimal: widget.decimal,
-                        label: widget.label,
-                        unit: widget.unit,
-                        highlight: widget.highlight,
-                        onChanged: () => widget.onChanged?.call(),
+                if (widget.helperText != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      widget.helperText!,
+                      style: text.bodySmall?.copyWith(
+                        color: widget.highlight ? YomaColors.warning : YomaColors.grey600,
                       ),
                     ),
                   ),
-                ),
               ],
-            ),
-            if (widget.helperText != null)
-              Padding(
-                padding: const EdgeInsets.only(bottom: 6),
-                child: Text(
-                  widget.helperText!,
-                  style: text.bodySmall?.copyWith(
-                    color: widget.highlight ? YomaColors.warning : YomaColors.grey600,
-                  ),
-                ),
-              ),
-          ],
+            );
+          },
         ),
       ),
     );
