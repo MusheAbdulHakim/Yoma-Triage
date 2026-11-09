@@ -86,7 +86,10 @@ def emulator_env() -> dict[str, str]:
     return env
 # Guest RAM for each run, in MB, whatever the AVD's own setting. The API 34 AVD is set to
 # 4 GB, which with a Gradle build alongside was enough for the host to kill the emulator.
-AVD_MEMORY_MB = {"yoma_api34": 3072, "yoma_api24_2gb": 2048}
+# Round 7: 2 GB for API 34 too. With 3 GB, a Gradle build and the desktop's own apps,
+# systemd-oomd (memory pressure over 50% for 20 s on the user session) killed the emulator
+# several times in one pass.
+AVD_MEMORY_MB = {"yoma_api34": 2048, "yoma_api24_2gb": 2048}
 
 # What each integration test file needs from the backend, and from the build.
 SCENARIOS: dict[str, dict] = {
@@ -772,6 +775,8 @@ def run_integration(
         device.adb("uninstall", PACKAGE, check=False, timeout=120)
         passed, output = run_until_done(command)
     log_file.write_text(output)
+    # The Gradle daemon keeps its build heap after the build; free it while the emulator runs.
+    stop_gradle()
     if CURRENT["backend"].log_path.exists():
         shutil.copy(CURRENT["backend"].log_path, device.out / f"{label}.server.log")
     entry = RESULTS.setdefault(device.avd, {}).setdefault(label, {})
