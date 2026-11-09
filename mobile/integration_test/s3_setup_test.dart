@@ -19,9 +19,11 @@ void main() {
     await tester.tapOn(find.text('Continue'));
     final error = find.byKey(const Key('setup_error'));
     await tester.waitFor(error);
-    final message = tester.widget<Text>(error).data!;
+    final message = tester
+        .widget<Text>(find.descendant(of: error, matching: find.byType(Text)))
+        .data!;
     await Host.note('Unregistered phone is told: "$message"');
-    expect(message, contains('not registered'));
+    expect(message, "This number isn't registered. Ask your district coordinator.");
     expect(find.byKey(const Key('home_emergency_referral')), findsNothing);
     await tester.shot('s3_2_unregistered');
 

@@ -473,6 +473,7 @@ void _refreshTriggerTests() {
         MaterialApp(home: SetupScreen(api: api, onComplete: (_) {})),
       );
       await tester.enterText(find.byKey(const Key('setup_phone')), '0240000100');
+      await tester.pump();
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
@@ -487,6 +488,7 @@ void _refreshTriggerTests() {
         MaterialApp(home: SetupScreen(api: api, onComplete: (_) {})),
       );
       await tester.enterText(find.byKey(const Key('setup_phone')), '0240000100');
+      await tester.pump();
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 

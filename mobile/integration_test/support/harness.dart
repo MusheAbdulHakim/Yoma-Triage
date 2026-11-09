@@ -269,6 +269,9 @@ extension Drive on WidgetTester {
     // which happens here when a CHO retries after a refusal.
     widget<TextField>(find.byKey(const Key('setup_phone'))).controller!.text = phone;
     await tapOn(find.text('Continue'));
+    // The clinic the server found for this number, then Start.
+    await waitFor(find.byKey(const Key('setup_start')), reason: 'clinic confirmed');
+    await tapOn(find.byKey(const Key('setup_start')));
     await waitFor(find.byKey(const Key('home_emergency_referral')), reason: 'Home after setup');
   }
 
