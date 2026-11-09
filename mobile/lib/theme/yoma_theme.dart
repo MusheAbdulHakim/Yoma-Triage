@@ -1,55 +1,77 @@
 import 'package:flutter/material.dart';
 
-/// Design tokens for the Yoma Care redesign (round 1). Values come from the Stitch
-/// reference code in `docs/design/stitch/`; see `docs/audit/UI_REDESIGN.md`.
+/// Design tokens: the Stitch design system "Clinical Field Resilience"
+/// (`docs/design/stitch/design-system/DESIGN.md`). Every colour in the app comes from
+/// here; no hex values anywhere else in `lib/`.
 ///
-/// Triage colours ([TriageColors]) are for the risk level only. Errors, warnings and
-/// success messages elsewhere use the semantic colours below, never the triage ones.
+/// Brand roles: primary (actions, Emergency referral, active and focus states, timeline
+/// markers), secondary (secondary emphasis, selected chips), tertiary (links, information,
+/// pulse rings in lighter tints), neutral (text, dark cards and strips). Greys and tints
+/// are the ones the design system names. Triage colours ([TriageColors]) are for the risk
+/// level and emergency/destructive actions only.
 abstract final class YomaColors {
-  // Brand.
-  static const brand = Color(0xFF005F60); // "Brand Teal" in the Result/Referral designs
-  static const brandPressed = Color(0xFF004A4B);
-  static const brandTint = Color(0xFFE6F3F3);
-  static const navy = Color(0xFF0F2744); // failure status strip
+  // Brand (design system overrides).
+  static const primary = Color(0xFF0F2744);
+  static const secondary = Color(0xFF1B3B6F);
+  static const tertiary = Color(0xFF2C5E8A);
+  static const neutral = Color(0xFF0B192C);
+  static const onPrimary = Color(0xFFFFFFFF);
 
-  // Neutrals (Tailwind slate, as used throughout the designs).
-  static const canvas = Color(0xFFF8FAFC); // slate-50, screen background
+  // Tonal scale (design system).
+  static const primaryPressed = Color(0xFF001229); // tonal "primary"
+  static const primaryContainer = Color(0xFFE7EEFF); // "surface-container"
+  static const tertiaryTint = Color(0xFF9CCBFD); // "tertiary-fixed-dim": pulse rings
+  static const onDark = Color(0xFFEBF1FF); // "inverse-on-surface": muted text on neutral
+  static const outline = Color(0xFF74777E);
+  static const outlineVariant = Color(0xFFC4C6CE);
+  static const onSurface = Color(0xFF0E1C2F);
+
+  // Surfaces and slate greys named in the design system.
+  static const canvas = Color(0xFFF9F9FF); // "background"
   static const surface = Color(0xFFFFFFFF);
-  static const grey100 = Color(0xFFF1F5F9);
-  static const grey200 = Color(0xFFE2E8F0);
-  static const grey300 = Color(0xFFCBD5E1);
-  static const grey400 = Color(0xFF94A3B8); // borders and dots only, never text
-  static const grey500 = Color(0xFF64748B);
-  static const grey600 = Color(0xFF475569);
-  static const grey700 = Color(0xFF334155);
-  static const grey800 = Color(0xFF1E293B);
-  static const grey900 = Color(0xFF0F172A);
+  static const panel = Color(0xFFF1F5F9);
+  static const line = Color(0xFFE2E8F0);
+  static const border = Color(0xFFCBD5E1);
+  static const slate600 = Color(0xFF475569);
+  static const slate700 = Color(0xFF334155);
 
-  // Semantic (not triage).
-  static const error = Color(0xFFB42318);
-  static const warning = Color(0xFFB54708);
-  static const success = Color(0xFF067647);
+  // Error (design system "error"): failures and destructive actions, not risk level.
+  static const error = Color(0xFFBA1A1A);
 
-  // Names kept for the screens not redesigned yet. They map to the semantic colours,
-  // so those screens keep rendering without borrowing the triage palette.
+  // Names the screens already use, mapped onto the design system.
+  static const brand = primary;
+  static const brandPressed = primaryPressed;
+  static const brandTint = primaryContainer;
+  static const navy = neutral; // dark cards and strips
+  static const grey100 = panel;
+  static const grey200 = line;
+  static const grey300 = border;
+  static const grey400 = outlineVariant; // decorative dots only, never text
+  static const grey500 = outline; // large text and borders only (4.48:1 on white)
+  static const grey600 = slate600;
+  static const grey700 = slate700;
+  static const grey800 = onSurface;
+  static const grey900 = neutral;
+  // Notices that are not a risk level (retries, sync): tertiary, never amber.
+  static const warning = tertiary;
+  static const caution = tertiary;
   static const danger = error;
-  static const caution = warning;
-  static const safe = success;
 }
 
-/// RED / AMBER / GREEN, for the MOEWS risk level and nothing else.
+/// RED / AMBER / GREEN (design system triage values), for the MOEWS risk level and for
+/// emergency or destructive actions only.
 abstract final class TriageColors {
-  static const red = Color(0xFFDC2626); // white text 4.83:1
-  static const amber = Color(0xFFF59E0B); // grey900 text 8.31:1 (white would fail)
-  static const green = Color(0xFF15803D); // white text 5.02:1; already AA, not darkened
-  static const onRed = Colors.white;
-  static const onAmber = YomaColors.grey900;
-  static const onGreen = Colors.white;
+  static const red = Color(0xFFC5221F); // white text 5.80:1
+  static const amber = Color(0xFFB45309); // white text 5.02:1
+  static const green = Color(0xFF15803D); // white text 5.02:1
+  static const onRed = YomaColors.onPrimary;
+  static const onAmber = YomaColors.onPrimary;
+  static const onGreen = YomaColors.onPrimary;
 
   // Incomplete: grey card with a dashed border.
-  static const incompleteFill = YomaColors.grey100;
-  static const incompleteBorder = YomaColors.grey500; // 4.76:1 on white
-  static const onIncomplete = YomaColors.grey900;
+  static const incompleteFill = YomaColors.panel;
+  static const incompleteBorder = YomaColors.outline; // non-text, 4.48:1 on white
+  static const onIncomplete = YomaColors.neutral;
 }
 
 abstract final class YomaSpacing {
@@ -81,13 +103,13 @@ abstract final class YomaSizes {
 abstract final class YomaShadows {
   /// Tailwind shadow-sm.
   static const sm = [
-    BoxShadow(color: Color(0x0D0F172A), blurRadius: 2, offset: Offset(0, 1)),
+    BoxShadow(color: Color(0x0D0B192C), blurRadius: 2, offset: Offset(0, 1)), // neutral 5%
   ];
 
   /// Tailwind shadow-md, for risk cards and the primary call to action.
   static const md = [
-    BoxShadow(color: Color(0x140F172A), blurRadius: 6, offset: Offset(0, 4), spreadRadius: -1),
-    BoxShadow(color: Color(0x0F0F172A), blurRadius: 4, offset: Offset(0, 2), spreadRadius: -2),
+    BoxShadow(color: Color(0x140B192C), blurRadius: 6, offset: Offset(0, 4), spreadRadius: -1),
+    BoxShadow(color: Color(0x0F0B192C), blurRadius: 4, offset: Offset(0, 2), spreadRadius: -2),
   ];
 }
 
@@ -135,11 +157,12 @@ ThemeData buildYomaTheme() {
     brightness: Brightness.light,
   ).copyWith(
     primary: YomaColors.brand,
-    onPrimary: Colors.white,
-    secondary: YomaColors.navy,
-    onSecondary: Colors.white,
+    onPrimary: YomaColors.onPrimary,
+    secondary: YomaColors.secondary,
+    tertiary: YomaColors.tertiary,
+    onSecondary: YomaColors.onPrimary,
     error: YomaColors.error,
-    onError: Colors.white,
+    onError: YomaColors.onPrimary,
     surface: YomaColors.surface,
     onSurface: YomaColors.grey900,
     onSurfaceVariant: YomaColors.grey600,
@@ -182,7 +205,7 @@ ThemeData buildYomaTheme() {
         }),
         // grey600 on grey200 is 6.1:1; the design's grey500 would be 3.9:1.
         foregroundColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.disabled) ? YomaColors.grey600 : Colors.white),
+            states.contains(WidgetState.disabled) ? YomaColors.grey600 : YomaColors.onPrimary),
         elevation: const WidgetStatePropertyAll(0),
       ),
     ),
@@ -193,11 +216,11 @@ ThemeData buildYomaTheme() {
         textStyle: WidgetStatePropertyAll(text.labelMedium),
         backgroundColor: const WidgetStatePropertyAll(YomaColors.surface),
         foregroundColor: WidgetStateProperty.resolveWith((states) =>
-            states.contains(WidgetState.disabled) ? YomaColors.grey600 : YomaColors.grey800),
+            states.contains(WidgetState.disabled) ? YomaColors.grey600 : YomaColors.secondary),
         side: WidgetStateProperty.resolveWith((states) => BorderSide(
               color: states.contains(WidgetState.disabled)
                   ? YomaColors.grey200
-                  : YomaColors.grey300,
+                  : YomaColors.secondary,
               width: 2,
             )),
       ),
@@ -207,7 +230,7 @@ ThemeData buildYomaTheme() {
         minimumSize: const WidgetStatePropertyAll(Size(YomaSizes.minTap, YomaSizes.minTap)),
         shape: const WidgetStatePropertyAll(_buttonShape),
         textStyle: WidgetStatePropertyAll(text.labelMedium),
-        foregroundColor: const WidgetStatePropertyAll(YomaColors.brand),
+        foregroundColor: const WidgetStatePropertyAll(YomaColors.tertiary), // links
       ),
     ),
     iconButtonTheme: const IconButtonThemeData(

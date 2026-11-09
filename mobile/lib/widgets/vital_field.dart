@@ -181,12 +181,12 @@ class _VitalTextField extends StatelessWidget {
         fillColor: notMeasured
             ? YomaColors.grey200
             : highlight
-                ? YomaColors.warning.withValues(alpha: 0.08)
+                ? TriageColors.amber.withValues(alpha: 0.08)
                 : YomaColors.canvas,
         enabledBorder: highlight
             ? OutlineInputBorder(
                 borderRadius: BorderRadius.circular(YomaRadii.md),
-                borderSide: const BorderSide(color: YomaColors.warning, width: 1.5),
+                borderSide: const BorderSide(color: TriageColors.amber, width: 1.5),
               )
             : null,
       ),
@@ -358,7 +358,7 @@ class _VitalFieldState extends State<VitalField> {
                     child: Text(
                       widget.helperText!,
                       style: text.bodySmall?.copyWith(
-                        color: widget.highlight ? YomaColors.warning : YomaColors.grey600,
+                        color: widget.highlight ? TriageColors.amber : YomaColors.grey600,
                       ),
                     ),
                   ),

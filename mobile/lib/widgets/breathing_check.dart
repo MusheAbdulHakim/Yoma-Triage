@@ -248,7 +248,7 @@ class _RecordingPulseState extends State<RecordingPulse> with SingleTickerProvid
                             '${widget.remaining} s',
                             key: const Key('screening_countdown'),
                             style: text.headlineMedium?.copyWith(
-                              color: Colors.white,
+                              color: YomaColors.onPrimary,
                               fontSize: 30,
                               height: 1.0,
                             ),
@@ -257,7 +257,7 @@ class _RecordingPulseState extends State<RecordingPulse> with SingleTickerProvid
                           Text(
                             'REMAINING',
                             style: text.labelSmall?.copyWith(
-                              color: Colors.white,
+                              color: YomaColors.onPrimary,
                               letterSpacing: 1.2,
                               fontSize: 11,
                             ),
@@ -309,11 +309,11 @@ class _PulsePainter extends CustomPainter {
       for (var i = 0; i < _rings; i++) {
         final t = (phase.value + i / _rings) % 1.0;
         final r = firstRing + reach * t;
-        ring.color = YomaColors.brand.withValues(alpha: 0.4 * (1 - t));
+        ring.color = YomaColors.tertiary.withValues(alpha: 0.45 * (1 - t));
         canvas.drawCircle(c, r, ring);
       }
     } else {
-      ring.color = YomaColors.brand.withValues(alpha: 0.3);
+      ring.color = YomaColors.tertiary.withValues(alpha: 0.35);
       canvas.drawCircle(c, firstRing + (outer - firstRing) * 0.4, ring);
     }
 
@@ -401,7 +401,7 @@ class _ChestPhonePainter extends CustomPainter {
     );
     canvas.drawCircle(const Offset(9, 7), 3, stroke);
     final phone = RRect.fromRectAndRadius(const Rect.fromLTWH(14, 9, 7, 11), const Radius.circular(1.5));
-    canvas.drawRRect(phone, Paint()..color = Colors.white);
+    canvas.drawRRect(phone, Paint()..color = YomaColors.onPrimary);
     canvas.drawRRect(phone, stroke);
     canvas.drawLine(const Offset(17.5, 12), const Offset(17.5, 15), stroke);
     canvas.drawLine(const Offset(16, 13.5), const Offset(19, 13.5), stroke);

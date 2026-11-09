@@ -62,7 +62,7 @@ class FacilityPickerScreen extends StatelessWidget {
     return Card(
       color: selected
           ? YomaColors.brand.withValues(alpha: 0.12)
-          : (highlight ? Colors.white : null),
+          : (highlight ? YomaColors.surface : null),
       child: ListTile(
         title: Text(r.name),
         subtitle: Text(

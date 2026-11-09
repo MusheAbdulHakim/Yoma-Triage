@@ -503,7 +503,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
                   key: const Key('referral_skip_vitals'),
                   style: FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(52),
-                    backgroundColor: YomaColors.danger,
+                    backgroundColor: TriageColors.red, // emergency override (design system)
                   ),
                   onPressed: _submitting ? null : _skipVitals,
                   child: const Text('Emergency: skip vitals'),

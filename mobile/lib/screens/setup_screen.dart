@@ -181,7 +181,7 @@ class _SetupScreenState extends State<SetupScreen> {
             Text(
               _error!,
               key: const Key('setup_error'),
-              style: const TextStyle(color: Colors.red, fontSize: 16),
+              style: const TextStyle(color: YomaColors.error, fontSize: 16),
             ),
           ],
           const SizedBox(height: 24),

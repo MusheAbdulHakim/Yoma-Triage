@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 
+import '../theme/yoma_theme.dart';
+
 /// The ambulance outline from the Stitch Home design (a Lucide icon, ISC licence), drawn
 /// on its 24×24 grid. Material Icons has no ambulance glyph.
 class AmbulanceIcon extends StatelessWidget {
@@ -13,7 +15,7 @@ class AmbulanceIcon extends StatelessWidget {
   Widget build(BuildContext context) {
     final paint = CustomPaint(
       size: Size.square(size),
-      painter: _AmbulancePainter(color ?? IconTheme.of(context).color ?? Colors.black),
+      painter: _AmbulancePainter(color ?? IconTheme.of(context).color ?? YomaColors.neutral),
     );
     if (semanticLabel == null) return ExcludeSemantics(child: paint);
     return Semantics(label: semanticLabel, image: true, child: paint);

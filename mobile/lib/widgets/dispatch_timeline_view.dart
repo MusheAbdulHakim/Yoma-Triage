@@ -145,7 +145,7 @@ class _Dot extends StatelessWidget {
           width: 22,
           height: 22,
           decoration: const BoxDecoration(color: YomaColors.brand, shape: BoxShape.circle),
-          child: const Icon(Icons.check_rounded, size: 15, color: Colors.white),
+          child: const Icon(Icons.check_rounded, size: 15, color: YomaColors.onPrimary),
         ),
       TimelineState.current => Container(
           width: 22,
@@ -197,13 +197,13 @@ class NavyHelpCard extends StatelessWidget {
         child: Row(
           children: [
             // White, not amber: no triage colours on this screen.
-            const Icon(Icons.warning_amber_rounded, color: Colors.white, size: 22),
+            const Icon(Icons.warning_amber_rounded, color: YomaColors.onPrimary, size: 22),
             const SizedBox(width: 10),
             Expanded(
               child: Text(
                 text,
                 style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      color: Colors.white,
+                      color: YomaColors.onPrimary,
                       fontWeight: FontWeight.w700,
                     ),
               ),

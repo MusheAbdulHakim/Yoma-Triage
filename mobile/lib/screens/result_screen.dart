@@ -104,7 +104,7 @@ class ResultScreen extends StatelessWidget {
     final why = explainMoews(m, vitals ?? const {});
     final missing = m.missingVitals;
     final onlySpo2Missing = missing.length == 1 && missing.first == 'spo2';
-    final dot = level == TriageLevel.amber ? const Color(0xFFD97706) : level.colour;
+    final dot = level.colour;
 
     return [
       if (why.isNotEmpty) ...[
@@ -227,8 +227,8 @@ class _RiskCard extends StatelessWidget {
               color: incomplete
                   ? YomaColors.grey200
                   : level == TriageLevel.amber
-                      ? Colors.black.withValues(alpha: 0.10)
-                      : Colors.white.withValues(alpha: 0.20),
+                      ? YomaColors.neutral.withValues(alpha: 0.10)
+                      : YomaColors.onPrimary.withValues(alpha: 0.20),
               borderRadius: BorderRadius.circular(YomaRadii.sm),
             ),
             child: Icon(level.icon, size: 30, color: level.onColour),

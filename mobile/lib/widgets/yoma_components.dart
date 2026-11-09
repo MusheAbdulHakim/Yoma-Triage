@@ -91,11 +91,11 @@ class YomaChoiceChip extends StatelessWidget {
       inMutuallyExclusiveGroup: true,
       hint: semanticsHint,
       child: Material(
-        color: selected ? YomaColors.brand : YomaColors.surface,
+        color: selected ? YomaColors.secondary : YomaColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(YomaRadii.md),
           side: BorderSide(
-            color: selected ? YomaColors.brand : YomaColors.grey300,
+            color: selected ? YomaColors.secondary : YomaColors.grey300,
             width: selected ? 2 : 1,
           ),
         ),
@@ -111,7 +111,7 @@ class YomaChoiceChip extends StatelessWidget {
                   label,
                   textAlign: TextAlign.center,
                   style: text.copyWith(
-                    color: selected ? Colors.white : YomaColors.grey800,
+                    color: selected ? YomaColors.onPrimary : YomaColors.grey800,
                   ),
                 ),
               ),
@@ -146,8 +146,8 @@ class StatusStrip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final fg = dark ? Colors.white : YomaColors.grey800;
-    final fgMuted = dark ? const Color(0xFFDCE3EC) : YomaColors.grey600;
+    final fg = dark ? YomaColors.onPrimary : YomaColors.grey800;
+    final fgMuted = dark ? YomaColors.onDark : YomaColors.grey600;
     return Material(
       key: stripKey,
       color: dark ? YomaColors.navy : YomaColors.surface,
@@ -226,8 +226,8 @@ class StatusStripItem extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final fg = urgent ? Colors.white : YomaColors.grey800;
-    final fgMuted = urgent ? const Color(0xFFDCE3EC) : YomaColors.grey600;
+    final fg = urgent ? YomaColors.onPrimary : YomaColors.grey800;
+    final fgMuted = urgent ? YomaColors.onDark : YomaColors.grey600;
     return Padding(
       padding: const EdgeInsets.only(top: YomaSpacing.sm),
       child: Material(
