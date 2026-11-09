@@ -4,8 +4,10 @@ import 'package:app_settings/app_settings.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/semantics.dart';
+import 'package:flutter/services.dart';
 
 import '../config.dart';
+import '../services/friendly_time.dart';
 import '../services/screening_result.dart';
 import '../services/screening_service.dart';
 import '../theme/yoma_theme.dart';
@@ -268,13 +270,20 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     }
     final recording =
         !_isWebSimulator && _result == null && !_ready && !_analyzing && _error == null;
-    return Scaffold(
+    final scaffold = Scaffold(
       // The recording frames have no title bar; system back still leaves (and stops).
       appBar: recording
           ? null
           : AppBar(title: Text(_permissionError || _error == null ? _title : 'Check breathing')),
       body: SafeArea(child: body),
     );
+    // Without a title bar, keep the status bar on the page colour with dark icons.
+    return recording
+        ? AnnotatedRegion<SystemUiOverlayStyle>(
+            value: SystemUiOverlayStyle.dark.copyWith(statusBarColor: YomaColors.canvas),
+            child: scaffold,
+          )
+        : scaffold;
   }
 
   /// A screen body that scrolls when it has to (large text, short screen) and centres
@@ -394,7 +403,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
               mainAxisSize: MainAxisSize.min,
               children: [
                 Semantics(
-                  label: '$_remaining seconds remaining',
+                  label: '${countOf(_remaining, 'second')} remaining',
                   excludeSemantics: true,
                   child: SizedBox(
                     height: RecordingPulse.box,

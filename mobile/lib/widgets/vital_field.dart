@@ -170,8 +170,16 @@ class _VitalTextField extends StatelessWidget {
             ),
           ),
         ),
-        suffixText: notMeasured ? null : unit,
-        suffixStyle: text.labelSmall?.copyWith(color: YomaColors.grey600),
+        // Always shown (suffixText only appears once the field is focused or filled).
+        suffixIcon: notMeasured || unit == null
+            ? null
+            : Padding(
+                padding: const EdgeInsets.only(right: 10),
+                child: ExcludeSemantics(
+                  child: Text(unit!, style: text.labelSmall?.copyWith(color: YomaColors.grey600)),
+                ),
+              ),
+        suffixIconConstraints: const BoxConstraints(minWidth: 0, minHeight: 0),
         // The message is drawn below the row at full card width (never squeezed into this
         // narrow box); here it only colours the border and stays in the field's semantics.
         errorStyle: const TextStyle(fontSize: 0, height: 0),

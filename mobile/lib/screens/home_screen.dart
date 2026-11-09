@@ -314,7 +314,11 @@ class _HomeScreenState extends State<HomeScreen> {
                   header: true,
                   child: Text(
                     'Yoma Care',
-                    style: text.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                    style: text.titleLarge?.copyWith(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w700,
+                      color: YomaColors.primary,
+                    ),
                   ),
                 ),
                 if (_compoundName case final name?)
@@ -465,7 +469,7 @@ class _EmergencyReferralButton extends StatelessWidget {
                     Text(
                       'Emergency referral',
                       textAlign: TextAlign.center,
-                      style: text.headlineSmall?.copyWith(color: YomaColors.onPrimary),
+                      style: text.labelLarge?.copyWith(color: YomaColors.onPrimary),
                     ),
                   ],
                 ),
@@ -505,14 +509,14 @@ class _HomeActionButton extends StatelessWidget {
         color: YomaColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(YomaRadii.lg),
-          side: BorderSide(color: YomaColors.brand.withValues(alpha: 0.3)),
+          side: BorderSide(color: YomaColors.primary.withValues(alpha: 0.3), width: 2),
         ),
         child: InkWell(
           key: buttonKey,
           borderRadius: BorderRadius.circular(YomaRadii.lg),
           onTap: onPressed,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: 60),
+            constraints: const BoxConstraints(minHeight: 56),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
               child: Row(
@@ -523,12 +527,12 @@ class _HomeActionButton extends StatelessWidget {
                       mainAxisAlignment:
                           tag == null ? MainAxisAlignment.center : MainAxisAlignment.start,
                       children: [
-                        Icon(icon, color: YomaColors.brand, size: 24),
+                        Icon(icon, color: YomaColors.primary, size: 20),
                         const SizedBox(width: 12),
                         Flexible(
                           child: Text(
                             label,
-                            style: text.titleLarge?.copyWith(color: YomaColors.brand),
+                            style: text.labelLarge?.copyWith(color: YomaColors.primary),
                           ),
                         ),
                       ],

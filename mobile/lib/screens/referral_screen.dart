@@ -346,6 +346,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
                                 label: label,
                                 selected: field.value == value,
                                 semanticsHint: 'Emergency type',
+                                minHeight: YomaSizes.chipLarge,
                                 onTap: () {
                                   field.didChange(value);
                                   setState(() {

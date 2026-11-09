@@ -21,6 +21,7 @@ abstract final class YomaColors {
   static const primaryPressed = Color(0xFF001229); // tonal "primary"
   static const primaryContainer = Color(0xFFE7EEFF); // "surface-container"
   static const containerLow = Color(0xFFF0F3FF); // "surface-container-low"
+  static const secondaryTint = Color(0xFFD8E2FF); // "secondary-fixed": selected chips
   static const tertiaryTint = Color(0xFF9CCBFD); // "tertiary-fixed-dim": pulse rings
   static const onDark = Color(0xFFEBF1FF); // "inverse-on-surface": muted text on neutral
   static const outline = Color(0xFF74777E);
@@ -99,6 +100,7 @@ abstract final class YomaSizes {
   static const minTap = 48.0;
   static const primaryButton = 56.0;
   static const chip = 52.0;
+  static const chipLarge = 58.0; // the referral form's emergency types
 }
 
 abstract final class YomaShadows {

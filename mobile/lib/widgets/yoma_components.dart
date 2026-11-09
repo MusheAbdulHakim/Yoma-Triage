@@ -75,8 +75,10 @@ class YomaChoiceChip extends StatelessWidget {
     required this.selected,
     required this.onTap,
     this.semanticsHint,
+    this.minHeight = YomaSizes.chip,
   });
 
+  final double minHeight;
   final String label;
   final bool selected;
   final VoidCallback? onTap;
@@ -91,7 +93,7 @@ class YomaChoiceChip extends StatelessWidget {
       inMutuallyExclusiveGroup: true,
       hint: semanticsHint,
       child: Material(
-        color: selected ? YomaColors.secondary : YomaColors.surface,
+        color: selected ? YomaColors.secondaryTint : YomaColors.surface,
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(YomaRadii.md),
           side: BorderSide(
@@ -103,7 +105,7 @@ class YomaChoiceChip extends StatelessWidget {
           borderRadius: BorderRadius.circular(YomaRadii.md),
           onTap: onTap,
           child: ConstrainedBox(
-            constraints: const BoxConstraints(minHeight: YomaSizes.chip),
+            constraints: BoxConstraints(minHeight: minHeight),
             child: Padding(
               padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
               child: Center(
@@ -111,7 +113,8 @@ class YomaChoiceChip extends StatelessWidget {
                   label,
                   textAlign: TextAlign.center,
                   style: text.copyWith(
-                    color: selected ? YomaColors.onPrimary : YomaColors.grey800,
+                    color: selected ? YomaColors.secondary : YomaColors.grey800,
+                    fontWeight: selected ? FontWeight.w700 : null,
                   ),
                 ),
               ),
