@@ -60,17 +60,25 @@ class ResultScreen extends StatelessWidget {
               padding: const EdgeInsets.fromLTRB(
                   YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.lg),
               children: [
-                _Disclaimer(demo: _isDemoSource),
-                const SizedBox(height: YomaSpacing.md),
                 if (m != null && level != null) ...[
                   _RiskCard(moews: m, level: level),
                   const SizedBox(height: YomaSpacing.xl),
                   ..._details(context, m, level),
-                ] else
+                  // One small line under Why, about the vitals score.
+                  const _SmallNote(
+                    'Score thresholds pending clinical sign-off.',
+                    noteKey: Key('result_signoff_note'),
+                  ),
+                ] else ...[
                   BreathingResultCard(variant: BreathingVariant.of(result)),
+                  const SizedBox(height: YomaSpacing.sm),
+                  _BreathingDisclaimer(demo: _isDemoSource),
+                ],
                 if (m != null && !_acousticDisabled) ...[
                   const SizedBox(height: YomaSpacing.lg),
                   _BreathingAdvisoryRow(variant: BreathingVariant.of(result)),
+                  const SizedBox(height: YomaSpacing.xs),
+                  _BreathingDisclaimer(demo: _isDemoSource),
                   if (m.hrAbnormal)
                     Padding(
                       padding: const EdgeInsets.only(top: YomaSpacing.sm),
@@ -158,42 +166,39 @@ class ResultScreen extends StatelessWidget {
   }
 }
 
-class _Disclaimer extends StatelessWidget {
-  const _Disclaimer({required this.demo});
+/// One small grey line, e.g. under the Why list.
+class _SmallNote extends StatelessWidget {
+  const _SmallNote(this.text, {this.noteKey});
+
+  final String text;
+  final Key? noteKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(top: YomaSpacing.sm),
+      child: Text(
+        text,
+        key: noteKey,
+        style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey600),
+      ),
+    );
+  }
+}
+
+/// The advisory wording, kept only with breathing-check content.
+class _BreathingDisclaimer extends StatelessWidget {
+  const _BreathingDisclaimer({required this.demo});
 
   final bool demo;
 
   @override
   Widget build(BuildContext context) {
-    final text = Theme.of(context).textTheme;
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Padding(
-          padding: EdgeInsets.only(top: 1),
-          child: Icon(Icons.info_outline, size: 18, color: YomaColors.grey600),
-        ),
-        const SizedBox(width: 8),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Text(
-                'Advisory only — not a diagnosis. Not clinically validated.',
-                style: text.bodyMedium?.copyWith(
-                  color: YomaColors.grey700,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
-              if (demo)
-                Text(
-                  'Demo screening mode.',
-                  style: text.bodySmall?.copyWith(color: YomaColors.grey700),
-                ),
-            ],
-          ),
-        ),
-      ],
+    return _SmallNote(
+      demo
+          ? 'Advisory only — not a diagnosis. Not clinically validated. Demo screening mode.'
+          : 'Advisory only — not a diagnosis. Not clinically validated.',
+      noteKey: const Key('result_breathing_disclaimer'),
     );
   }
 }
