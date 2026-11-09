@@ -336,6 +336,24 @@ void main() {
       expect(find.byKey(const Key('dispatch_late_claim_watch')), findsNothing);
     });
 
+    testWidgets('accepted driver card names the vehicle: "Driver A – motorbike ambulance"',
+        (tester) async {
+      await _open(tester, [
+        {
+          ..._dispatch('HOSPITAL_NOTIFIED', driver: 'Driver A'),
+          'driver_vehicle': 'motorbike ambulance'
+        },
+      ]);
+      final card = find.byKey(const Key('timeline_driver_detail'));
+      expect(find.descendant(of: card, matching: find.text('Driver A – motorbike ambulance')),
+          findsOneWidget);
+    });
+
+    testWidgets('without a vehicle (older server) the card shows the name only', (tester) async {
+      await _open(tester, [_dispatch('HOSPITAL_NOTIFIED', driver: 'Driver A')]);
+      expect(find.text('Driver A'), findsOneWidget);
+    });
+
     testWidgets('the hospital code never appears', (tester) async {
       for (final status in [
         'TIER1_NOTIFIED',
@@ -364,7 +382,8 @@ void main() {
   });
 
   group('Call a driver instead, then "Did a driver agree to come?"', () {
-    Future<_ScriptedApi> callADriver(WidgetTester tester, {String status = 'TIER1_NOTIFIED'}) async {
+    Future<_ScriptedApi> callADriver(WidgetTester tester,
+        {String status = 'TIER1_NOTIFIED'}) async {
       SharedPreferences.setMockInitialValues({
         ..._contactsPrefs(drivers: 2),
         ...registeredChoPrefs(),

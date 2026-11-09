@@ -121,10 +121,11 @@ DispatchTimeline queuedTimeline() => const DispatchTimeline(
 ///
 /// [sawConfirmed]: this screen saw HOSPITAL_CONFIRMED earlier, so a COMPLETED trip can
 /// say the hospital confirmed (a trip can complete without it). [acceptedLate]: this
-/// screen saw FAILED before a driver accepted.
+/// screen saw FAILED before a driver accepted. [driverVehicle]: from the API, if known.
 DispatchTimeline dispatchTimeline({
   required String status,
   String? driverName,
+  String? driverVehicle,
   String? facilityName,
   String? divertedFrom,
   bool sawConfirmed = false,
@@ -168,7 +169,11 @@ DispatchTimeline dispatchTimeline({
         id: 'driver',
         label: 'Driver accepted',
         detail: [
-          if (driverName != null && driverName.isNotEmpty) driverName,
+          // "Driver A – Motor-King, Red tricycle", as in the design's driver card.
+          if (driverName != null && driverName.isNotEmpty)
+            driverVehicle != null && driverVehicle.isNotEmpty
+                ? '$driverName – $driverVehicle'
+                : driverName,
           if (acceptedLate) 'Accepted after the alerts had stopped',
         ].join(' · ').ifEmpty(),
         state: TimelineState.done,

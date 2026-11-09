@@ -48,6 +48,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
   int? _dispatchId;
   String _status = 'PENDING';
   String? _driverName;
+  String? _driverVehicle;
 
   /// The driver-facing Ref (the referral id), as on the drivers' offers. Never the
   /// hospital's reply code, which the API does not send to the CHO anyway.
@@ -215,6 +216,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
       if (!mounted || _disposed) return;
       final status = (data['status'] as String?) ?? 'UNKNOWN';
       final driverName = data['driver_name'] as String?;
+      final driverVehicle = data['driver_vehicle'] as String?;
       final facilityId = data['facility_id'];
       final facilityName = data['facility_name'] as String?;
       final divertedFrom = data['diverted_from'] as String?;
@@ -237,6 +239,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
         _facilityName = facilityName;
         _divertedFrom = divertedFrom;
         _driverName = driverName;
+        _driverVehicle = driverVehicle;
         if (lateUntil is String) _lateClaimUntil = DateTime.tryParse(lateUntil);
         _pollSeconds = _watchingForLateClaim ? lateClaimPoll.inSeconds : 2;
         // FAILED stays open until the late-claim window ends, so a late acceptance shows.
@@ -327,6 +330,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
       : dispatchTimeline(
           status: _status,
           driverName: _driverName,
+          driverVehicle: _driverVehicle,
           facilityName: _facilityName,
           divertedFrom: _divertedFrom,
           sawConfirmed: _sawConfirmed,

@@ -34,6 +34,7 @@ from src.services.dispatch_orchestrator import (
     DispatchNotCancellableError,
     DispatchOrchestrator,
     late_claim_until,
+    vehicle_label,
 )
 from src.services.referral_expiry import EXPIRED_UNCONFIRMED
 from src.tools.clinical_summary import build_clinical_summary
@@ -189,11 +190,14 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
 
 async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[str, Any]:
     driver_name = None
+    driver_vehicle = None
     eta_minutes = None
     if dispatch.driver_id is not None:
         driver = await session.get(Driver, dispatch.driver_id)
         if driver:
             driver_name = driver.name
+            # "Motor-King, Red tricycle": what the CHO should look out for.
+            driver_vehicle = vehicle_label(driver) or None
             # Demo ETA once a driver has claimed the trip.
             if dispatch.status in ASSIGNED:
                 eta_minutes = parameters.PLACEHOLDER_ETA_MINUTES
@@ -220,6 +224,7 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
         "diverted_from": diverted_from,
         "driver_id": dispatch.driver_id,
         "driver_name": driver_name,
+        "driver_vehicle": driver_vehicle,
         "eta_minutes": eta_minutes,
         "status": dispatch.status,
         "current_tier": dispatch.current_tier,
