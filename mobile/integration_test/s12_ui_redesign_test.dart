@@ -9,10 +9,13 @@ library;
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:integration_test/integration_test.dart';
+import 'package:yoma_triage/screens/dispatch_status_screen.dart';
 import 'package:yoma_triage/screens/home_screen.dart';
+import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/screens/result_screen.dart';
 import 'package:yoma_triage/screens/vitals_screen.dart';
+import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/moews_calculator.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
 import 'package:yoma_triage/services/screening_result.dart';
@@ -52,6 +55,28 @@ Widget _result(Map<String, Object?> v) => ResultScreen(
         consciousness: v['consciousness_level'] as String?,
       ),
     );
+
+/// A dispatch that always reports one status, for the round-3 screenshots.
+class _Dispatch extends ApiClient {
+  _Dispatch(this.status, {this.driver, this.divertedFrom, this.facility = 'Tamale Teaching Hospital'});
+
+  final String status;
+  final String? driver;
+  final String? divertedFrom;
+  final String facility;
+
+  @override
+  Future<Map<String, dynamic>> getDispatch(int id) async => {
+        'id': id,
+        'referral_id': 4821,
+        'facility_id': 1,
+        'facility_name': facility,
+        'diverted_from': divertedFrom,
+        'driver_name': driver,
+        'status': status,
+        'current_tier': 1,
+      };
+}
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -151,5 +176,51 @@ void main() {
     await tester.shot('ui_referral_with_vitals');
     await show(const ReferralScreen(), textScale: 1.3);
     await tester.shot('ui_referral_130');
+
+    // ---- Round 3 ----
+    // Form: no vitals, no type (Send disabled); with RED vitals and a type chosen.
+    await show(const ReferralScreen());
+    await tester.shot('r3_form_no_vitals_disabled');
+    await show(ReferralScreen(initialVitals: _vitals(sbp: 185, rr: 32, hr: 118)));
+    await tester.tapOn(find.byKey(const Key('referral_type_pph')));
+    await tester.wait(const Duration(milliseconds: 500));
+    await tester.shot('r3_form_with_vitals_type_selected');
+
+    Widget dispatch(String status, {String? driver, String? divertedFrom, String? facility}) =>
+        DispatchStatusScreen(
+          dispatchId: 9,
+          clientRequestId: 'shot',
+          facilityId: 1,
+          api: _Dispatch(status,
+              driver: driver,
+              divertedFrom: divertedFrom,
+              facility: facility ?? 'Tamale Teaching Hospital'),
+          launcher: (_) async => true,
+        );
+    for (final (name, screen) in [
+      ('r3_status_1_waiting', dispatch('TIER1_NOTIFIED')),
+      ('r3_status_2_accepted', dispatch('HOSPITAL_NOTIFIED', driver: 'Ibrahim')),
+      ('r3_status_2b_on_the_way', dispatch('HOSPITAL_CONFIRMED', driver: 'Ibrahim')),
+      ('r3_status_3_no_driver', dispatch('FAILED')),
+      (
+        'r3_status_4_diverted',
+        dispatch('HOSPITAL_NOTIFIED',
+            driver: 'Ibrahim',
+            divertedFrom: 'Tamale Teaching Hospital',
+            facility: 'Sagnarigu Polyclinic'),
+      ),
+      ('r3_status_6_arrived', dispatch('COMPLETED', driver: 'Ibrahim')),
+    ]) {
+      await show(screen);
+      await tester.shot(name);
+    }
+    await show(dispatch('TIER1_NOTIFIED'));
+    await tester.tapOn(find.byKey(const Key('dispatch_call_instead')));
+    await tester.wait(const Duration(milliseconds: 500));
+    await tester.shot('r3_status_1b_call_instead');
+    await show(dispatch('FAILED'), textScale: 1.3);
+    await tester.shot('r3_status_3_no_driver_130');
+    await show(const QueuedReferralScreen(clientRequestId: 'shot', facilityId: 1));
+    await tester.shot('r3_status_5_not_sent_yet');
   });
 }
