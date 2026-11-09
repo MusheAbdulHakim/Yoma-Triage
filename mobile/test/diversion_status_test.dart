@@ -72,6 +72,26 @@ void main() {
     expect(api.calls, callsAtEnd, reason: 'COMPLETED is the end; polling stops');
   });
 
+  testWidgets('Going to sits under the title and follows the diversion; Back to Home is quiet',
+      (tester) async {
+    final api = _Trip([_toFirst, _toSecond]);
+    await _open(tester, api);
+    Finder inAppBar(String text) =>
+        find.descendant(of: find.byType(AppBar), matching: find.text(text));
+    expect(inAppBar('Going to: Tamale Teaching Hospital'), findsOneWidget);
+
+    await _nextPoll(tester);
+    expect(inAppBar('Going to: Navrongo War Memorial Hospital'), findsOneWidget);
+    expect(find.text('Going to: Tamale Teaching Hospital'), findsNothing);
+
+    final back = find.byKey(const Key('dispatch_back_home'));
+    expect(tester.widget(back), isA<TextButton>(), reason: 'a quiet text button');
+    expect(find.widgetWithText(OutlinedButton, 'Back to Home'), findsNothing);
+    // At the bottom: below Cancel referral.
+    expect(tester.getRect(back).top,
+        greaterThanOrEqualTo(tester.getRect(find.byKey(const Key('dispatch_cancel'))).bottom));
+  });
+
   testWidgets('a DIVERTED status from an older server is not treated as the end',
       (tester) async {
     final api = _Trip([

@@ -252,6 +252,8 @@ void main() {
       expect(find.text('Cancel referral'), findsOneWidget);
       expect(tester.getSize(cancel).height, greaterThanOrEqualTo(48));
       // Same confirmation as before.
+      await tester.ensureVisible(cancel);
+      await tester.pump();
       await tester.tap(cancel);
       await tester.pump();
       expect(find.text('Cancel this dispatch?'), findsOneWidget);

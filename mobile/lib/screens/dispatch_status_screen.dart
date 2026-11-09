@@ -361,7 +361,22 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Referral status'),
+        // Where the patient is going, one line under the title; it changes after a diversion.
+        title: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Text('Referral status'),
+            if (_facilityName != null)
+              Text(
+                'Going to: $_facilityName',
+                key: const Key('dispatch_destination'),
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: text.bodySmall?.copyWith(color: YomaColors.grey700),
+              ),
+          ],
+        ),
         actions: [
           if (_referralId != null)
             Padding(
@@ -426,19 +441,6 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
             key: Key('dispatch_status_${_status.toUpperCase()}'),
             child: DispatchTimelineView(steps: timeline.steps),
           ),
-          if (_facilityName != null)
-            // The destination, for screen readers and the diversion tests; the timeline
-            // already says it where it matters.
-            ExcludeSemantics(
-              child: Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: Text(
-                  'Going to: $_facilityName',
-                  key: const Key('dispatch_destination'),
-                  style: text.bodySmall?.copyWith(color: YomaColors.grey700),
-                ),
-              ),
-            ),
           if (_divertedFrom != null) const SizedBox.shrink(key: Key('dispatch_diverted')),
           if (_showContacts && !_needsManualHelp) ...[
             const SizedBox(height: 16),
@@ -458,10 +460,6 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
               ),
             ),
           const SizedBox(height: 24),
-          OutlinedButton(
-            onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-            child: const Text('Back to Home'),
-          ),
           if (_canCancel) ...[
             const SizedBox(height: 8),
             Center(
@@ -476,6 +474,15 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
               ),
             ),
           ],
+          // Quiet, at the bottom: Android back does the same.
+          Center(
+            child: TextButton(
+              key: const Key('dispatch_back_home'),
+              style: TextButton.styleFrom(minimumSize: const Size(160, YomaSizes.minTap)),
+              onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+              child: const Text('Back to Home'),
+            ),
+          ),
         ],
       ),
     );
