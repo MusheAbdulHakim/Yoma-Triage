@@ -55,6 +55,23 @@ TEST_CHO = "+233240000777"
 SMALL_WIDTH_PX, SMALL_HEIGHT_PX, SMALL_DENSITY = 640, 1136, 320  # 320 x 568 dp
 
 AVDS = {"yoma_api34": 5554, "yoma_api24_2gb": 5556}
+# Render on the discrete NVIDIA GPU (PRIME render offload), not the integrated Radeon or
+# the CPU (swiftshader). YOMA_EMULATOR_GPU=swiftshader_indirect restores software rendering.
+EMULATOR_GPU = os.environ.get("YOMA_EMULATOR_GPU", "host")
+
+
+def emulator_env() -> dict[str, str]:
+    env = dict(os.environ)
+    if EMULATOR_GPU == "host":
+        env.update(
+            {
+                "__NV_PRIME_RENDER_OFFLOAD": "1",
+                "__GLX_VENDOR_LIBRARY_NAME": "nvidia",
+                "__VK_LAYER_NV_optimus": "NVIDIA_only",
+                "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/nvidia_icd.json",
+            }
+        )
+    return env
 # Guest RAM for each run, in MB, whatever the AVD's own setting. The API 34 AVD is set to
 # 4 GB, which with a Gradle build alongside was enough for the host to kill the emulator.
 AVD_MEMORY_MB = {"yoma_api34": 3072, "yoma_api24_2gb": 2048}
@@ -153,12 +170,13 @@ class Device:
                         "-no-boot-anim",
                         "-no-snapshot",
                         "-gpu",
-                        "swiftshader_indirect",
+                        EMULATOR_GPU,
                         "-memory",
                         str(AVD_MEMORY_MB[self.avd]),
                     ],
                     stdout=emulator_log,
                     stderr=subprocess.STDOUT,
+                    env=emulator_env(),
                 )
         self.wait_booted()
         self.api = int(self.shell("getprop ro.build.version.sdk").strip())
