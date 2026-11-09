@@ -5,7 +5,10 @@ from dotenv import load_dotenv
 
 from src import parameters
 
-load_dotenv()
+# A caller that needs a known environment (the test suite, and every server or script it
+# starts) sets YOMA_SKIP_DOTENV=1, so a developer's .env can't change what it checks.
+if os.getenv("YOMA_SKIP_DOTENV") != "1":
+    load_dotenv()
 
 class Settings:
     # Anything other than exactly "development" gets production behaviour.

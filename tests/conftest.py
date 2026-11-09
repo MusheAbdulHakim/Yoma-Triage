@@ -4,11 +4,30 @@ from __future__ import annotations
 import os
 from collections.abc import AsyncGenerator
 
-# Before anything imports src.config. The default is production behaviour, so the
-# suite opts in to development explicitly; tests that need otherwise patch settings.
+# Before anything imports src.config: the suite sets its own environment.
+#
+# A developer's .env (or exported shell variables) must not change what the tests check:
+# it once made the startup tests pass or fail depending on DATABASE_URL and ENVIRONMENT,
+# and gave the restart test's server real Africa's Talking sandbox credentials. So .env is
+# never loaded here, nor in any server or script a test starts (they inherit this), and the
+# app's settings start unset.
+os.environ["YOMA_SKIP_DOTENV"] = "1"
+APP_SETTINGS = (
+    "API_KEY", "APP_ENV", "AT_API_BASE_URL", "AT_API_KEY", "AT_SENDER_ID", "AT_USERNAME",
+    "AT_USSD_SERVICE_CODE", "AT_WEBHOOK_SECRET", "CASCADE_TIER_SECONDS", "DATABASE_URL",
+    "DEMO_API_BASE_URL", "ENVIRONMENT", "EXPIRE_UNCONFIRMED_HOURS", "GEMINI_API_KEY",
+    "LATE_CLAIM_WINDOW_MINUTES", "LOG_LEVEL", "MOMO_API_URL", "MOMO_PRIMARY_KEY",
+    "OUTBOX_POLL_SECONDS", "OUTBOX_SEND_CONCURRENCY", "OUTBOX_SEND_TIMEOUT_SECONDS",
+    "PUBLIC_BASE_URL", "RAG_ENABLED", "STALE_AFTER_MINUTES", "VECTOR_STORE_DIR",
+    "WORKER_POLL_SECONDS",
+)
+for _name in APP_SETTINGS:
+    os.environ.pop(_name, None)
+# The default is production behaviour, so the suite opts in to development explicitly;
+# tests that need otherwise patch settings.
 os.environ["ENVIRONMENT"] = "development"
 # There is no default. Tests use their own engines; this only satisfies startup checks.
-os.environ.setdefault("DATABASE_URL", "sqlite+aiosqlite:///:memory:")
+os.environ["DATABASE_URL"] = "sqlite+aiosqlite:///:memory:"
 
 import pytest  # noqa: E402
 import pytest_asyncio  # noqa: E402
