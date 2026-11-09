@@ -87,7 +87,10 @@ class BreathingResultCard extends StatelessWidget {
               Expanded(
                 child: Padding(
                   padding: const EdgeInsets.only(top: 3),
-                  child: Text(variant.title, style: text.titleMedium?.copyWith(color: ink)),
+                  child: Text(
+                    variant.title,
+                    style: text.labelMedium?.copyWith(color: ink, fontWeight: FontWeight.w700),
+                  ),
                 ),
               ),
               if (problem) ...[const SizedBox(width: 8), const AdvisoryTag()],
@@ -95,7 +98,7 @@ class BreathingResultCard extends StatelessWidget {
           ),
           Padding(
             padding: const EdgeInsets.only(left: 38, top: 4),
-            child: Text(variant.line, style: text.bodyMedium?.copyWith(color: YomaColors.grey600)),
+            child: Text(variant.line, style: text.bodySmall?.copyWith(color: YomaColors.grey600)),
           ),
         ],
       ),
@@ -121,7 +124,8 @@ class BreathingResultCard extends StatelessWidget {
             ),
           )
         : CustomPaint(
-            painter: const DashedBorderPainter(color: YomaColors.grey500),
+            // In front of the white fill, or the fill hides it.
+            foregroundPainter: const DashedBorderPainter(color: YomaColors.grey500),
             child: DecoratedBox(
               decoration: BoxDecoration(
                 color: YomaColors.surface,

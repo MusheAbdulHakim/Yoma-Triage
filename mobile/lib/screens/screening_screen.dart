@@ -550,7 +550,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
           const SizedBox(height: 8),
           Text(
             _permissionError
-                ? 'Allow the microphone in Settings to check breathing, or skip this step'
+                ? 'Allow the microphone in settings to check breathing, or skip this step'
                 : 'Skip this step and record vitals, or try again later',
             textAlign: TextAlign.center,
             style: text.bodyMedium?.copyWith(color: YomaColors.grey600),

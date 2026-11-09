@@ -213,7 +213,7 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       expect(find.text('Microphone not allowed'), findsOneWidget);
       expect(find.textContaining('Bad state'), findsNothing);
-      expect(find.textContaining('Settings'), findsOneWidget);
+      expect(find.textContaining('settings to check'), findsOneWidget);
       expect(find.byKey(const Key('screening_open_settings')), findsOneWidget);
     });
   });

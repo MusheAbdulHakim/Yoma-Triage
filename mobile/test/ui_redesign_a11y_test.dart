@@ -1,3 +1,5 @@
+import 'dart:convert';
+import 'dart:async';
 // UI redesign round 1, step 4: accessibility of the redesigned screens.
 //
 // - Tap targets at least 48 dp, and every tap target labelled (Flutter's guidelines).
@@ -21,6 +23,7 @@ import 'package:yoma_triage/screens/result_screen.dart';
 import 'package:yoma_triage/screens/screening_screen.dart';
 import 'package:yoma_triage/screens/vitals_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
+import 'package:yoma_triage/services/contacts_store.dart';
 import 'package:yoma_triage/services/moews_calculator.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
 import 'package:yoma_triage/services/screening_result.dart';
@@ -107,6 +110,39 @@ class _Breathing extends ScreeningService {
   Future<void> dispose() async {}
 }
 
+/// Records nothing; the result waits forever (Analysing), or is [label].
+class _Analysing extends ScreeningService {
+  _Analysing({this.label});
+
+  final String? label;
+
+  @override
+  Future<void> startRecording() async {}
+
+  @override
+  Stream<double> microphoneLevels() => const Stream.empty();
+
+  @override
+  Future<ScreeningResult> stopAndClassify() =>
+      label == null ? Completer<ScreeningResult>().future : Future.value(_acoustic(label!));
+
+  @override
+  void cancelAnalysis() {}
+
+  @override
+  Future<void> dispose() async {}
+}
+
+/// A dispatch whose answer the test changes between polls.
+class _Changing extends ApiClient {
+  _Changing(this.body);
+
+  Map<String, dynamic> body;
+
+  @override
+  Future<Map<String, dynamic>> getDispatch(int id) async => body;
+}
+
 ScreeningResult _acoustic(String label) => ScreeningResult(
       label: label,
       confidence: 0.7,
@@ -175,6 +211,10 @@ final Map<String, Widget Function()> _screens = {
   'Dispatch: no driver': () => _dispatchScreen('FAILED'),
   'Dispatch: diverted': () => _dispatchScreen('HOSPITAL_NOTIFIED',
       driver: 'Ibrahim', divertedFrom: 'Navrongo War Memorial Hospital'),
+  'Dispatch: hospital confirmed': () => _dispatchScreen('HOSPITAL_CONFIRMED', driver: 'Ibrahim'),
+  'Dispatch: arrived': () => _dispatchScreen('COMPLETED', driver: 'Ibrahim'),
+  'Home (acoustic, three actions, offline)': () => HomeScreen(
+      api: _offline(), acousticEnabled: true, queue: _Queue(), online: Stream.value(false)),
   'Not sent yet': () =>
       QueuedReferralScreen(clientRequestId: 'req-1', facilityId: 1, launcher: (_) async => true),
   'Result with breathing advisory': () => ResultScreen(
@@ -359,8 +399,108 @@ void main() {
     }
   });
 
-  testWidgets('Record vitals: six named editable fields and six separate toggles',
+  // Round 5: states reached by interaction get the same checks as the screens above.
+  Future<void> checkAll(WidgetTester tester) async {
+    expectSeparateNamedControls(tester);
+    await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+    await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+    await expectLater(tester, meetsGuideline(textContrastGuideline));
+  }
+
+  testWidgets('Breathing: Analysing passes the semantics-tree and target checks', (tester) async {
+    _screen(tester, const Size(360, 640));
+    final handle = tester.ensureSemantics();
+    await _pump(tester, ScreeningScreen(forceWebSimulator: false, service: _Analysing()));
+    await tester.tap(find.text('Stop'));
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Checking the recording…'), findsOneWidget);
+    await checkAll(tester);
+    handle.dispose();
+  });
+
+  for (final label in ['RED', 'INCONCLUSIVE']) {
+    testWidgets('Breathing: result $label passes the semantics-tree and target checks',
+        (tester) async {
+      _screen(tester, const Size(360, 640));
+      final handle = tester.ensureSemantics();
+      await _pump(
+          tester,
+          ScreeningScreen(
+              forceWebSimulator: false, service: _Analysing(label: label), showResultStep: true));
+      await tester.tap(find.text('Stop'));
+      for (var i = 0; i < 5; i++) {
+        await tester.pump(const Duration(milliseconds: 200));
+      }
+      expect(find.text('Continue to vitals'), findsOneWidget);
+      await checkAll(tester);
+      handle.dispose();
+    });
+  }
+
+  testWidgets('Dispatch: late acceptance passes the semantics-tree and target checks',
       (tester) async {
+    _screen(tester, const Size(360, 640));
+    final handle = tester.ensureSemantics();
+    final api = _Changing({
+      'id': 9,
+      'referral_id': 4821,
+      'facility_id': 1,
+      'status': 'FAILED',
+      'late_claim_until': DateTime.now().toUtc().add(const Duration(minutes: 30)).toIso8601String(),
+    });
+    await _pump(
+        tester,
+        DispatchStatusScreen(
+            dispatchId: 9,
+            clientRequestId: 'r',
+            facilityId: 1,
+            api: api,
+            launcher: (_) async => true));
+    await checkAll(tester);
+    api.body = {...api.body, 'status': 'HOSPITAL_NOTIFIED', 'driver_name': 'Ibrahim'};
+    await tester.pump(const Duration(seconds: 31));
+    await tester.pump();
+    expect(find.textContaining('Accepted after the alerts had stopped'), findsOneWidget);
+    await checkAll(tester);
+    handle.dispose();
+  });
+
+  testWidgets('Dispatch: "Did a driver agree to come?" passes the semantics-tree checks',
+      (tester) async {
+    SharedPreferences.setMockInitialValues({
+      ...registeredChoPrefs(),
+      ContactsStore.prefsKey: jsonEncode({
+        'compound_id': 1,
+        'drivers': [
+          {'name': 'Driver A', 'phone': '+233240001000', 'is_motor_king': true},
+        ],
+        'facilities': [],
+      }),
+      ContactsStore.updatedAtPrefsKey: DateTime.now().toUtc().toIso8601String(),
+    });
+    _screen(tester, const Size(360, 640));
+    final handle = tester.ensureSemantics();
+    await _pump(tester, _dispatchScreen('TIER1_NOTIFIED'));
+    await tester.tap(find.text('Call a driver instead'));
+    for (var i = 0; i < 10; i++) {
+      await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+      await tester.pump(const Duration(milliseconds: 50));
+    }
+    final call = find.byKey(const Key('call_+233240001000'));
+    await tester.scrollUntilVisible(call, 100,
+        scrollable: find.descendant(
+            of: find.byKey(const Key('dispatch_scroll')), matching: find.byType(Scrollable)));
+    await tester.tap(call);
+    await tester.pump(const Duration(milliseconds: 300));
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.inactive);
+    tester.binding.handleAppLifecycleStateChanged(AppLifecycleState.resumed);
+    await tester.pump(const Duration(milliseconds: 300));
+    expect(find.text('Did a driver agree to come?'), findsOneWidget);
+    await checkAll(tester);
+    handle.dispose();
+  });
+
+  testWidgets('Record vitals: six named editable fields and six separate toggles', (tester) async {
     tester.view.physicalSize = const Size(1000, 2600);
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.resetPhysicalSize);
