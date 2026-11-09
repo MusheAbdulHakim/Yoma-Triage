@@ -1044,3 +1044,305 @@ These join every screen from rounds 1–4.
    neither.
 3. The design's "Driver A – motorbike ambulance" needs the vehicle from the API (round 3,
    conflict 2).
+
+## Round 6: emulator back, review fixes, device pass
+
+Same branch. Flutter skills used:
+
+- `dart-flutter:flutter-add-widget-test`
+- `flutter-add-integration-test`
+- `flutter-fix-layout-issues`
+- `flutter-build-responsive-layout`
+- `dart-run-static-analysis`
+
+### Step 1: the emulator boots again
+
+Recorded in full in `docs/testing/EMULATOR_PASS.md`, "Round 6: emulator boot".
+
+- **Nothing changed on the host since round 4:**
+  - NVIDIA driver 580.178.04;
+  - no apt runs after 2026-11-07;
+  - emulator 37.2.13.
+- **What works:** the first option tried, `-gpu host -no-snapshot-load`, booted API 34 3/3
+  (36–40 s) on the NVIDIA GPU. Software rendering and `-wipe-data` were not needed. The
+  round-5 crashes used `-no-snapshot`, which also turns off snapshot saving.
+- **Script changes:**
+  - `scripts/run_emulator_pass.py` now uses `-no-snapshot-load` and clears stale AVD locks;
+  - it caps the Gradle builds it starts at 3 GB. The project's 8 GB heap, next to an
+    emulator, got processes killed on this 13 GB host.
+
+### Review fixes from round 5 (one commit each, with tests)
+
+| # | Commit | Change |
+|---|---|---|
+| 1 | `412846c` | Risk card shows only the word and "Score N"; no MOEWS name, no "from measured vitals" |
+| 2 | `81f56fe` | Elevated: amber `#F59E0B` with navy text and icon (8.2:1); stays at least 2:1 lighter than Critical red, also under protanopia, deuteranopia and tritanopia simulations (`test/triage_colour_vision_test.dart`) |
+| 3 | `0f5a913` | "Score thresholds pending clinical sign-off." as one small line under Why; the advisory wording only with breathing-check content |
+| 4 | `003435f` | Test: Result content scrolls clear of the buttons at 360×640, 320 dp and 130% text (no code change needed) |
+| 5 | `d85d576` | Dialog buttons "No, keep waiting" / "Yes, cancel referral" |
+| 6 | `0570153` | Analysing: "Checking the sound patterns" |
+
+### Step 2: small changes
+
+- **"Going to: <facility>"** is one line under the title and follows a diversion. **Back to
+  Home** is a quiet text button (`f4718d8`).
+- **Driver's vehicle** (`1abb3d8`):
+  - `GET /dispatch/{id}` returns `driver_vehicle` (type and description, the label the
+    driver SMS uses);
+  - the card reads "Ibrahim – Motor-King, Red tricycle";
+  - backend test `tests/test_dispatch_vehicle.py`.
+
+### Step 3: device pass (API 34)
+
+`ui360` runs the whole s12 screen tour at 360×640 dp. It added these real-device checks:
+
+- **Keyboard (found a bug, fixed in `1d2b9a3`):**
+  - With the keyboard up (231 dp), "See result" sat at 608 dp, while only 385 dp was
+    visible. It was the Scaffold's `bottomNavigationBar`, which the keyboard covers.
+  - Record vitals and the referral form now put the button bar in the body, so it rides
+    above the keyboard: 377 ≤ 385 on Heart rate, Temperature and Oxygen saturation.
+  - Widget test: `test/keyboard_button_test.dart`.
+- **Call and SMS:** "Call a driver instead" opened `com.google.android.dialer`; SMS opened
+  `com.google.android.apps.messaging`. Returning from the dialler asked "Did a driver agree
+  to come?".
+- **Android back:** a real key press returns to Home from every screen opened from Home, and
+  from the status screen and Result.
+- **130% system font size**, set in Settings and not app scaling: Home, Record vitals,
+  Result, form and status render without overflow; vitals switch to the stacked layout.
+- **TalkBack (found a bug, fixed in `dc5225b`):**
+  - New `talkback` scenario: TalkBack is turned on in Settings, and each main screen's
+    reading order is saved (`talkback_*.txt`).
+  - Six button wrappers used `Semantics(button: true, excludeSemantics: true)`, which drops
+    the control's own tap. TalkBack read them, but double-tap did nothing. They are
+    Emergency referral, the Home action buttons, every Not measured toggle, Call/SMS, Send
+    to and the form's vitals row. Each now carries the callback.
+  - The semantics check fails on any enabled button without a tap action (verified against
+    the old code).
+- **Breathing rings with live sound: not done.**
+  - A private PipeWire virtual microphone fed the emulator through `PULSE_SOURCE` and
+    `-allow-host-audio`, but the emulator's own PulseAudio client failed ("Failed to
+    initialize PA context"). The silence hint showed.
+  - The rings were checked with scripted levels on the device instead, plus a fake-stream
+    widget test. The opt-in stays in the script (`YOMA_EMULATOR_HOST_AUDIO=1`).
+
+The full device regression on both AVDs ran at the end of round 7 (below).
+
+## Round 7: setup, "Still needs transport?", dispatch status v2, final regression
+
+Same branch. Before starting:
+
+- The tree was cleaned by committing the deletion of 42 older device screenshots and round
+  5's Flutter-render side-by-sides (`9415e0c`; your decision).
+- Three older lines in `docs/testing/EMULATOR_PASS.md` still name removed files.
+
+Flutter skills used:
+
+- `dart-flutter:flutter-add-widget-test`
+- `flutter-add-integration-test`
+- `flutter-build-responsive-layout`
+- `flutter-fix-layout-issues`
+- `dart-use-pattern-matching`
+- `dart-run-static-analysis`
+
+### Step 1: designs
+
+- `docs/design/stitch/setup-followup/` and `docs/design/stitch/dispatch-status-v2/`
+  (`ca82d8a`).
+- `curl -L` on the hosted URLs returns 401, so both were fetched through the Stitch MCP
+  connection.
+
+### Step 2: first-run setup (`607a2c6`)
+
+Three separate states:
+
+1. **Enter number:**
+   - "+233" is shown before the field, with a numeric keypad;
+   - the field is empty, with a neutral "Phone number" label that always sits in the border.
+     A never-floating label left the field nameless for screen readers once digits were
+     typed; a label that floats up sat over "+233" on the device (fixed in `6dcd39f`);
+   - Continue stays disabled until there are 9 digits. A leading 0 or a pasted +233 is
+     accepted and dropped.
+2. **Clinic confirmed:**
+   - check icon, the clinic name from the server, and Start;
+   - the identity is saved on Start;
+   - "Not your clinic? Use a different number" goes back. This link is not in the design.
+3. **Errors**, on the dark navy strip with an alert icon, never red:
+   - "This number isn't registered. Ask your district coordinator.";
+   - "Can't reach the server. Check your signal and try again.";
+   - the deactivated / moved re-setup notice;
+   - the unsent-referrals strip.
+
+The re-setup notice no longer waits for the local queue to load.
+
+### Step 3: "Still needs transport?" (`1388fb7`)
+
+A bottom sheet over the current screen (Home, the not-sent-yet screen or the unsent list):
+
+- **Content:**
+  - "Still needs transport?";
+  - "Heavy bleeding → Tamale Teaching Hospital";
+  - "Saved 45 minutes ago".
+- **Answers:** three one-tap buttons with the existing actions and no Confirm: Send now
+  (filled), Already handled (outlined), Cancel referral (quiet).
+- **After Call or SMS:**
+  - "You called or texted a driver for this referral.";
+  - Already handled leads.
+- **"Call or SMS a driver"** opens the existing contact list. A call there switches the
+  order.
+- **Several waiting:** one at a time, "1 of 3".
+- **No dismissing it without an answer:** not by tapping outside, dragging or Android back.
+- Send now still opens the status screen; an expired referral still explains that drivers
+  were not told.
+
+### Step 4: dispatch status v2, compared (`aef4ab2`)
+
+Adopted:
+
+- Cancel referral (and Back to Home) pinned quietly at the bottom, out of the scrolling
+  content: the design's "quiet persistent cancellation action".
+- Back to Home on the not-sent-yet screen is the same quiet text button.
+
+Kept, with reasons:
+
+| Design | Built | Why |
+|---|---|---|
+| Pulsing ring on the current step | Static halo | The screen can stay open for the 45-minute late-claim window; an endless animation repaints all that time and costs battery on budget phones |
+| Future steps in past tense, light grey | "Hospital confirms", "Arrives at hospital", darker grey | Round 3 wording rule; round 4 contrast fix |
+| No separate "Drivers notified" step while waiting | "Drivers notified" done, then "Waiting for a driver to accept" | Shows when drivers were alerted |
+| Diverted: current "On the way to <hospital>" | Current step follows the dispatch status | The app does not invent states the server hasn't reported |
+| No driver: banner and contacts only | Banner, contacts, then the timeline | The timeline shows the late-acceptance watch and any late driver |
+| "URGENT? CALL A DRIVER NOW" in capitals | Sentence case | All-caps reads worse; the design system prioritises legibility |
+| Cancel referral on "Not sent yet" | Not offered | A referral never sent has no cancel action today; adding one is new behaviour |
+| No "Going to" line | "Going to: <facility>" under the title | Round 6 decision |
+| Teal | Navy palette | Design system |
+
+Already matching, so unchanged:
+
+- in-progress labels;
+- driver card with vehicle;
+- "Call a driver instead";
+- late acceptance;
+- "Did a driver agree to come?" with "Yes, cancel referral";
+- no triage colours;
+- Ref in the bar.
+
+### Breathing-check steps on by default (`f980b3c`)
+
+Decision: `BREATHING_STEPS` now defaults to true. In acoustic builds the breathing check
+opens on the Ready step (Start) and shows the breathing result before vitals.
+`--dart-define=BREATHING_STEPS=false` turns both off. The pass script taps Start and
+Continue to vitals.
+
+### Step 5: checks on these screens
+
+- **Accessibility suite** (`b0114e5`), on setup (enter, confirmed, not registered, network
+  error) and the sheet (default order, after Call or SMS, 1 of 3):
+  - semantics tree, 48 dp and labels, rendered contrast;
+  - 320 dp, and 130% text.
+- **Behaviour tests:**
+  - setup: `test/setup_states_test.dart`, covering Continue disabled until complete, each
+    state, saving only on Start, the keyboard never covering the field or Continue, and
+    320 dp / 130%;
+  - sheet: `test/stale_referral_test.dart`, covering button order with and without Call/SMS,
+    each button calling the existing action at once, "1 of N", and no dismissal by tap,
+    drag or back.
+- **Copy:** the type in words (never "pph"), "Saved 1 minute ago" plurals, and no raw codes.
+
+### Step 6: final regression
+
+- **`flutter analyze`:** no issues.
+- **`flutter test`:** 560 passed (default), 561 passed (`MOEWS_ONLY=false`).
+- **Backend `pytest`:** 712 passed, 5 failed, 4 skipped.
+  - The 4 `test_startup_config` failures come from the local `.env`, as in earlier rounds.
+  - `test_durable_cascade_pg::test_killed_mid_tier_cascade_continues_after_restart` fails
+    the same way on `main` (checked in a clean worktree), so it predates this branch.
+- **Device pass** (`scripts/run_emulator_pass.py`, both AVDs, one at a time, debug builds
+  against the local dev backend with mock SMS; reruns after fixes):
+
+  | Scenario | API 34 | API 24 |
+  |---|---|---|
+  | ui360 (every redesigned screen at 360×640, keyboard, real dialler / messaging, Android back, 130% system text) | pass | pass |
+  | breathing360 | pass | pass |
+  | talkback (TalkBack on, each main screen) | pass | pass |
+  | 1 (YAMNet) | pass | pass (rerun: the first try lost its network during `pub get`) |
+  | responsive | pass | pass |
+  | 3, 4, 5, 6, 7, 8, 11 | pass | pass |
+  | ui, breathing (device size) | pass | pass |
+  | 9 (3–7, banners and ui at 320×568) | pass | pass |
+  | banners_native | pass | pass |
+  | timings (release) | **not completed**: the emulator died | pass: cold start to Home 2.07–2.14 s; Confirm referral to "drivers notified" 1.53–1.55 s |
+  | 2 (release: mic denied / allowed, ANR probe) | **fail**: ANR probes 1 and 2 passed (no ANR, no dialog), then the emulator died during probe 3 | **fail**: the ANR probe did not finish (blank screen) |
+
+- **Fixes the pass found:**
+  - The phone field's floating label sat over "+233" (`6dcd39f`).
+  - Scenario 7 runs the new sheet on the device, including "1 of 3".
+  - The integration tests themselves needed updating for earlier rounds' changes: s3
+    (compound on Home), s4 (driver card with vehicle), s8 (banner first when unreachable or
+    when no driver accepted), s11 (no update spinner), s13 (result step on by default), and
+    the release setup (9 digits after +233, then Start).
+- **The emulator dying:**
+  - API 34 died about ten times across the runs and API 24 once, almost always at the end of a
+    scenario or during scenario 2's long recording and analysis.
+  - `systemd-oomd` watches memory pressure on the user session (50% for 20 s), and swap on
+    this host stays near 90%. It also killed this session's own process twice.
+  - The pass now gives API 34 2 GB, stops the Gradle daemon after each build, caps Gradle at
+    3 GB, and survives a dead emulator by booting it again (`075b526`, `e9d6a20`).
+  - Scenario 2's ANR probe, the heaviest step, still did not finish on either AVD. The probes
+    that did finish showed no ANR.
+- **Side-by-sides:** real API 34 emulator screenshots at 360×640 dp against the designs at
+  equal dp scale, in `docs/testing/screenshots/ui-redesign/fidelity/`. No Flutter renders
+  are left:
+  1. `01_setup.png`: empty, number, confirmed, not registered, network error.
+  2. `02_home_moews.png`: offline.
+  3. `03_home_acoustic.png`: three actions, offline.
+  4. `04_still_needs_transport.png`: default, after Call/SMS, 1 of 3.
+  5. `05_record_vitals.png`: empty, partly filled, See result with gaps, keyboard up.
+  6. `06_result.png`: four variants, advisory row.
+  7. `07_referral_form.png`: no type, type without vitals, type with vitals.
+  8. `08_dispatch_status.png`: against the five v2 variants.
+  9. `09_dispatch_status_more.png`: confirmed, arrived, late acceptance, "Did a driver
+     agree?".
+  10. `10_breathing_check.png`: ready, recording, analysing, both results, microphone
+      blocked.
+
+### Open questions (round 7)
+
+1. The emergency-type list (round 1, question 1) and the risk words Critical / Elevated /
+   Stable await the clinical leads (`docs/PARAMETERS_SIGNOFF.md`, questions 1–6).
+2. Breathing pulse with live sound in the emulator. The host's PulseAudio route did not work
+   (round 6); try a physical phone.
+3. Should a never-sent referral get a Cancel action (dispatch v2, variant 5)?
+4. `test_durable_cascade_pg` fails on `main` too; it needs its own look.
+5. Not yet tested on a physical phone. Africa's Talking has been tested in sandbox only.
+
+## Redesign summary
+
+| Screen | Final state | Deliberate differences from the designs (why) |
+|---|---|---|
+| First-run setup | Three states; +233 prefix; Continue when complete; confirmed clinic + Start; navy error strip | "Not your clinic? Use a different number" (a way back); "Phone number" label kept in the border (screen readers) |
+| Home | Emergency referral; acoustic builds add Check breathing and Record vitals (in that order); Offline pill; warning strip light / dark | Order differs from Screen A (decision); button sized to Screen A |
+| Record vitals | Compact cards; BP one toggle; SpO₂ optional; "N left" counts five; See result points at the first gap; button above the keyboard | "From device ›" link kept (existing feature) |
+| Result | Word + "Score N"; amber Elevated with navy text; Why list; sign-off line; breathing advisory row | Buttons on Critical/Elevated (the design repeats Why there, a design bug) |
+| Referral form | Chips; one-line Send to; vitals row; one bottom button | No "Other" type (clinical list pending) |
+| Breathing check | Ready, recording pulse, analysing, results, microphone blocked; steps on by default | Analysing line "Checking the sound patterns" (the model does not measure breath rate); advice line reused from Ready |
+| Referral status | Timeline with times; driver card with vehicle; Going to; Call a driver instead; late acceptance; "Did a driver agree?"; quiet pinned Cancel / Back to Home | Static halo, future-tense labels, timeline kept under the no-driver banner (see round 7 step 4) |
+| Not sent yet | Saved-on-phone timeline; navy "Urgent? Call a driver now"; compact Call/SMS; quiet Back to Home | No Cancel (no such action) |
+| "Still needs transport?" | Bottom sheet, one-tap answers, order switches after Call/SMS, "1 of N", must answer | — |
+
+Across all screens:
+
+- the Clinical Field Resilience palette (navy, not the renders' teal) and the bundled
+  Atkinson Hyperlegible Next;
+- red, amber and green only for triage and destructive actions;
+- times follow the phone's 12/24-hour setting.
+
+Flow changes are listed in `docs/audit/UI_REDESIGN_PR.md`.
+
+**Open questions for the clinical leads and the team:**
+
+1. The emergency-type list.
+2. The risk words.
+3. A physical-phone pass, and Africa's Talking beyond the sandbox.
+4. Live-sound check of the breathing pulse.
+5. Cancel for a never-sent referral.
+6. The pre-existing `test_durable_cascade_pg` failure.

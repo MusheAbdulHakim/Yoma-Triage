@@ -40,6 +40,30 @@ crash. Free memory was also about 3 GB lower then.
 **What `scripts/run_emulator_pass.py` does now:** it uses `-no-snapshot-load` instead of
 `-no-snapshot` and removes stale AVD lock files before booting.
 
+## Round 7: emulator deaths mid-run
+
+The host-GPU boot fix above held: every boot succeeded. During the round-7 regression,
+though, the API 34 emulator died about ten times and API 24 once.
+
+- **When:** mostly at the end of a scenario, and during scenario 2's long YAMNet recording
+  and analysis.
+- **Cause:** `systemd-oomd` (`oomctl`). It kills a process group when memory pressure on
+  the user session stays above 50% for 20 s. Swap on this 13 GB host stays near 90%, and a
+  Gradle build next to the emulator crossed the limit. The same mechanism killed the agent's
+  own session twice.
+- **What the script does now:**
+  - 2 GB for API 34, like API 24;
+  - Gradle capped at 3 GB;
+  - the Gradle daemon stopped after every scenario's build;
+  - each scenario in its own try, with the emulator booted again if it has gone; deaths are
+    listed at the end of the run.
+- **Still unresolved:** scenario 2's ANR probe and, on API 34, the release timings did not
+  complete. Running them needs more free memory: close other heavy apps first, or use a
+  machine with more RAM.
+- **Results:** in `docs/audit/UI_REDESIGN.md`, round 7, step 6.
+- **Stale references:** three lines in the older sections below still name screenshots that
+  were removed in round 7 (`9415e0c`).
+
 ## Batch 5 rerun
 
 Date: 2026-11-07. Branch `fix/batch-5`, app at `b3d3b2f` plus test-only commits up to `f046c2b`.
