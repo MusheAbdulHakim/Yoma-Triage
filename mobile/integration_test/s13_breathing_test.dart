@@ -97,61 +97,82 @@ void main() {
       ));
     }
 
-    // ---- 1. The real thing, measured. ----
+    // ---- 1. Measured, with no screenshots inside any measured window. ----
+    // A: control, the recording screen with the static ring (scripted level).
+    // B: the same with the pulse animating, so B - A is the pulse's own cost.
+    // C: the real thing: recorder, amplitude polling, pulse, then the real analysis.
     binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fullyLive;
     final clock = Stopwatch()..start();
     var lastTick = clock.elapsedMilliseconds;
     var phase = 'idle';
-    final longest = <String, int>{'recording': 0, 'analysis': 0};
+    final longest = <String, int>{};
+    final frames = <String, List<FrameTiming>>{};
     final ticker = Timer.periodic(const Duration(milliseconds: 10), (_) {
       final now = clock.elapsedMilliseconds;
-      if (longest.containsKey(phase)) longest[phase] = max(longest[phase]!, now - lastTick);
+      if (phase != 'idle') longest[phase] = max(longest[phase] ?? 0, now - lastTick);
       lastTick = now;
     });
     addTearDown(ticker.cancel);
-    final frames = <String, List<FrameTiming>>{'recording': [], 'analysis': []};
-    void onFrames(List<FrameTiming> timings) => frames[phase]?.addAll(timings);
+    void onFrames(List<FrameTiming> timings) {
+      if (phase != 'idle') (frames[phase] ??= []).addAll(timings);
+    }
+
     SchedulerBinding.instance.addTimingsCallback(onFrames);
     addTearDown(() => SchedulerBinding.instance.removeTimingsCallback(onFrames));
 
-    phase = 'recording';
+    Future<void> measure(String name, Duration d) async {
+      phase = name;
+      lastTick = clock.elapsedMilliseconds;
+      await tester.wait(d);
+      phase = 'idle';
+    }
+
+    await show(ScreeningScreen(service: _Scripted(level: 0.5)), reduceMotion: true);
+    await tester.wait(const Duration(seconds: 1));
+    await measure('control_static_ring', const Duration(seconds: 8));
+    await show(ScreeningScreen(service: _Scripted(level: 0.5)));
+    await tester.wait(const Duration(seconds: 1));
+    await measure('pulse_scripted', const Duration(seconds: 8));
+
     await show(const ScreeningScreen());
-    await tester.waitFor(find.text('Listening… keep the phone still'));
-    await tester.wait(const Duration(seconds: 4));
-    await tester.shot('b_recording_live_4s');
-    await tester.wait(const Duration(seconds: 5));
-    final hintLive = find.byKey(const Key('screening_silence_hint')).evaluate().isNotEmpty;
-    await tester.shot('b_recording_live_9s');
+    phase = 'recording';
+    lastTick = clock.elapsedMilliseconds;
     await tester.waitFor(find.text('Checking the recording…'),
-        timeout: Duration(seconds: ScreeningConfig.durationSec + 10));
+        timeout: Duration(seconds: ScreeningConfig.durationSec + 15));
     phase = 'analysis';
-    await tester.shot('b_analysing_live');
+    lastTick = clock.elapsedMilliseconds;
     await tester.waitFor(find.byType(VitalsScreen), timeout: const Duration(seconds: 60));
     phase = 'idle';
 
-    String frameSummary(List<FrameTiming> list) {
-      if (list.isEmpty) return 'no frames';
+    String frameSummary(List<FrameTiming>? list) {
+      if (list == null || list.isEmpty) return 'no frames';
       final totals = list.map((t) => t.totalSpan.inMicroseconds / 1000).toList()..sort();
       final over = totals.where((ms) => ms > 1000 / 60).length;
-      return '${list.length} frames, $over over 16.7 ms, worst ${totals.last.toStringAsFixed(1)} ms, '
-          'median ${totals[totals.length ~/ 2].toStringAsFixed(1)} ms';
+      return '${list.length} frames, $over over 16.7 ms '
+          '(${(100 * over / list.length).toStringAsFixed(0)}%), '
+          'median ${totals[totals.length ~/ 2].toStringAsFixed(1)} ms, '
+          '95th ${totals[(totals.length * 0.95).floor()].toStringAsFixed(1)} ms, '
+          'worst ${totals.last.toStringAsFixed(1)} ms';
     }
 
-    await Host.metric('breathing_main_thread_longest_block_recording_ms', longest['recording']!);
-    await Host.metric('breathing_main_thread_longest_block_analysis_ms', longest['analysis']!);
-    await Host.metric('breathing_frames_over_budget_recording',
-        frames['recording']!.where((t) => t.totalSpan.inMicroseconds > 16667).length);
-    await Host.note(
-      'Breathing check, real recorder and analysis: main thread longest block '
-      '${longest['recording']} ms while recording, ${longest['analysis']} ms while analysing. '
-      'Recording: ${frameSummary(frames['recording']!)}. '
-      'Analysis: ${frameSummary(frames['analysis']!)}. '
-      'Silence hint shown with the emulator microphone: $hintLive '
-      '(it appears only once amplitude readings arrive).',
-    );
+    for (final name in ['control_static_ring', 'pulse_scripted', 'recording', 'analysis']) {
+      await Host.metric('breathing_${name}_longest_block_ms', longest[name] ?? -1);
+      await Host.note('Breathing $name: main thread longest block ${longest[name]} ms; '
+          '${frameSummary(frames[name])}.');
+    }
     expect(longest['recording']!, lessThan(1000));
     expect(longest['analysis']!, lessThan(1000));
     binding.framePolicy = LiveTestWidgetsFlutterBindingFramePolicy.fadePointers;
+
+    // The real microphone, for the record: on the emulator the input is near silent, so
+    // with amplitude readings arriving the hint should show.
+    await show(const ScreeningScreen());
+    await tester.wait(const Duration(seconds: 5));
+    await Host.note('Silence hint with the emulator microphone after 5 s: '
+        '${find.byKey(const Key('screening_silence_hint')).evaluate().isNotEmpty}.');
+    await tester.shot('b_recording_live');
+    await tester.tapOn(find.byKey(const Key('screening_stop')));
+    await tester.waitFor(find.byType(VitalsScreen), timeout: const Duration(seconds: 60));
 
     // ---- 2. Every screen, scripted. ----
     await show(ScreeningScreen(
