@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../release_settings.dart';
 import '../parameters.dart';
 import '../services/api_client.dart';
 import '../services/offline_queue.dart';
@@ -156,11 +157,15 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
               'SMS someone below, the app will ask you before alerting drivers.',
               style: text.bodyMedium?.copyWith(color: YomaColors.grey700),
             ),
-            const SizedBox(height: 8),
-            Text(
-              'Request: ${widget.clientRequestId}',
-              style: text.bodySmall?.copyWith(color: YomaColors.grey600),
-            ),
+            // The raw id is for testers only, never in a build CHOs use.
+            if (yomaTestRelease) ...[
+              const SizedBox(height: 8),
+              Text(
+                'Request: ${widget.clientRequestId}',
+                key: const Key('queued_request_id'),
+                style: text.bodySmall?.copyWith(color: YomaColors.grey600),
+              ),
+            ],
             ValueListenableBuilder<String?>(
               valueListenable: _queue.retryWarning,
               builder: (context, warning, _) {

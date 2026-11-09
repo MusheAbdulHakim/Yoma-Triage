@@ -383,6 +383,8 @@ void main() {
 
       expect(find.byKey(const Key('call_$_otherHospital')), findsNothing);
       expect(find.byKey(const Key('call_$_driver')), findsOneWidget);
+      // No raw request id outside test builds.
+      expect(find.textContaining('Request:'), findsNothing);
       await tester.tap(find.byKey(const Key('call_$_driver')));
       await tester.pump();
       expect(launched.single.toString(), 'tel:$_driver');

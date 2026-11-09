@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 
+import '../release_settings.dart';
 import '../models/emergency_type.dart';
 
 import '../services/offline_queue.dart';
@@ -86,8 +87,9 @@ class _FailedReferralsScreenState extends State<FailedReferralsScreen> {
                           emergencyTypeLabel(item.payload['emergency_type']?.toString()),
                         ),
                         subtitle: Text(
-                          'Reason: ${item.lastError ?? 'Unknown'}\n'
-                          'Request: ${item.clientRequestId}',
+                          'Reason: ${item.lastError ?? 'Unknown'}'
+                          // The raw id is for testers only, never in a build CHOs use.
+                          '${yomaTestRelease ? '\nRequest: ${item.clientRequestId}' : ''}',
                         ),
                       ),
                       TextButton(

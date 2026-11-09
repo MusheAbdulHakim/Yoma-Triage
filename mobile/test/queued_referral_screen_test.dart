@@ -18,7 +18,9 @@ void main() {
       ),
       findsOneWidget,
     );
-    expect(find.text('Request: request-123'), findsOneWidget);
+    // The raw request id is a debug detail, shown only in test builds.
+    expect(find.textContaining('Request:'), findsNothing);
+    expect(find.textContaining('request-123'), findsNothing);
     expect(find.text('Retry sync'), findsOneWidget);
     expect(find.textContaining('Driver:'), findsNothing);
   });
