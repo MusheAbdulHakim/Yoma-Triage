@@ -14,6 +14,7 @@ import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/screens/result_screen.dart';
+import 'package:yoma_triage/screens/screening_screen.dart';
 import 'package:yoma_triage/screens/vitals_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/moews_calculator.dart';
@@ -461,7 +462,7 @@ Future<void> _rounds4to6(
   for (final (key, landing) in [
     ('home_emergency_referral', find.byType(ReferralScreen)),
     ('home_record_vitals', find.byType(VitalsScreen)),
-    ('home_check_breathing', find.text('Check breathing')),
+    ('home_check_breathing', find.byType(ScreeningScreen)),
   ]) {
     await show(HomeScreen(acousticEnabled: true, online: Stream.value(true)));
     clearWarnings();
@@ -470,11 +471,6 @@ Future<void> _rounds4to6(
     expect(landing, findsWidgets, reason: '$key opened');
     await Host.back();
     await tester.wait(const Duration(seconds: 1));
-    // The breathing check may ask to stop first; a second back answers with the default.
-    if (find.byType(HomeScreen).hitTestable().evaluate().isEmpty) {
-      await Host.back();
-      await tester.wait(const Duration(seconds: 1));
-    }
     expect(find.byType(HomeScreen).hitTestable(), findsOneWidget, reason: 'back from $key');
   }
   // Back from the status screen and from Result returns to the screen underneath.
