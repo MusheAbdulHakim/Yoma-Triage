@@ -53,6 +53,15 @@ BACKEND_PORT = 8000
 PG_PORT = 55490
 TEST_CHO = "+233240000777"
 SMALL_WIDTH_PX, SMALL_HEIGHT_PX, SMALL_DENSITY = 640, 1136, 320  # 320 x 568 dp
+# The Stitch designs' 360 x 640 dp, for the fidelity side-by-sides.
+FIDELITY_WIDTH_PX, FIDELITY_HEIGHT_PX, FIDELITY_DENSITY = 1080, 1920, 480
+# Run at 360 x 640 dp, screenshots prefixed "fid_": scenario name -> the test it runs.
+FIDELITY_SCENARIOS = {"ui360": "ui", "breathing360": "breathing"}
+ANIMATION_SCALES = (
+    "window_animation_scale",
+    "transition_animation_scale",
+    "animator_duration_scale",
+)
 
 AVDS = {"yoma_api34": 5554, "yoma_api24_2gb": 5556}
 # Local test tooling only; nothing here affects the app or its builds.
@@ -599,6 +608,14 @@ class Handler(BaseHTTPRequestHandler):
             return backend.rows(query["q"])
         if path == "/external-app":
             return device.external_app(query["name"])
+        if path == "/key":
+            # A real key press, e.g. 4 = Android back.
+            device.shell(f"input keyevent {int(query['code'])}")
+            return {}
+        if path == "/font-scale":
+            # The system text size, as a CHO would set it in Settings.
+            device.shell(f"settings put system font_scale {float(query['scale'])}")
+            return {}
         if path == "/metric":
             record("metrics", {query["name"]: float(query["value"])})
             return {}
@@ -651,12 +668,14 @@ def run_until_done(command: list[str], limit: float = 900) -> tuple[bool, str]:
     return process.returncode == 0, "".join(lines)
 
 
-def run_integration(device: Device, scenario: str, *, small: bool = False) -> bool:
+def run_integration(
+    device: Device, scenario: str, *, small: bool = False, prefix: str | None = None
+) -> bool:
     spec = SCENARIOS.get(scenario) or {"file": scenario}
-    label = f"s{scenario}{'_small' if small else ''}"
+    label = f"s{scenario}{'_small' if small else ''}{'_' + prefix.strip('_') if prefix else ''}"
     CURRENT["scenario"] = label
     RESULTS.setdefault(device.avd, {})[label] = {}
-    SCREEN_PREFIX[0] = "small_" if small else ""
+    SCREEN_PREFIX[0] = prefix if prefix is not None else ("small_" if small else "")
     CURRENT["backend"].reset(spec.get("env"))
     device.adb("uninstall", PACKAGE, check=False)
     device.keep_awake()
@@ -1179,7 +1198,8 @@ def main() -> int:
             "banners_native",
             "timings",
         ],
-        help="1-9, 11, ui, breathing, responsive, banners, banners_native and timings",
+        help="1-9, 11, ui, ui360, breathing, breathing360, responsive, banners, "
+        "banners_native and timings",
     )
     parser.add_argument(
         "--keep-running",
@@ -1228,6 +1248,21 @@ def main() -> int:
                             for name in inner:
                                 all_passed &= run_integration(device, name, small=True)
                         finally:
+                            device.reset_screen()
+                    elif scenario in FIDELITY_SCENARIOS:
+                        device.shell(f"wm size {FIDELITY_WIDTH_PX}x{FIDELITY_HEIGHT_PX}")
+                        device.shell(f"wm density {FIDELITY_DENSITY}")
+                        # Animations on, so the breathing pulse is drawn as it moves.
+                        for key in ANIMATION_SCALES:
+                            device.shell(f"settings put global {key} 1")
+                        try:
+                            all_passed &= run_integration(
+                                device, FIDELITY_SCENARIOS[scenario], prefix="fid_"
+                            )
+                        finally:
+                            device.shell("settings put system font_scale 1.0")
+                            for key in ANIMATION_SCALES:
+                                device.shell(f"settings put global {key} 0")
                             device.reset_screen()
                     else:
                         all_passed &= run_integration(device, scenario)

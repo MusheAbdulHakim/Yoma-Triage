@@ -55,6 +55,17 @@ abstract final class Host {
       call('/metric', {'name': name, 'value': '$value'});
   static Future<void> note(String text) => call('/note', {'text': text});
 
+  /// A real key press on the device; 4 is Android back.
+  static Future<void> key(int code) => call('/key', {'code': '$code'});
+  static Future<void> back() => key(4);
+
+  /// The system text size (Settings > Display > Font size).
+  static Future<void> fontScale(double scale) => call('/font-scale', {'scale': '$scale'});
+
+  /// Waits for the app Call or SMS opened, photographs it, and returns to Yoma.
+  static Future<Map> externalApp(String name) async =>
+      await call('/external-app', {'name': name}) as Map;
+
   static Future<List<Map<String, dynamic>>> rows(String name) async =>
       ((await call('/db', {'q': name})) as List).cast<Map<String, dynamic>>();
 
