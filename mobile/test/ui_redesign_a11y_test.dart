@@ -414,6 +414,8 @@ void main() {
     await tester.tap(find.text('Stop'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Checking the recording…'), findsOneWidget);
+    expect(find.text('Checking the sound patterns'), findsOneWidget);
+    expect(find.text('You can keep using the phone.'), findsNothing);
     await checkAll(tester);
     handle.dispose();
   });

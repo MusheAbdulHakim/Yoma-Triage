@@ -503,7 +503,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
           ),
           const SizedBox(height: 4),
           Text(
-            'You can keep using the phone.',
+            'Checking the sound patterns',
             textAlign: TextAlign.center,
             style: text.bodySmall?.copyWith(color: YomaColors.grey600),
           ),
