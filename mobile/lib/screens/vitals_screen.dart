@@ -323,7 +323,8 @@ class _VitalsScreenState extends State<VitalsScreen> {
     final text = Theme.of(context).textTheme;
     final remaining = _remaining;
     return Scaffold(
-      appBar: AppBar(title: const Text('Record vitals')),
+      // A visible back arrow; it does what Android back does.
+      appBar: AppBar(leading: const BackButton(), title: const Text('Record vitals')),
       // Form.validate() would announce its first raw error ("Select AVPU or Not
       // measured"); "See result" announces the first missing vital by name instead.
       // The button bar is part of the body, not bottomNavigationBar, so it rides above the

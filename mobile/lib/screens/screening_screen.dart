@@ -271,10 +271,20 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     final recording =
         !_isWebSimulator && _result == null && !_ready && !_analyzing && _error == null;
     final scaffold = Scaffold(
-      // The recording frames have no title bar; system back still leaves (and stops).
+      // A visible back arrow on every stage; it does what Android back does (leaving while
+      // recording stops the recorder, while analysing cancels the analysis). The recording
+      // stage keeps the frames' look: no title, the page colour, just the arrow.
       appBar: recording
-          ? null
-          : AppBar(title: Text(_permissionError || _error == null ? _title : 'Check breathing')),
+          ? AppBar(
+              leading: const BackButton(),
+              backgroundColor: YomaColors.canvas,
+              shape: const Border(),
+              toolbarHeight: 48,
+            )
+          : AppBar(
+              leading: const BackButton(),
+              title: Text(_permissionError || _error == null ? _title : 'Check breathing'),
+            ),
       body: SafeArea(child: body),
     );
     // Without a title bar, keep the status bar on the page colour with dark icons.

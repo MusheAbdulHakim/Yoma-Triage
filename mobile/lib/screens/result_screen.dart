@@ -51,7 +51,8 @@ class ResultScreen extends StatelessWidget {
     final level = TriageLevel.fromMoews(m?.riskLevel);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Result')),
+      // A visible back arrow; it does what Android back does.
+      appBar: AppBar(leading: const BackButton(), title: const Text('Result')),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [

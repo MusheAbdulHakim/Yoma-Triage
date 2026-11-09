@@ -311,7 +311,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
     final facilityLabel = _selectedFacility?.name ?? FacilityConfig.facilityLabel;
 
     return Scaffold(
+      // A visible back arrow; it does what Android back does.
       appBar: AppBar(
+        leading: const BackButton(),
         title: const Text('Emergency referral'),
       ),
       // The button bar is part of the body, not bottomNavigationBar, so it rides above the
