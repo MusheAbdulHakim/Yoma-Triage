@@ -47,13 +47,17 @@ void main() {
     await Host.metric('restart_to_tier2_on_screen_ms', restarted.elapsedMilliseconds);
     await tester.shot('s8_3_tier2_after_restart');
 
+    // At the end of the cascade the banner and contacts come first (round 5); the
+    // timeline, with its FAILED step, is further down on a short screen.
     await tester.waitFor(
-      find.byKey(const Key('dispatch_status_FAILED')),
+      find.text('No driver has accepted. Call one now.'),
       timeout: const Duration(seconds: _tierSeconds + 30),
       reason: 'the cascade to keep going to the end',
     );
     await tester.waitFor(find.byKey(const Key('manual_contacts')));
     await tester.shot('s8_4_failed_with_contacts');
+    await tester.reveal(find.byKey(const Key('dispatch_status_FAILED')));
+    expect(find.byKey(const Key('dispatch_status_FAILED')), findsOneWidget);
 
     final messages = await Host.rows('outbox');
     for (final m in messages) {
