@@ -314,211 +314,223 @@ class _ReferralScreenState extends State<ReferralScreen> {
       appBar: AppBar(
         title: const Text('Emergency referral'),
       ),
-      body: Form(
-        key: _formKey,
-        child: ListView(
-          padding: const EdgeInsets.all(16),
-          children: [
-            const _SectionLabel('Emergency type'),
-            FormField<String>(
-              key: ValueKey('referral_type_$_emergencyType'),
-              initialValue: _emergencyType,
-              validator: (v) => v == null ? 'Choose the emergency type' : null,
-              builder: (field) => Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
+      // The button bar is part of the body, not bottomNavigationBar, so it rides above the
+      // keyboard instead of being hidden by it (round-6 device pass).
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Form(
+              key: _formKey,
+              child: ListView(
+                padding: const EdgeInsets.all(16),
                 children: [
-                  LayoutBuilder(
-                    builder: (context, constraints) {
-                      const gap = 10.0;
-                      final width = (constraints.maxWidth - gap) / 2;
-                      return Wrap(
-                        spacing: gap,
-                        runSpacing: gap,
-                        children: [
-                          // The app's current list of types, unchanged.
-                          for (final (value, label) in emergencyTypes)
-                            SizedBox(
-                              width: width,
-                              child: YomaChoiceChip(
-                                key: Key('referral_type_$value'),
-                                label: label,
-                                selected: field.value == value,
-                                semanticsHint: 'Emergency type',
-                                minHeight: YomaSizes.chipLarge,
-                                onTap: () {
-                                  field.didChange(value);
-                                  setState(() {
-                                    _emergencyType = value;
-                                    _skipError = null;
-                                  });
-                                },
-                              ),
-                            ),
-                        ],
-                      );
-                    },
-                  ),
-                  if (field.hasError)
-                    Padding(
-                      padding: const EdgeInsets.only(top: 6),
-                      child: Text(
-                        field.errorText!,
-                        style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                              color: YomaColors.error,
-                              fontWeight: FontWeight.w600,
-                            ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
-            const SizedBox(height: 20),
-            const _SectionLabel('Send to'),
-            Semantics(
-              button: true,
-              label: _facilityConfirmed
-                  ? 'Send to $facilityLabel, confirmed. Tap to change.'
-                  : 'Send to $facilityLabel. Tap to confirm facility.',
-              excludeSemantics: true,
-              child: Material(
-                color: YomaColors.surface,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(YomaRadii.md),
-                  side: BorderSide(
-                    color: _facilityConfirmed ? YomaColors.grey300 : YomaColors.brand,
-                    width: _facilityConfirmed ? 1 : 2,
-                  ),
-                ),
-                child: InkWell(
-                  key: const Key('referral_send_to'),
-                  borderRadius: BorderRadius.circular(YomaRadii.md),
-                  onTap: _openPicker,
-                  child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 52),
-                    child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                  const _SectionLabel('Emergency type'),
+                  FormField<String>(
+                    key: ValueKey('referral_type_$_emergencyType'),
+                    initialValue: _emergencyType,
+                    validator: (v) => v == null ? 'Choose the emergency type' : null,
+                    builder: (field) => Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        LayoutBuilder(
+                          builder: (context, constraints) {
+                            const gap = 10.0;
+                            final width = (constraints.maxWidth - gap) / 2;
+                            return Wrap(
+                              spacing: gap,
+                              runSpacing: gap,
                               children: [
-                                Text(
-                                  facilityLabel,
-                                  style: Theme.of(context)
-                                      .textTheme
-                                      .titleSmall
-                                      ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
-                                ),
-                                // Only until the CHO has confirmed the facility.
-                                if (!_facilityConfirmed)
-                                  Text(
-                                    'Tap to confirm',
-                                    key: const Key('referral_send_to_confirm'),
-                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                          color: YomaColors.tertiary,
-                                          fontWeight: FontWeight.w600,
-                                        ),
+                                // The app's current list of types, unchanged.
+                                for (final (value, label) in emergencyTypes)
+                                  SizedBox(
+                                    width: width,
+                                    child: YomaChoiceChip(
+                                      key: Key('referral_type_$value'),
+                                      label: label,
+                                      selected: field.value == value,
+                                      semanticsHint: 'Emergency type',
+                                      minHeight: YomaSizes.chipLarge,
+                                      onTap: () {
+                                        field.didChange(value);
+                                        setState(() {
+                                          _emergencyType = value;
+                                          _skipError = null;
+                                        });
+                                      },
+                                    ),
                                   ),
+                              ],
+                            );
+                          },
+                        ),
+                        if (field.hasError)
+                          Padding(
+                            padding: const EdgeInsets.only(top: 6),
+                            child: Text(
+                              field.errorText!,
+                              style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                    color: YomaColors.error,
+                                    fontWeight: FontWeight.w600,
+                                  ),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  const _SectionLabel('Send to'),
+                  Semantics(
+                    button: true,
+                    label: _facilityConfirmed
+                        ? 'Send to $facilityLabel, confirmed. Tap to change.'
+                        : 'Send to $facilityLabel. Tap to confirm facility.',
+                    excludeSemantics: true,
+                    child: Material(
+                      color: YomaColors.surface,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(YomaRadii.md),
+                        side: BorderSide(
+                          color: _facilityConfirmed ? YomaColors.grey300 : YomaColors.brand,
+                          width: _facilityConfirmed ? 1 : 2,
+                        ),
+                      ),
+                      child: InkWell(
+                        key: const Key('referral_send_to'),
+                        borderRadius: BorderRadius.circular(YomaRadii.md),
+                        onTap: _openPicker,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(minHeight: 52),
+                          child: Padding(
+                            padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+                            child: Row(
+                              children: [
+                                Expanded(
+                                  child: Column(
+                                    crossAxisAlignment: CrossAxisAlignment.start,
+                                    children: [
+                                      Text(
+                                        facilityLabel,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .titleSmall
+                                            ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
+                                      ),
+                                      // Only until the CHO has confirmed the facility.
+                                      if (!_facilityConfirmed)
+                                        Text(
+                                          'Tap to confirm',
+                                          key: const Key('referral_send_to_confirm'),
+                                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                                color: YomaColors.tertiary,
+                                                fontWeight: FontWeight.w600,
+                                              ),
+                                        ),
+                                    ],
+                                  ),
+                                ),
+                                const Icon(Icons.expand_more, color: YomaColors.grey600),
                               ],
                             ),
                           ),
-                          const Icon(Icons.expand_more, color: YomaColors.grey600),
-                        ],
+                        ),
                       ),
                     ),
                   ),
-                ),
-              ),
-            ),
-            if (widget.aiScreenResult case final label?)
-              Padding(
-                padding: const EdgeInsets.only(top: 12),
-                child: Text(
-                  switch (label.toUpperCase()) {
-                    notScreenedLabel => 'No breathing check – the hospital will be told',
-                    'RED' => 'Breathing check (advisory): Possible breathing problem',
-                    _ => "Breathing check (advisory): Couldn't tell",
-                  },
-                  key: const Key('referral_breathing_note'),
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey700),
-                ),
-              ),
-            const SizedBox(height: 12),
-            _vitalsSummary(),
-            if (_error != null) ...[
-              const SizedBox(height: 12),
-              Text(
-                _error!,
-                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                      color: YomaColors.warning,
-                      fontWeight: FontWeight.w600,
+                  if (widget.aiScreenResult case final label?)
+                    Padding(
+                      padding: const EdgeInsets.only(top: 12),
+                      child: Text(
+                        switch (label.toUpperCase()) {
+                          notScreenedLabel => 'No breathing check – the hospital will be told',
+                          'RED' => 'Breathing check (advisory): Possible breathing problem',
+                          _ => "Breathing check (advisory): Couldn't tell",
+                        },
+                        key: const Key('referral_breathing_note'),
+                        style: Theme.of(context)
+                            .textTheme
+                            .bodySmall
+                            ?.copyWith(color: YomaColors.grey700),
+                      ),
                     ),
-              ),
-            ],
-            const SizedBox(height: 16),
-          ],
-        ),
-      ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: YomaColors.surface,
-          border: Border(top: BorderSide(color: YomaColors.grey100)),
-        ),
-        child: SafeArea(
-          top: false,
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (_skipError != null)
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 6),
-                    child: Text(
-                      _skipError!,
-                      key: const Key('referral_skip_error'),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                            color: YomaColors.error,
+                  const SizedBox(height: 12),
+                  _vitalsSummary(),
+                  if (_error != null) ...[
+                    const SizedBox(height: 12),
+                    Text(
+                      _error!,
+                      style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                            color: YomaColors.warning,
                             fontWeight: FontWeight.w600,
                           ),
                     ),
-                  ),
-                // One button. With vitals it sends them; without, it uses the one-tap
-                // skip-vitals path and the hospital is told vitals were not taken.
-                FilledButton(
-                  key: const Key('referral_send'),
-                  // Grey until an emergency type is chosen; every other check runs on tap.
-                  onPressed: _submitting || _emergencyType == null
-                      ? null
-                      : (_vitals == null ? _skipVitals : _submit),
-                  child: Text(
-                    _submitting
-                        ? 'Sending…'
-                        : _vitals == null
-                            ? 'Send now (vitals not taken)'
-                            : 'Send referral',
-                  ),
-                ),
-                if (_emergencyType == null)
-                  Padding(
-                    padding: const EdgeInsets.only(top: 6),
-                    child: Text(
-                      'Choose the emergency type to send',
-                      key: const Key('referral_send_hint'),
-                      textAlign: TextAlign.center,
-                      style: Theme.of(context)
-                          .textTheme
-                          .bodySmall
-                          ?.copyWith(color: YomaColors.grey700),
-                    ),
-                  ),
-              ],
+                  ],
+                  const SizedBox(height: 16),
+                ],
+              ),
             ),
           ),
-        ),
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              color: YomaColors.surface,
+              border: Border(top: BorderSide(color: YomaColors.grey100)),
+            ),
+            child: SafeArea(
+              top: false,
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_skipError != null)
+                      Padding(
+                        padding: const EdgeInsets.only(bottom: 6),
+                        child: Text(
+                          _skipError!,
+                          key: const Key('referral_skip_error'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                color: YomaColors.error,
+                                fontWeight: FontWeight.w600,
+                              ),
+                        ),
+                      ),
+                    // One button. With vitals it sends them; without, it uses the one-tap
+                    // skip-vitals path and the hospital is told vitals were not taken.
+                    FilledButton(
+                      key: const Key('referral_send'),
+                      // Grey until an emergency type is chosen; every other check runs on tap.
+                      onPressed: _submitting || _emergencyType == null
+                          ? null
+                          : (_vitals == null ? _skipVitals : _submit),
+                      child: Text(
+                        _submitting
+                            ? 'Sending…'
+                            : _vitals == null
+                                ? 'Send now (vitals not taken)'
+                                : 'Send referral',
+                      ),
+                    ),
+                    if (_emergencyType == null)
+                      Padding(
+                        padding: const EdgeInsets.only(top: 6),
+                        child: Text(
+                          'Choose the emergency type to send',
+                          key: const Key('referral_send_hint'),
+                          textAlign: TextAlign.center,
+                          style: Theme.of(context)
+                              .textTheme
+                              .bodySmall
+                              ?.copyWith(color: YomaColors.grey700),
+                        ),
+                      ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+        ],
       ),
     );
   }

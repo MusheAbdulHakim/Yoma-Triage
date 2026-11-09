@@ -326,133 +326,142 @@ class _VitalsScreenState extends State<VitalsScreen> {
       appBar: AppBar(title: const Text('Record vitals')),
       // Form.validate() would announce its first raw error ("Select AVPU or Not
       // measured"); "See result" announces the first missing vital by name instead.
-      body: Builder(
-        builder: (context) => MediaQuery(
-          data: MediaQuery.of(context).copyWith(supportsAnnounce: false),
-          child: Form(
-            key: _formKey,
-            // A plain scroll view (not a lazy list) so every card exists for "See result" to
-            // scroll to.
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.fromLTRB(
-                  YomaSpacing.gutter, YomaSpacing.sm, YomaSpacing.gutter, YomaSpacing.sm),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  BloodPressureField(
-                    key: _cardKeys[_VitalId.bp],
-                    systolic: _sbp,
-                    diastolic: _dbp,
-                    systolicKey: 'vitals_sbp',
-                    diastolicKey: 'vitals_dbp',
-                    flagged: _flagged == _VitalId.bp,
-                    onChanged: _changed,
-                  ),
-                  VitalField(
-                    key: _cardKeys[_VitalId.hr],
-                    input: _hr,
-                    limits: VitalLimits.heartRate,
-                    label: 'Heart rate',
-                    unit: 'bpm',
-                    fieldKey: 'vitals_hr',
-                    highlight: hrAbnormal,
-                    flagged: _flagged == _VitalId.hr,
-                    onChanged: _changed,
-                    helperText: hrAbnormal
-                        ? 'MOEWS HR band elevated (score $_hrScore) — may escalate referral'
-                        : _advisoryApplied == null
-                            ? null
-                            : 'Applied ${_advisoryApplied!.source.label}: '
-                                '${_advisoryApplied!.heartRateBpm} bpm — confirm clinically.',
-                    footer: TextButton(
-                      key: const Key('advisory_hr_open'),
-                      onPressed: _openAdvisoryHrSheet,
-                      style: TextButton.styleFrom(
-                        padding: EdgeInsets.zero,
-                        alignment: Alignment.centerLeft,
-                        textStyle: text.labelSmall,
-                      ),
-                      child: const Text(
-                        'From device ›',
-                        semanticsLabel: 'Fill heart rate from a device (advisory)',
-                      ),
+      // The button bar is part of the body, not bottomNavigationBar, so it rides above the
+      // keyboard instead of being hidden by it (round-6 device pass).
+      body: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: Builder(
+              builder: (context) => MediaQuery(
+                data: MediaQuery.of(context).copyWith(supportsAnnounce: false),
+                child: Form(
+                  key: _formKey,
+                  // A plain scroll view (not a lazy list) so every card exists for "See result" to
+                  // scroll to.
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(
+                        YomaSpacing.gutter, YomaSpacing.sm, YomaSpacing.gutter, YomaSpacing.sm),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: [
+                        BloodPressureField(
+                          key: _cardKeys[_VitalId.bp],
+                          systolic: _sbp,
+                          diastolic: _dbp,
+                          systolicKey: 'vitals_sbp',
+                          diastolicKey: 'vitals_dbp',
+                          flagged: _flagged == _VitalId.bp,
+                          onChanged: _changed,
+                        ),
+                        VitalField(
+                          key: _cardKeys[_VitalId.hr],
+                          input: _hr,
+                          limits: VitalLimits.heartRate,
+                          label: 'Heart rate',
+                          unit: 'bpm',
+                          fieldKey: 'vitals_hr',
+                          highlight: hrAbnormal,
+                          flagged: _flagged == _VitalId.hr,
+                          onChanged: _changed,
+                          helperText: hrAbnormal
+                              ? 'MOEWS HR band elevated (score $_hrScore) — may escalate referral'
+                              : _advisoryApplied == null
+                                  ? null
+                                  : 'Applied ${_advisoryApplied!.source.label}: '
+                                      '${_advisoryApplied!.heartRateBpm} bpm — confirm clinically.',
+                          footer: TextButton(
+                            key: const Key('advisory_hr_open'),
+                            onPressed: _openAdvisoryHrSheet,
+                            style: TextButton.styleFrom(
+                              padding: EdgeInsets.zero,
+                              alignment: Alignment.centerLeft,
+                              textStyle: text.labelSmall,
+                            ),
+                            child: const Text(
+                              'From device ›',
+                              semanticsLabel: 'Fill heart rate from a device (advisory)',
+                            ),
+                          ),
+                        ),
+                        VitalField(
+                          key: _cardKeys[_VitalId.rr],
+                          input: _rr,
+                          limits: VitalLimits.respiratoryRate,
+                          label: 'Breathing rate',
+                          unit: '/min',
+                          fieldKey: 'vitals_rr',
+                          flagged: _flagged == _VitalId.rr,
+                          onChanged: _changed,
+                        ),
+                        VitalField(
+                          key: _cardKeys[_VitalId.temp],
+                          input: _temp,
+                          limits: VitalLimits.temperature,
+                          label: 'Temperature',
+                          unit: '°C',
+                          fieldKey: 'vitals_temp',
+                          decimal: true,
+                          flagged: _flagged == _VitalId.temp,
+                          onChanged: _changed,
+                        ),
+                        VitalField(
+                          key: _cardKeys[_VitalId.spo2],
+                          input: _spo2,
+                          limits: VitalLimits.spo2,
+                          label: 'Oxygen saturation',
+                          unit: '%',
+                          fieldKey: 'vitals_spo2',
+                          optional: true,
+                          flagged: _flagged == _VitalId.spo2,
+                          onChanged: _changed,
+                        ),
+                        KeyedSubtree(
+                          key: _cardKeys[_VitalId.avpu],
+                          child: AvpuField(
+                            key: const Key('vitals_avpu'),
+                            idPrefix: 'vitals_avpu',
+                            value: _avpu,
+                            flagged: _flagged == _VitalId.avpu,
+                            onChanged: (value) => setState(() {
+                              _avpu = value;
+                              _flagged = null;
+                            }),
+                          ),
+                        ),
+                      ],
                     ),
                   ),
-                  VitalField(
-                    key: _cardKeys[_VitalId.rr],
-                    input: _rr,
-                    limits: VitalLimits.respiratoryRate,
-                    label: 'Breathing rate',
-                    unit: '/min',
-                    fieldKey: 'vitals_rr',
-                    flagged: _flagged == _VitalId.rr,
-                    onChanged: _changed,
-                  ),
-                  VitalField(
-                    key: _cardKeys[_VitalId.temp],
-                    input: _temp,
-                    limits: VitalLimits.temperature,
-                    label: 'Temperature',
-                    unit: '°C',
-                    fieldKey: 'vitals_temp',
-                    decimal: true,
-                    flagged: _flagged == _VitalId.temp,
-                    onChanged: _changed,
-                  ),
-                  VitalField(
-                    key: _cardKeys[_VitalId.spo2],
-                    input: _spo2,
-                    limits: VitalLimits.spo2,
-                    label: 'Oxygen saturation',
-                    unit: '%',
-                    fieldKey: 'vitals_spo2',
-                    optional: true,
-                    flagged: _flagged == _VitalId.spo2,
-                    onChanged: _changed,
-                  ),
-                  KeyedSubtree(
-                    key: _cardKeys[_VitalId.avpu],
-                    child: AvpuField(
-                      key: const Key('vitals_avpu'),
-                      idPrefix: 'vitals_avpu',
-                      value: _avpu,
-                      flagged: _flagged == _VitalId.avpu,
-                      onChanged: (value) => setState(() {
-                        _avpu = value;
-                        _flagged = null;
-                      }),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
           ),
-        ),
-      ),
-      bottomNavigationBar: DecoratedBox(
-        decoration: const BoxDecoration(
-          color: YomaColors.canvas,
-          border: Border(top: BorderSide(color: YomaColors.grey200)),
-        ),
-        child: SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(
-                YomaSpacing.gutter, YomaSpacing.sm, YomaSpacing.gutter, YomaSpacing.sm),
-            child: FilledButton(
-              key: const Key('vitals_see_result'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(YomaSizes.primaryButton),
-              ),
-              // Always enabled: a tap with gaps scrolls to the first missing vital and says so.
-              onPressed: _continue,
-              child: Text(
-                widget.returnVitals
-                    ? (remaining == 0 ? 'Save vitals' : 'Save vitals – $remaining left')
-                    : (remaining == 0 ? 'See result' : 'See result – $remaining left'),
+          DecoratedBox(
+            decoration: const BoxDecoration(
+              color: YomaColors.canvas,
+              border: Border(top: BorderSide(color: YomaColors.grey200)),
+            ),
+            child: SafeArea(
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    YomaSpacing.gutter, YomaSpacing.sm, YomaSpacing.gutter, YomaSpacing.sm),
+                child: FilledButton(
+                  key: const Key('vitals_see_result'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(YomaSizes.primaryButton),
+                  ),
+                  // Always enabled: a tap with gaps scrolls to the first missing vital and says so.
+                  onPressed: _continue,
+                  child: Text(
+                    widget.returnVitals
+                        ? (remaining == 0 ? 'Save vitals' : 'Save vitals – $remaining left')
+                        : (remaining == 0 ? 'See result' : 'See result – $remaining left'),
+                  ),
+                ),
               ),
             ),
           ),
-        ),
+        ],
       ),
     );
   }
