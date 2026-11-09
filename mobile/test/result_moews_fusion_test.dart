@@ -29,7 +29,10 @@ void main() {
 
     expect(find.text('Confirm Referral'), findsOneWidget);
     expect(find.text('MOEWS RED'), findsOneWidget);
-    expect(find.textContaining('Acoustic (advisory)'), findsOneWidget);
+    expect(find.text('Breathing check (advisory)'), findsOneWidget);
+    // An acoustic GREEN is never shown as normal.
+    expect(find.text("Couldn't tell"), findsOneWidget);
+    expect(find.textContaining('GREEN'), findsNothing);
     expect(find.textContaining('Heart rate contributes MOEWS'), findsOneWidget);
   });
 

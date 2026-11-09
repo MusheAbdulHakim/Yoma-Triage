@@ -130,7 +130,8 @@ void main() {
       expect(find.text('Refer with clinical judgment'), findsOneWidget);
     });
 
-    testWidgets('acoustic line stays secondary: grey, and no triage colours', (tester) async {
+    testWidgets('breathing advisory row stays secondary: grey, words only, no triage colours',
+        (tester) async {
       final acoustic = ScreeningResult(
         label: 'RED',
         confidence: 0.8,
@@ -139,15 +140,22 @@ void main() {
         modelVersion: 'yamnet-test',
       );
       await _open(tester, _vitals(), acoustic: acoustic);
-      final card = find.byKey(const Key('result_acoustic'));
-      expect(find.descendant(of: card, matching: find.text('Acoustic (advisory): RED')),
+      final row = find.byKey(const Key('result_breathing_advisory'));
+      expect(find.descendant(of: row, matching: find.text('Breathing check (advisory)')),
           findsOneWidget);
+      expect(find.descendant(of: row, matching: find.text('Possible breathing problem')),
+          findsOneWidget);
+      // No score or confidence.
+      expect(find.textContaining('80%'), findsNothing);
+      expect(find.textContaining('Confidence'), findsNothing);
       final triage = [TriageColors.red, TriageColors.amber, TriageColors.green];
       for (final text
-          in tester.widgetList<Text>(find.descendant(of: card, matching: find.byType(Text)))) {
+          in tester.widgetList<Text>(find.descendant(of: row, matching: find.byType(Text)))) {
         expect(triage.contains(text.style?.color), isFalse, reason: text.data);
       }
-      expect(tester.widget<YomaCard>(card).color, YomaColors.grey100);
+      // Below the Why list, clearly after the risk card.
+      expect(tester.getRect(row).top,
+          greaterThan(tester.getRect(find.byKey(const Key('result_risk_card'))).bottom));
     });
   });
 }

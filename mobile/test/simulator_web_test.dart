@@ -44,9 +44,10 @@ void main() {
     await fillVitals(tester);
     await tester.tap(find.byKey(const Key('vitals_see_result')));
     await tester.pumpAndSettle();
-    // MOEWS leads the result; the acoustic RED appears as an advisory card.
+    // MOEWS leads the result; the acoustic RED appears as the advisory row.
     expect(find.text('MOEWS GREEN'), findsOneWidget);
-    expect(find.text('Acoustic (advisory): RED'), findsOneWidget);
+    expect(find.text('Breathing check (advisory)'), findsOneWidget);
+    expect(find.text('Possible breathing problem'), findsOneWidget);
     expect(find.text('Confirm Referral'), findsOneWidget);
     expect(find.text('Continue Monitoring'), findsOneWidget);
     expect(find.byKey(const Key('breathing_pulse_rings')), findsNothing);

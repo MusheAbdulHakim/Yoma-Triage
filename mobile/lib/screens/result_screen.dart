@@ -5,6 +5,7 @@ import '../services/moews_explanation.dart';
 import '../services/referral_gating.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
+import '../widgets/breathing_check.dart';
 import '../widgets/yoma_components.dart';
 import 'referral_screen.dart';
 
@@ -67,10 +68,22 @@ class ResultScreen extends StatelessWidget {
                   const SizedBox(height: YomaSpacing.xl),
                   ..._details(context, m, level),
                 ] else
-                  _AcousticCard(result: result, primary: true),
+                  BreathingResultCard(variant: BreathingVariant.of(result)),
                 if (m != null && !_acousticDisabled) ...[
-                  const SizedBox(height: YomaSpacing.xl),
-                  _AcousticCard(result: result, primary: false, moews: m),
+                  const SizedBox(height: YomaSpacing.lg),
+                  _BreathingAdvisoryRow(variant: BreathingVariant.of(result)),
+                  if (m.hrAbnormal)
+                    Padding(
+                      padding: const EdgeInsets.only(top: YomaSpacing.sm),
+                      child: Text(
+                        'Heart rate contributes MOEWS ${m.hrScore} '
+                        '(abnormal band — escalate attention).',
+                        style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                              color: YomaColors.grey800,
+                              fontWeight: FontWeight.w600,
+                            ),
+                      ),
+                    ),
                 ],
               ],
             ),
@@ -272,61 +285,59 @@ class _RiskCard extends StatelessWidget {
   }
 }
 
-/// The acoustic screening, kept secondary: grey, no triage colours. Shown as the main
-/// card only when there are no vitals at all.
-class _AcousticCard extends StatelessWidget {
-  const _AcousticCard({required this.result, required this.primary, this.moews});
+/// The breathing check on the Result screen: one small secondary row with the variant in
+/// an outlined badge. Dark grey, no triage colours, no score.
+class _BreathingAdvisoryRow extends StatelessWidget {
+  const _BreathingAdvisoryRow({required this.variant});
 
-  final ScreeningResult result;
-  final bool primary;
-  final MoewsResult? moews;
+  final BreathingVariant variant;
 
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final m = moews;
-    return YomaCard(
-      key: const Key('result_acoustic'),
-      color: YomaColors.grey100,
-      shadow: const [],
-      radius: YomaRadii.md,
-      padding: const EdgeInsets.all(YomaSpacing.md),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              const Icon(Icons.graphic_eq, size: 18, color: YomaColors.grey600),
-              const SizedBox(width: 6),
-              Expanded(
-                child: Text(
-                  primary ? result.label : 'Acoustic (advisory): ${result.label}',
-                  style: (primary ? text.titleLarge : text.labelMedium)
-                      ?.copyWith(color: YomaColors.grey800),
+    return Semantics(
+      key: const Key('result_breathing_advisory'),
+      container: true,
+      label: 'Breathing check, advisory: ${variant.title}',
+      excludeSemantics: true,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+        decoration: BoxDecoration(
+          color: YomaColors.surface,
+          borderRadius: BorderRadius.circular(YomaRadii.md),
+          border: Border.all(color: YomaColors.grey200),
+        ),
+        child: Wrap(
+          crossAxisAlignment: WrapCrossAlignment.center,
+          spacing: 8,
+          runSpacing: 6,
+          children: [
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.graphic_eq, size: 18, color: YomaColors.grey700),
+                const SizedBox(width: 6),
+                Flexible(
+                  child: Text(
+                    'Breathing check (advisory)',
+                    style: text.labelMedium?.copyWith(color: YomaColors.grey800),
+                  ),
                 ),
+              ],
+            ),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+              decoration: BoxDecoration(
+                borderRadius: BorderRadius.circular(YomaRadii.pill),
+                border: Border.all(color: YomaColors.grey600),
               ),
-            ],
-          ),
-          const SizedBox(height: 4),
-          Text(result.reason, style: text.bodyMedium?.copyWith(color: YomaColors.grey700)),
-          const SizedBox(height: 2),
-          Text(
-            'Confidence: ${(result.confidence * 100).toStringAsFixed(0)}%'
-            ' · ${result.source}',
-            style: text.bodySmall?.copyWith(color: YomaColors.grey600),
-          ),
-          if (m != null && m.hrAbnormal) ...[
-            const SizedBox(height: 6),
-            Text(
-              'Heart rate contributes MOEWS ${m.hrScore} '
-              '(abnormal band — escalate attention).',
-              style: text.bodyMedium?.copyWith(
-                color: YomaColors.grey900,
-                fontWeight: FontWeight.w700,
+              child: Text(
+                variant.title,
+                style: text.labelSmall?.copyWith(color: YomaColors.grey800),
               ),
             ),
           ],
-        ],
+        ),
       ),
     );
   }
