@@ -85,8 +85,7 @@ void main() {
       expect(missing, findsOneWidget);
       expect(find.descendant(of: missing, matching: find.text('Not measured')), findsOneWidget);
       for (final name in const [
-        'Systolic BP',
-        'Diastolic BP',
+        'Blood pressure',
         'Heart rate',
         'Breathing rate',
         'Temperature',
@@ -96,8 +95,8 @@ void main() {
         expect(find.descendant(of: missing, matching: find.text(name)), findsOneWidget,
             reason: name);
       }
-      expect(find.text('Confirm Referral'), findsOneWidget);
-      expect(find.text('Continue Monitoring'), findsOneWidget);
+      expect(find.text('Confirm referral'), findsOneWidget);
+      expect(find.text('Continue monitoring'), findsOneWidget);
     });
 
     testWidgets('AVPU not measured alone is Incomplete, not Alert',
@@ -124,7 +123,7 @@ void main() {
       expect(find.text('MOEWS RED'), findsOneWidget);
       expect(find.text('Not measured: Temperature'), findsOneWidget);
       expect(find.textContaining('from measured vitals'), findsOneWidget);
-      expect(find.text('Confirm Referral'), findsOneWidget);
+      expect(find.text('Confirm referral'), findsOneWidget);
     });
 
     testWidgets('GREEN without SpO₂ says so', (tester) async {

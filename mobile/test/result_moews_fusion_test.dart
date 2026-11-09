@@ -11,7 +11,7 @@ import 'helpers/vitals_helper.dart';
 void main() {
   _neverGatedTests();
 
-  testWidgets('GREEN acoustic + RED MOEWS shows Confirm Referral',
+  testWidgets('GREEN acoustic + RED MOEWS shows Confirm referral',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -27,7 +27,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Confirm Referral'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
     expect(find.text('MOEWS RED'), findsOneWidget);
     expect(find.text('Breathing check (advisory)'), findsOneWidget);
     // An acoustic GREEN is never shown as normal.
@@ -52,7 +52,7 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Result'), findsOneWidget);
-    expect(find.text('Confirm Referral'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
   });
 
   testWidgets('completed screening opens vitals before result', (tester) async {
@@ -95,7 +95,7 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Confirm Referral'));
+    await tester.tap(find.text('Confirm referral'));
     await tester.pumpAndSettle();
 
     // The form carries the session's vitals: scored on its summary row, and
@@ -124,7 +124,7 @@ void _neverGatedTests() {
       ),
     );
 
-    expect(find.text('Continue Monitoring'), findsOneWidget);
-    expect(find.text('Refer with clinical judgment'), findsOneWidget);
+    expect(find.text('Continue monitoring'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
   });
 }

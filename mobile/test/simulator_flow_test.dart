@@ -44,17 +44,16 @@ void main() {
     await tester.pump();
     expect(find.byKey(const Key('breathing_pulse')), findsOneWidget);
     await pumpUntilFound(tester, find.byKey(const Key('vitals_see_result')));
-    expect(find.text('Record vitals'), findsOneWidget);
+    expect(find.widgetWithText(AppBar, 'Record vitals'), findsOneWidget);
     await fillVitals(tester);
     await tester.tap(find.byKey(const Key('vitals_see_result')));
     await tester.pumpAndSettle();
-    await pumpUntilFound(tester, find.text('Continue Monitoring'));
-    expect(find.text('Continue Monitoring'), findsWidgets);
-    expect(find.text('Refer with clinical judgment'), findsOneWidget);
-    expect(find.text('Confirm Referral'), findsNothing);
+    await pumpUntilFound(tester, find.text('Continue monitoring'));
+    expect(find.text('Continue monitoring'), findsWidgets);
+    expect(find.text('Confirm referral'), findsOneWidget);
   });
 
-  testWidgets('RED result shows Confirm Referral', (tester) async {
+  testWidgets('RED result shows Confirm referral', (tester) async {
     await tester.pumpWidget(
       MaterialApp(
         home: ResultScreen(
@@ -68,7 +67,7 @@ void main() {
       ),
     );
 
-    expect(find.text('Confirm Referral'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
   });
 
   testWidgets('INCONCLUSIVE result offers clinical judgment referral',
@@ -86,8 +85,8 @@ void main() {
       ),
     );
 
-    expect(find.text('Continue Monitoring'), findsOneWidget);
-    expect(find.text('Refer with clinical judgment'), findsOneWidget);
-    expect(find.text('Confirm Referral'), findsNothing);
+    expect(find.text('Continue monitoring'), findsOneWidget);
+    // Monitoring leads; referring stays one tap away as the secondary action.
+    expect(find.text('Confirm referral'), findsOneWidget);
   });
 }

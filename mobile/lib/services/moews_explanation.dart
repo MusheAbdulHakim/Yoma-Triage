@@ -80,5 +80,28 @@ List<WhyRow> explainMoews(MoewsResult moews, Map<String, Object?> vitals) {
   return [...critical, ...borderline];
 }
 
+/// Names for the "Not measured" list: systolic and diastolic missing together read as one
+/// "Blood pressure" row, as in the design.
+List<String> missingDisplayNames(List<String> missing) {
+  final bothBp = missing.contains('systolic_bp') && missing.contains('diastolic_bp');
+  return [
+    for (final key in missing)
+      if (bothBp && key == 'systolic_bp')
+        'Blood pressure'
+      else if (!(bothBp && key == 'diastolic_bp'))
+        vitalDisplayNames[key] ?? key,
+  ];
+}
+
+/// For a result with nothing abnormal: the main measured vitals, "– normal", as in the design.
+List<String> normalRows(Map<String, Object?> vitals) {
+  final rows = <String>[];
+  for (final key in ['systolic_bp', 'heart_rate', 'respiratory_rate', 'temperature']) {
+    final value = vitals[key];
+    if (value is num) rows.add('${vitalDisplayNames[key]} ${_format(value)} ${_units[key]} – normal');
+  }
+  return rows;
+}
+
 String _format(num value) =>
     value is double && value != value.roundToDouble() ? value.toString() : value.round().toString();

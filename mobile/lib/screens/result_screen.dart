@@ -118,10 +118,13 @@ class ResultScreen extends StatelessWidget {
         const SizedBox(height: YomaSpacing.lg),
       ] else if (level == TriageLevel.green) ...[
         const _SectionTitle('Why'),
-        Text(
-          'Every measured vital is in the normal range.',
-          style: text.bodyLarge?.copyWith(color: YomaColors.grey800),
-        ),
+        for (final row in normalRows(vitals ?? const {}))
+          _DotRow(
+            text: row,
+            colour: TriageColors.incompleteBorder,
+            filled: true,
+            semanticPrefix: 'Normal',
+          ),
         const SizedBox(height: YomaSpacing.lg),
       ],
       if (m.isIncomplete) ...[
@@ -133,9 +136,9 @@ class ResultScreen extends StatelessWidget {
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
               const _SectionTitle('Not measured'),
-              for (final name in missing)
+              for (final name in missingDisplayNames(missing))
                 _DotRow(
-                  text: vitalDisplayNames[name] ?? name,
+                  text: name,
                   colour: TriageColors.incompleteBorder,
                   filled: true,
                 ),
@@ -208,7 +211,7 @@ class _RiskCard extends StatelessWidget {
     final partial = moews.missingVitals.any((name) => name != 'spo2');
     final score = moews.score;
     final detail = incomplete
-        ? 'Cannot call this patient normal without a full set of vitals'
+        ? ''
         : [
             if (score != null) 'Score $score',
             if (partial) 'from measured vitals',
@@ -259,7 +262,7 @@ class _RiskCard extends StatelessWidget {
     return Semantics(
       key: const Key('result_risk_card'),
       container: true,
-      label: 'Risk level: ${level.word}. ${level.moewsName}. $detail',
+      label: 'Risk level: ${level.word}. ${level.moewsName}.${detail.isEmpty ? '' : ' $detail'}',
       excludeSemantics: true,
       child: incomplete
           ? CustomPaint(
@@ -426,13 +429,13 @@ class _Actions extends StatelessWidget {
       key: const Key('result_primary'),
       style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(YomaSizes.primaryButton)),
       onPressed: indicate ? onConfirm : onMonitor,
-      child: Text(indicate ? 'Confirm Referral' : 'Continue Monitoring'),
+      child: Text(indicate ? 'Confirm referral' : 'Continue monitoring'),
     );
     final secondary = OutlinedButton(
       key: const Key('result_secondary'),
       style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(YomaSizes.minTap)),
       onPressed: indicate ? onMonitor : onConfirm,
-      child: Text(indicate ? 'Continue Monitoring' : 'Refer with clinical judgment'),
+      child: Text(indicate ? 'Continue monitoring' : 'Confirm referral'),
     );
     return DecoratedBox(
       decoration: const BoxDecoration(

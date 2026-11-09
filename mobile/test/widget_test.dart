@@ -30,7 +30,8 @@ void main() {
     );
     expect(find.text('Check breathing'), findsOneWidget);
     expect(find.text('Advisory'), findsOneWidget);
-    expect(find.text('Record vitals'), findsNothing);
+    // Round 5: acoustic builds show all three actions.
+    expect(find.text('Record vitals'), findsOneWidget);
     expect(find.text('Emergency referral'), findsOneWidget);
   });
 

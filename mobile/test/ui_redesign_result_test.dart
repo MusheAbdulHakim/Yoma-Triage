@@ -84,13 +84,13 @@ void main() {
   });
 
   group('variants', () {
-    testWidgets('RED: risk announced in words, Confirm Referral leads', (tester) async {
+    testWidgets('RED: risk announced in words, Confirm referral leads', (tester) async {
       await _open(tester, _vitals(sbp: 185, rr: 32, hr: 118));
       final card = tester.getSemantics(find.byKey(const Key('result_risk_card')));
       expect(card.label, startsWith('Risk level: Critical.'));
       expect(find.text('Critical'), findsOneWidget);
       expect(find.text('MOEWS RED'), findsOneWidget);
-      expect(_primary(tester), 'Confirm Referral');
+      expect(_primary(tester), 'Confirm referral');
       expect(find.text('Systolic BP 185 mmHg – very high'), findsOneWidget);
     });
 
@@ -99,10 +99,10 @@ void main() {
       expect(find.text('Elevated'), findsOneWidget);
       final word = tester.widget<Text>(find.text('Elevated'));
       expect(word.style?.color, TriageColors.onAmber);
-      expect(_primary(tester), 'Confirm Referral');
+      expect(_primary(tester), 'Confirm referral');
     });
 
-    testWidgets('INCOMPLETE: grey dashed card, Not measured list, Confirm Referral leads',
+    testWidgets('INCOMPLETE: grey dashed card, Not measured list, Confirm referral leads',
         (tester) async {
       await _open(tester, _vitals(sbp: null, dbp: null, temp: null, avpu: null));
       expect(find.text('Incomplete'), findsOneWidget);
@@ -116,18 +116,19 @@ void main() {
       );
       final list = find.byKey(const Key('moews_not_measured'));
       expect(find.descendant(of: list, matching: find.text('Not measured')), findsOneWidget);
-      for (final name in ['Systolic BP', 'Diastolic BP', 'Temperature', 'Consciousness']) {
+      // Systolic and diastolic missing together read as one row, as in the design.
+      for (final name in ['Blood pressure', 'Temperature', 'Consciousness']) {
         expect(find.descendant(of: list, matching: find.text(name)), findsOneWidget);
       }
-      expect(_primary(tester), 'Confirm Referral');
+      expect(_primary(tester), 'Confirm referral');
     });
 
-    testWidgets('GREEN: Continue Monitoring leads, and missing SpO2 is said', (tester) async {
+    testWidgets('GREEN: Continue monitoring leads, and missing SpO2 is said', (tester) async {
       await _open(tester, _vitals(spo2: null));
       expect(find.text('Stable'), findsOneWidget);
-      expect(_primary(tester), 'Continue Monitoring');
+      expect(_primary(tester), 'Continue monitoring');
       expect(find.text('Oxygen saturation not measured'), findsOneWidget);
-      expect(find.text('Refer with clinical judgment'), findsOneWidget);
+      expect(find.text('Confirm referral'), findsOneWidget);
     });
 
     testWidgets('breathing advisory row stays secondary: grey, words only, no triage colours',

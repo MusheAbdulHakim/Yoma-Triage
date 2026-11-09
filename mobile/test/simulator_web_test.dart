@@ -28,7 +28,7 @@ void main() {
     SharedPreferences.setMockInitialValues(registeredChoPrefs());
   });
 
-  testWidgets('web simulator Code Red shows Confirm Referral', (tester) async {
+  testWidgets('web simulator Code Red shows Confirm referral', (tester) async {
     useTallScreen(tester);
     await tester.pumpWidget(
       const MaterialApp(
@@ -48,8 +48,8 @@ void main() {
     expect(find.text('MOEWS GREEN'), findsOneWidget);
     expect(find.text('Breathing check (advisory)'), findsOneWidget);
     expect(find.text('Possible breathing problem'), findsOneWidget);
-    expect(find.text('Confirm Referral'), findsOneWidget);
-    expect(find.text('Continue Monitoring'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
+    expect(find.text('Continue monitoring'), findsOneWidget);
     expect(find.byKey(const Key('breathing_pulse_rings')), findsNothing);
   });
 }

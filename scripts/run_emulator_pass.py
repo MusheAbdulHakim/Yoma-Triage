@@ -1094,7 +1094,7 @@ def tap_scrolling(device: Device, text: str, *, exact: bool = False) -> None:
 
 
 def release_confirm_timing(device: Device, runs: int = 3) -> None:
-    """Confirm Referral to "TIER1_NOTIFIED" on the release APK. Read through the accessibility
+    """Confirm referral to "TIER1_NOTIFIED" on the release APK. Read through the accessibility
     tree, so each figure is an upper bound: it includes the time one read of the screen takes.
     """
     CURRENT["scenario"] = "timings"
@@ -1109,7 +1109,7 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
         tap_text(device, "Stop", 30)
         to_result_screen(device)
         wait_screen(device, "Advisory only", 30)
-        tap_scrolling(device, "Confirm Referral", exact=True)
+        tap_scrolling(device, "Confirm referral", exact=True)
         tap_text(device, "confirm facility", 30)
         tap_text(device, "Tamale Teaching Hospital", 20)
         wait_screen(device, "confirmed", 20)
@@ -1139,7 +1139,7 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
             "confirm_to_notified_release_median_ms": statistics.median(samples),
         }
     )
-    log(f"  Confirm Referral to notified, release: {samples}")
+    log(f"  Confirm referral to notified, release: {samples}")
     save_results(device)
 
 

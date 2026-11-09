@@ -25,7 +25,7 @@ void main() {
     await tester.waitFor(find.text('Result'));
     await tester.shot('s4_2_result');
 
-    await tester.tapOn(find.text('Confirm Referral'));
+    await tester.tapOn(find.text('Confirm referral'));
     await tester.chooseFacility();
     await tester.chooseEmergency();
     await tester.shot('s4_3_form');

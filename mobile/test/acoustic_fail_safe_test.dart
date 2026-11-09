@@ -166,7 +166,7 @@ void main() {
         ),
       );
       expect(find.text('Breathing check (advisory)'), findsNothing);
-      expect(find.text('Refer with clinical judgment'), findsOneWidget);
+      expect(find.text('Confirm referral'), findsOneWidget);
     });
   });
 
