@@ -387,6 +387,8 @@ void main() {
     testWidgets('Yes cancels the referral through the normal cancel', (tester) async {
       final api = await callADriver(tester);
       expect(find.text('Did a driver agree to come?'), findsOneWidget);
+      expect(find.text('No, keep waiting'), findsOneWidget);
+      expect(find.text('Yes, cancel referral'), findsOneWidget);
       await tester.tap(find.byKey(const Key('dispatch_driver_agreed_yes')));
       await _settle(tester);
       expect(api.cancels, 1);

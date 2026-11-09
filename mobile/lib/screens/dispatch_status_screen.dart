@@ -146,7 +146,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
           TextButton(
             key: const Key('dispatch_driver_agreed_yes'),
             onPressed: () => Navigator.of(context).pop(true),
-            child: const Text('Yes'),
+            child: const Text('Yes, cancel referral'),
           ),
         ],
       ),
