@@ -223,7 +223,7 @@ void main() {
       );
       await chooseTypeAndFacility(tester);
 
-      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tap(find.byKey(const Key('referral_send')));
       for (var i = 0; i < 200 && api.sent.isEmpty; i++) {
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)),
@@ -243,12 +243,11 @@ void main() {
       );
       await chooseTypeAndFacility(tester);
 
-      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tap(find.byKey(const Key('referral_send')));
       await pumpUntil(tester, find.byKey(const Key('referral_skip_error')));
 
       expect(api.sent, isEmpty);
       expect(find.textContaining('not set up as a CHO'), findsOneWidget);
-      expect(find.text('This phone is not set up'), findsOneWidget);
     });
 
     test('a queued referral keeps its CHO phone when flushed', () async {

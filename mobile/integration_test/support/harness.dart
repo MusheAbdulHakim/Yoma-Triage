@@ -262,14 +262,18 @@ extension Drive on WidgetTester {
   }
 
   Future<void> chooseFacility() async {
-    final card = find.textContaining('(tap to confirm facility)');
-    await waitFor(card);
+    await waitFor(find.byKey(const Key('referral_send_to_confirm')));
     // Wait for the catalog, or the suggested facility shows before it is ready.
     await wait(const Duration(milliseconds: 500));
-    await tapOn(card);
+    await tapOn(find.byKey(const Key('referral_send_to')));
     await waitFor(find.text('Choose receiving facility'));
     await tapOn(find.text(facilityName));
-    await waitFor(find.textContaining('(confirmed)'));
+    // "Tap to confirm" goes once the facility is confirmed.
+    await waitFor(find.byKey(const Key('referral_send_to')));
+    for (var i = 0; i < 50; i++) {
+      if (find.byKey(const Key('referral_send_to_confirm')).evaluate().isEmpty) break;
+      await pump(const Duration(milliseconds: 100));
+    }
   }
 
   Future<void> chooseEmergency([String label = 'Heavy bleeding']) async {

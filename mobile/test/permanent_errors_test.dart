@@ -187,7 +187,7 @@ void main() {
       await tester.tap(find.byType(ListTile).first);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tap(find.byKey(const Key('referral_send')));
       await pumpUntil(tester, find.byType(FailedReferralsScreen));
       await pumpUntil(tester, find.textContaining('Facility not found'));
 
@@ -213,7 +213,7 @@ void main() {
       await tester.tap(find.byType(ListTile).first);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tap(find.byKey(const Key('referral_send')));
       await pumpUntil(tester, find.byType(QueuedReferralScreen));
       await pumpUntil(tester, find.byKey(const Key('queued_retry_warning')));
 

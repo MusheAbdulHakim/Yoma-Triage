@@ -68,7 +68,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
   ReferralGraph? _graph;
   CatalogFacility? _selectedFacility;
   ChoIdentity? _identity;
-  bool _identityLoaded = false;
   String _originBanner = 'Using Home CHPS location';
   double? _originLat;
   double? _originLon;
@@ -87,7 +86,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
       if (!mounted) return;
       setState(() {
         _identity = identity;
-        _identityLoaded = true;
       });
       final graph = await _catalogStore.load();
       final home = identity == null ? null : graph.compoundById(identity.compoundId);
@@ -205,8 +203,8 @@ class _ReferralScreenState extends State<ReferralScreen> {
       return;
     }
     if (_vitals == null) {
-      setState(() => _error = 'Record vitals first (tap Vitals above), '
-          'or use Emergency: skip vitals');
+      // The button sends without vitals in that case; this is only a guard.
+      await _skipVitals();
       return;
     }
     await _send(vitalsTaken: true);
@@ -396,9 +394,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
                   borderRadius: BorderRadius.circular(YomaRadii.md),
                   onTap: _openPicker,
                   child: ConstrainedBox(
-                    constraints: const BoxConstraints(minHeight: 56),
+                    constraints: const BoxConstraints(minHeight: 52),
                     child: Padding(
-                      padding: const EdgeInsets.fromLTRB(14, 10, 10, 10),
+                      padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
                       child: Row(
                         children: [
                           Expanded(
@@ -407,25 +405,21 @@ class _ReferralScreenState extends State<ReferralScreen> {
                               children: [
                                 Text(
                                   facilityLabel,
-                                  style: Theme.of(context).textTheme.titleMedium,
-                                ),
-                                Text(
-                                  _facilityConfirmed ? '(confirmed)' : '(tap to confirm facility)',
-                                  style: Theme.of(context).textTheme.bodySmall?.copyWith(
-                                        color: _facilityConfirmed
-                                            ? YomaColors.grey600
-                                            : YomaColors.brand,
-                                        fontWeight: FontWeight.w600,
-                                      ),
-                                ),
-                                Text(
-                                  _identity?.compoundName ??
-                                      (_identityLoaded ? 'This phone is not set up' : '…'),
                                   style: Theme.of(context)
                                       .textTheme
-                                      .bodySmall
-                                      ?.copyWith(color: YomaColors.grey600),
+                                      .titleSmall
+                                      ?.copyWith(fontSize: 15, fontWeight: FontWeight.w700),
                                 ),
+                                // Only until the CHO has confirmed the facility.
+                                if (!_facilityConfirmed)
+                                  Text(
+                                    'Tap to confirm',
+                                    key: const Key('referral_send_to_confirm'),
+                                    style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                                          color: YomaColors.tertiary,
+                                          fontWeight: FontWeight.w600,
+                                        ),
+                                  ),
                               ],
                             ),
                           ),
@@ -437,14 +431,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
                 ),
               ),
             ),
-            if (!_facilityConfirmed)
-              Padding(
-                padding: const EdgeInsets.only(top: 6),
-                child: Text(
-                  _originBanner,
-                  style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey600),
-                ),
-              ),
             if (widget.aiScreenResult case final label?)
               Padding(
                 padding: const EdgeInsets.only(top: 12),
@@ -478,31 +464,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
         child: SafeArea(
           top: false,
           child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            padding: const EdgeInsets.fromLTRB(16, 8, 16, 8),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                // Pinned, so the one-tap emergency path is always on screen.
-                FilledButton(
-                  key: const Key('referral_skip_vitals'),
-                  style: FilledButton.styleFrom(
-                    minimumSize: const Size.fromHeight(52),
-                    backgroundColor: TriageColors.red, // emergency override (design system)
-                  ),
-                  onPressed: _submitting ? null : _skipVitals,
-                  child: const Text('Emergency: skip vitals'),
-                ),
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 4),
-                  child: Text(
-                    'Vitals not taken – the hospital will be told',
-                    key: const Key('referral_vitals_not_taken'),
-                    textAlign: TextAlign.center,
-                    style:
-                        Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey700),
-                  ),
-                ),
                 if (_skipError != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),
@@ -516,12 +482,21 @@ class _ReferralScreenState extends State<ReferralScreen> {
                           ),
                     ),
                   ),
-                const SizedBox(height: 4),
+                // One button. With vitals it sends them; without, it uses the one-tap
+                // skip-vitals path and the hospital is told vitals were not taken.
                 FilledButton(
                   key: const Key('referral_send'),
                   // Grey until an emergency type is chosen; every other check runs on tap.
-                  onPressed: _submitting || _emergencyType == null ? null : _submit,
-                  child: Text(_submitting ? 'Submitting…' : 'Send referral'),
+                  onPressed: _submitting || _emergencyType == null
+                      ? null
+                      : (_vitals == null ? _skipVitals : _submit),
+                  child: Text(
+                    _submitting
+                        ? 'Sending…'
+                        : _vitals == null
+                            ? 'Send now (vitals not taken)'
+                            : 'Send referral',
+                  ),
                 ),
                 if (_emergencyType == null)
                   Padding(
@@ -581,9 +556,18 @@ class _ReferralScreenState extends State<ReferralScreen> {
     Widget trailing;
     String spoken;
     if (v == null) {
-      trailing = Text(
-        'Not recorded',
-        style: text.labelMedium?.copyWith(color: YomaColors.grey700),
+      trailing = Text.rich(
+        TextSpan(
+          text: 'Not recorded – ',
+          style: text.labelMedium?.copyWith(color: YomaColors.grey700),
+          children: [
+            TextSpan(
+              text: 'Record vitals',
+              style: text.labelMedium?.copyWith(color: YomaColors.tertiary),
+            ),
+          ],
+        ),
+        textAlign: TextAlign.end,
       );
       spoken = 'Vitals: not recorded. Tap to record vitals.';
     } else {

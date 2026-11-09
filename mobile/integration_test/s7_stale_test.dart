@@ -27,7 +27,7 @@ void main() {
     const answers = 3;
     for (var i = 0; i < answers; i++) {
       await tester.openReferralForm();
-      await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tapOn(find.byKey(const Key('referral_send')));
       await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
       await tester.tapOn(find.text('Back to Home'));
       await tester.waitFor(find.byKey(const Key('home_emergency_referral')));

@@ -17,7 +17,7 @@ void main() {
     await tester.setUpCho();
 
     await tester.openReferralForm();
-    await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
+    await tester.tapOn(find.byKey(const Key('referral_send')));
     await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 30));
     await tester.shot('s8_1_tier1');
     final before = await Host.rows('dispatches');

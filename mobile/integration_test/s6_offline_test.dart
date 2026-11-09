@@ -104,7 +104,7 @@ void main() {
     await Host.airplane(true);
     await tester.wait(const Duration(seconds: 2));
     await tester.openReferralForm();
-    await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
+    await tester.tapOn(find.byKey(const Key('referral_send')));
     await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
     await Host.airplane(false);
     await tester.waitFor(

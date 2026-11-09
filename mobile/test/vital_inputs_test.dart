@@ -184,13 +184,13 @@ void main() {
         (tester) async {
       await open(tester);
       expect(find.byType(TextField), findsNothing, reason: 'vitals are entered in one place');
-      expect(find.text('Not recorded'), findsOneWidget);
+      expect(find.textContaining('Not recorded – Record vitals'), findsOneWidget);
       for (final fake in ['70', '50', '140', '35', '39.5', '85']) {
         expect(find.text(fake), findsNothing, reason: fake);
       }
     });
 
-    testWidgets('untouched form asks for vitals before it sends', (tester) async {
+    testWidgets('untouched form asks for a type, then the facility, before it sends', (tester) async {
       await open(tester);
       // Send stays disabled until a type is chosen, and says so.
       final send = find.byKey(const Key('referral_send'));
@@ -205,9 +205,9 @@ void main() {
       for (var i = 0; i < 100; i++) {
         await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
         await tester.pump();
-        if (find.textContaining('Choose receiving facility').evaluate().isNotEmpty) break;
+        if (find.textContaining('choose the receiving facility').evaluate().isNotEmpty) break;
       }
-      expect(find.textContaining('Choose receiving facility'), findsOneWidget);
+      expect(find.textContaining('choose the receiving facility'), findsOneWidget);
     });
 
     testWidgets('the summary opens Record vitals with the values carried over',
