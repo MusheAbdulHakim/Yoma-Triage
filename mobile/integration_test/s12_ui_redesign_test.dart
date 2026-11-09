@@ -14,6 +14,8 @@ import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/screens/result_screen.dart';
+import 'package:yoma_triage/screens/stale_referral_screen.dart';
+import 'package:yoma_triage/screens/setup_screen.dart';
 import 'package:yoma_triage/screens/screening_screen.dart';
 import 'package:yoma_triage/screens/vitals_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
@@ -229,6 +231,7 @@ void main() {
     await tester.shot('r3_status_5_not_sent_yet');
 
     await _rounds4to6(tester, show, clearWarnings);
+    await _round7(tester, show);
   });
 }
 
@@ -504,4 +507,104 @@ Future<void> _rounds4to6(
   }
   await Host.fontScale(1.0);
   await tester.wait(const Duration(seconds: 2));
+}
+
+/// Setup's lookup, answering with a clinic or a refusal (round 7 shots).
+class _Lookup extends ApiClient {
+  _Lookup({this.error});
+
+  final Object? error;
+
+  @override
+  Future<Map<String, dynamic>> lookupCho(String phone) async {
+    if (error != null) throw error!;
+    return {
+      'name': 'Abena Mensah',
+      'phone': phone,
+      'compound_id': 1,
+      'compound_name': compoundName,
+    };
+  }
+}
+
+/// Stale referrals waiting for an answer, for the "Still needs transport?" sheet.
+class _Waiting extends OfflineQueue {
+  _Waiting({this.count = 1, this.contacted = false});
+
+  final int count;
+  final bool contacted;
+
+  @override
+  Future<List<QueuedReferral>> needsConfirmation() async => [
+        for (var i = 0; i < count; i++)
+          QueuedReferral(
+            clientRequestId: 'shot-$i',
+            status: 'needs_confirmation',
+            createdAt: DateTime.now().subtract(const Duration(minutes: 45)),
+            payload: {
+              'emergency_type': 'pph',
+              'facility_id': 1,
+              'cho_phone': registeredCho,
+              'local_server_referral_id': 42 + i,
+              if (contacted) 'local_manual_contact_made': true,
+            },
+          ),
+      ];
+}
+
+/// Round 7: first-run setup in each state, and the transport sheet over Home.
+Future<void> _round7(
+  WidgetTester tester,
+  Future<void> Function(Widget, {double textScale}) show,
+) async {
+  // Setup: empty, number typed, confirmed, not registered, no network.
+  await show(SetupScreen(api: _Lookup(), onComplete: (_) {}));
+  await tester.shot('r7_setup_empty');
+  await tester.enterText(find.byKey(const Key('setup_phone')), '240000777');
+  await tester.closeKeyboard();
+  await tester.shot('r7_setup_number');
+  await tester.tapOn(find.byKey(const Key('setup_continue')));
+  await tester.waitFor(find.byKey(const Key('setup_start')));
+  await tester.shot('r7_setup_confirmed');
+  for (final (name, error) in <(String, Object)>[
+    ('r7_setup_not_registered', ApiException(404, '{"detail":"x","code":"CHO_NOT_REGISTERED"}')),
+    ('r7_setup_network_error', Exception('no route')),
+  ]) {
+    await show(SetupScreen(api: _Lookup(error: error), onComplete: (_) {}));
+    await tester.enterText(find.byKey(const Key('setup_phone')), '240999999');
+    await tester.closeKeyboard();
+    await tester.tapOn(find.byKey(const Key('setup_continue')));
+    await tester.waitFor(find.byKey(const Key('setup_error')));
+    await tester.shot(name);
+  }
+
+  // The sheet over Home: default order, after Call or SMS, and 1 of 3.
+  for (final (name, queue) in [
+    ('r7_sheet_default', _Waiting()),
+    ('r7_sheet_after_call', _Waiting(contacted: true)),
+    ('r7_sheet_1_of_3', _Waiting(count: 3)),
+  ]) {
+    await show(Builder(
+      builder: (context) => Scaffold(
+        body: Stack(
+          children: [
+            const HomeScreen(acousticEnabled: false),
+            Positioned(
+              left: 0,
+              top: 0,
+              child: TextButton(
+                key: const Key('open_sheet'),
+                onPressed: () => showStaleReferralSheet(context, queue: queue),
+                child: const SizedBox.shrink(),
+              ),
+            ),
+          ],
+        ),
+      ),
+    ));
+    await tester.tap(find.byKey(const Key('open_sheet')), warnIfMissed: false);
+    await tester.waitFor(find.text('Still needs transport?'));
+    await tester.wait(const Duration(seconds: 1));
+    await tester.shot(name);
+  }
 }
