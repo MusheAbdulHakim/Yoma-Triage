@@ -922,17 +922,20 @@ def tap_text(device: Device, text: str, timeout: float = 45) -> None:
 def release_setup(device: Device) -> None:
     device.shell(f"pm clear {PACKAGE}")
     device.shell(f"am start -n {ACTIVITY}")
-    nodes = wait_screen(device, "Set up this phone", 90)
+    # Round 7 setup: "+233" is shown, so only the 9 local digits are typed; then the
+    # clinic the server found, and Start.
+    nodes = wait_screen(device, "Enter the phone number", 90)
     field = next((n for n in nodes if n.get("class") == "android.widget.EditText"), None)
     if field is None:
         raise RuntimeError(f"No phone field. Screen: {screen_text(nodes)[:500]}")
     tap_node(device, field)
     time.sleep(1)
-    device.shell(f"input text '{TEST_CHO}'")
+    device.shell(f"input text '{TEST_CHO.removeprefix('+233')}'")
     time.sleep(1)
     device.shell("input keyevent KEYCODE_BACK")
     time.sleep(1)
     tap_text(device, "Continue")
+    tap_text(device, "Start", 45)
     wait_screen(device, "Emergency referral", 45)
 
 
@@ -960,12 +963,38 @@ def tap_permission(device: Device, allow: bool) -> str:
     return "no dialog"
 
 
+def open_breathing_check(device: Device, timeout: float = 60) -> None:
+    """Home > Check breathing, then Start on the Ready step (on by default since round 7)."""
+    tap_text(device, "Check breathing", timeout)
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        nodes = device.dump()
+        start = find_node(nodes, "Start", exact=True)
+        if start:
+            tap_node(device, start)
+            return
+        if find_node(nodes, "Listening") or find_node(nodes, "Allow"):
+            return
+        time.sleep(0.5)
+
+
 def to_result_screen(device: Device) -> None:
     """Mark every vital Not measured, which needs no typing, then continue to the result.
 
     Each vital (and Consciousness) has a toggle whose screen-reader label is
-    "<vital> not measured"; once tapped it reads "Clear: …".
+    "<vital> not measured"; once tapped it reads "Clear: …". The breathing result step
+    (round 7 default) is passed with Continue to vitals.
     """
+    deadline = time.time() + 90
+    while time.time() < deadline:
+        nodes = device.dump()
+        go_on = find_node(nodes, "Continue to vitals", exact=True)
+        if go_on:
+            tap_node(device, go_on)
+            break
+        if find_node(nodes, "Record vitals"):
+            break
+        time.sleep(1)
     wait_screen(device, "Record vitals", 90)
     for _ in range(12):
         nodes = device.dump()
@@ -1020,7 +1049,7 @@ def scenario_2(device: Device, apk: dict) -> bool:
 
         # Mic denied.
         device.shell(f"pm revoke {PACKAGE} android.permission.RECORD_AUDIO")
-        tap_text(device, "Check breathing")
+        open_breathing_check(device)
         answered = tap_permission(device, allow=False)
         notes.append(f"Mic dialog answered with: {answered}")
         time.sleep(2)
@@ -1048,7 +1077,7 @@ def scenario_2(device: Device, apk: dict) -> bool:
         device.shell(f"am force-stop {PACKAGE}")
         device.shell(f"pm grant {PACKAGE} android.permission.RECORD_AUDIO")
         device.shell(f"am start -n {ACTIVITY}")
-        tap_text(device, "Check breathing", 60)
+        open_breathing_check(device, 60)
         wait_screen(device, "Listening", 20)
         device.screenshot("s2_5_listening")
         # Leave the screen alone until the countdown ends and the analysis finishes. A touch
@@ -1105,7 +1134,7 @@ def anr_probe(device: Device, entry: dict, runs: int = 3) -> None:
             device.shell(f"am force-stop {PACKAGE}")
             device.shell("logcat -b events -c")
             device.shell(f"am start -n {ACTIVITY}")
-            tap_text(device, "Check breathing", 60)
+            open_breathing_check(device, 60)
             wait_screen(device, "Listening", 20)
             # Touch the app bar, which has no action, once a second until analysis is over.
             started = time.monotonic()
@@ -1193,12 +1222,12 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
         CURRENT["backend"].reset()
         device.shell(f"am force-stop {PACKAGE}")
         device.shell(f"am start -n {ACTIVITY}")
-        tap_text(device, "Check breathing", 60)
+        open_breathing_check(device, 60)
         tap_text(device, "Stop", 30)
         to_result_screen(device)
         wait_screen(device, "Advisory only", 30)
         tap_scrolling(device, "Confirm referral", exact=True)
-        tap_text(device, "confirm facility", 30)
+        tap_text(device, "Tap to confirm", 30)
         tap_text(device, "Tamale Teaching Hospital", 20)
         wait_screen(device, "confirmed", 20)
         tap_text(device, "Emergency type", 20)

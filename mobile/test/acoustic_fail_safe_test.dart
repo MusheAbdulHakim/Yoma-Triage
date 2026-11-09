@@ -130,6 +130,7 @@ void main() {
           home: ScreeningScreen(
             forceWebSimulator: false,
             service: _MicFailsService(),
+            showReadyStep: false,
           ),
         ),
       );

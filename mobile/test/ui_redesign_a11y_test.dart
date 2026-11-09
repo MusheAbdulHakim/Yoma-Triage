@@ -264,9 +264,11 @@ final Map<String, Widget Function()> _screens = {
   // Round 2: the breathing check.
   'Breathing: Ready': () =>
       ScreeningScreen(forceWebSimulator: false, service: _Breathing(), showReadyStep: true),
-  'Breathing: Recording': () => ScreeningScreen(forceWebSimulator: false, service: _Breathing()),
+  'Breathing: Recording': () =>
+      ScreeningScreen(forceWebSimulator: false, service: _Breathing(), showReadyStep: false),
   'Breathing: Microphone blocked': () => ScreeningScreen(
         forceWebSimulator: false,
+        showReadyStep: false,
         service: _Breathing(failStart: StateError('Microphone permission denied')),
       ),
   // Round 3: dispatch status and the not-sent-yet screen.
@@ -576,7 +578,10 @@ void main() {
   testWidgets('Breathing: Analysing passes the semantics-tree and target checks', (tester) async {
     _screen(tester, const Size(360, 640));
     final handle = tester.ensureSemantics();
-    await _pump(tester, ScreeningScreen(forceWebSimulator: false, service: _Analysing()));
+    await _pump(
+        tester,
+        ScreeningScreen(
+            forceWebSimulator: false, service: _Analysing(), showReadyStep: false));
     await tester.tap(find.text('Stop'));
     await tester.pump(const Duration(milliseconds: 300));
     expect(find.text('Checking the recording…'), findsOneWidget);
@@ -594,7 +599,8 @@ void main() {
       await _pump(
           tester,
           ScreeningScreen(
-              forceWebSimulator: false, service: _Analysing(label: label), showResultStep: true));
+              forceWebSimulator: false, service: _Analysing(label: label), showReadyStep: false,
+              showResultStep: true));
       await tester.tap(find.text('Stop'));
       for (var i = 0; i < 5; i++) {
         await tester.pump(const Duration(milliseconds: 200));

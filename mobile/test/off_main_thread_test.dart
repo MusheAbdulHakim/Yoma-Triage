@@ -289,7 +289,11 @@ void main() {
     Future<_SlowService> analyse(WidgetTester tester) async {
       final service = _SlowService(_SlowClassifier());
       await tester.pumpWidget(
-        MaterialApp(home: ScreeningScreen(forceWebSimulator: false, service: service)),
+        MaterialApp(home: ScreeningScreen(
+            forceWebSimulator: false,
+            service: service,
+            showReadyStep: false,
+            showResultStep: false)),
       );
       await tester.pump(const Duration(milliseconds: 100));
       await tester.tap(find.byKey(const Key('screening_stop')));

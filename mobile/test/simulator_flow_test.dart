@@ -35,6 +35,9 @@ void main() {
       const MaterialApp(home: HomeScreen(acousticEnabled: true)),
     );
     await tester.tap(find.text('Check breathing'));
+    // Round 7 default: the Ready step first, then Start begins recording.
+    await pumpUntilFound(tester, find.byKey(const Key('screening_start')));
+    await tester.tap(find.byKey(const Key('screening_start')));
     // Screening starts recording + breath pulse (infinite animation).
     await pumpUntilFound(tester, find.byKey(const Key('screening_stop')));
     expect(find.byKey(const Key('screening_stop')), findsOneWidget);
@@ -42,7 +45,9 @@ void main() {
 
     await tester.tap(find.byKey(const Key('screening_stop')));
     await tester.pump();
-    expect(find.byKey(const Key('breathing_pulse')), findsOneWidget);
+    // Round 7 default: the breathing result step, then on to vitals.
+    await pumpUntilFound(tester, find.byKey(const Key('screening_continue_to_vitals')));
+    await tester.tap(find.byKey(const Key('screening_continue_to_vitals')));
     await pumpUntilFound(tester, find.byKey(const Key('vitals_see_result')));
     expect(find.widgetWithText(AppBar, 'Record vitals'), findsOneWidget);
     await fillVitals(tester);

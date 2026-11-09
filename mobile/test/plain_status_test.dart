@@ -207,7 +207,8 @@ void main() {
     testWidgets('the screen never shows the exception', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: ScreeningScreen(forceWebSimulator: false, service: _PermissionDenied()),
+          home: ScreeningScreen(
+              forceWebSimulator: false, service: _PermissionDenied(), showReadyStep: false),
         ),
       );
       await tester.pump(const Duration(milliseconds: 100));

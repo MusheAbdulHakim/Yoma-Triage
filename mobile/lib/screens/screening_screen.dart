@@ -36,7 +36,7 @@ class ScreeningScreen extends StatefulWidget {
   final ScreeningService? service;
 
   /// The Ready step (Start before recording) and the result step (before vitals). Off
-  /// unless [ScreeningConfig.breathingSteps]: both add a tap to today's flow.
+  /// while [ScreeningConfig.breathingSteps] is on (the default since round 7).
   final bool? showReadyStep;
   final bool? showResultStep;
 

@@ -127,14 +127,15 @@ void main() {
       phase = 'idle';
     }
 
-    await show(ScreeningScreen(service: _Scripted(level: 0.5)), reduceMotion: true);
+    await show(ScreeningScreen(showReadyStep: false, service: _Scripted(level: 0.5)),
+        reduceMotion: true);
     await tester.wait(const Duration(seconds: 1));
     await measure('control_static_ring', const Duration(seconds: 8));
-    await show(ScreeningScreen(service: _Scripted(level: 0.5)));
+    await show(ScreeningScreen(showReadyStep: false, service: _Scripted(level: 0.5)));
     await tester.wait(const Duration(seconds: 1));
     await measure('pulse_scripted', const Duration(seconds: 8));
 
-    await show(const ScreeningScreen());
+    await show(const ScreeningScreen(showReadyStep: false));
     phase = 'recording';
     lastTick = clock.elapsedMilliseconds;
     await tester.waitFor(find.text('Checking the recording…'),
@@ -166,7 +167,7 @@ void main() {
 
     // The real microphone, for the record: on the emulator the input is near silent, so
     // with amplitude readings arriving the hint should show.
-    await show(const ScreeningScreen());
+    await show(const ScreeningScreen(showReadyStep: false));
     await tester.wait(const Duration(seconds: 5));
     await Host.note('Silence hint with the emulator microphone after 5 s: '
         '${find.byKey(const Key('screening_silence_hint')).evaluate().isNotEmpty}.');
@@ -178,31 +179,32 @@ void main() {
     await tester.waitFor(find.byType(VitalsScreen), timeout: const Duration(seconds: 60));
 
     // ---- 2. Every screen, scripted. ----
-    await show(ScreeningScreen(
-        service: _Scripted(level: 0.1), showReadyStep: true, showResultStep: true));
+    await show(
+        ScreeningScreen(service: _Scripted(level: 0.1), showReadyStep: true, showResultStep: true));
     await tester.wait(const Duration(seconds: 1));
     await tester.shot('b_1_ready');
 
-    await show(ScreeningScreen(service: _Scripted(level: 0.12)));
+    await show(ScreeningScreen(showReadyStep: false, service: _Scripted(level: 0.12)));
     await tester.wait(const Duration(milliseconds: 2500));
     await tester.shot('b_2_recording_quiet');
 
-    await show(ScreeningScreen(service: _Scripted(level: 0.95)));
+    await show(ScreeningScreen(showReadyStep: false, service: _Scripted(level: 0.95)));
     await tester.wait(const Duration(milliseconds: 2500));
     await tester.shot('b_3_recording_loud');
 
-    await show(ScreeningScreen(service: _Scripted(level: 0.0)));
+    await show(ScreeningScreen(showReadyStep: false, service: _Scripted(level: 0.0)));
     await tester.wait(const Duration(seconds: 4));
     expect(find.byKey(const Key('screening_silence_hint')), findsOneWidget);
     await tester.shot('b_4_recording_silence_hint');
 
-    await show(ScreeningScreen(service: _Scripted(level: 0.6)), reduceMotion: true);
+    await show(ScreeningScreen(showReadyStep: false, service: _Scripted(level: 0.6)),
+        reduceMotion: true);
     await tester.wait(const Duration(seconds: 2));
     expect(find.byKey(const Key('breathing_pulse_static')), findsOneWidget);
     await tester.shot('b_5_recording_reduced_motion');
 
     final analysing = _Scripted(level: 0.5);
-    await show(ScreeningScreen(service: analysing));
+    await show(ScreeningScreen(showReadyStep: false, service: analysing));
     await tester.wait(const Duration(seconds: 1));
     await tester.tapOn(find.byKey(const Key('screening_stop')));
     await tester.wait(const Duration(seconds: 1));
@@ -212,7 +214,9 @@ void main() {
 
     for (final (label, name) in [('RED', 'possible_problem'), ('INCONCLUSIVE', 'couldnt_tell')]) {
       await show(ScreeningScreen(
-          service: _Scripted(result: _acoustic(label), level: 0.5), showResultStep: true));
+          showReadyStep: false,
+          service: _Scripted(result: _acoustic(label), level: 0.5),
+          showResultStep: true));
       await tester.wait(const Duration(seconds: 1));
       await tester.tapOn(find.byKey(const Key('screening_stop')));
       await tester.waitFor(find.byKey(const Key('screening_continue_to_vitals')));
@@ -220,6 +224,7 @@ void main() {
     }
 
     await show(ScreeningScreen(
+        showReadyStep: false,
         service: _Scripted(failStart: StateError('Microphone permission denied'))));
     await tester.wait(const Duration(seconds: 1));
     await tester.shot('b_8_microphone_blocked');
