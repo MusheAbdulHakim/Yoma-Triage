@@ -719,7 +719,7 @@ Same branch. Flutter skills used: `dart-flutter:flutter-build-responsive-layout`
 - All colours live in `lib/theme/yoma_theme.dart`. `test/color_tokens_test.dart` fails on
   any `Color(0x…)` or `Colors.*` outside it.
 - Red, amber and green appear only in `TriageColors` (risk levels and destructive actions:
-  Emergency: skip vitals, Cancel).
+  Emergency: skip vitals). Cancel referral stays a quiet text link, as in round 3.
 
 | Before | After | Use |
 |---|---|---|
@@ -739,7 +739,8 @@ Same branch. Flutter skills used: `dart-flutter:flutter-build-responsive-layout`
 | `Colors.red/white/black` literals | tokens | — |
 
 - Contrast: every text pair on the redesigned screens meets AA (the suite checks it).
-- The round-3 future-step outline (2.56:1) now uses outline `#74777E` (4.5:1).
+- The round-3 future-step circle outline was below 3:1 (outline-variant `#C4C6CE`); it now
+  uses outline `#74777E` (4.48:1 on white).
 - **Recording screen:** rebuilt to the pulse frames:
   - LISTENING pill; a 138 dp circle with the seconds remaining; an arc showing time left;
   - three tertiary rings that follow the microphone level;

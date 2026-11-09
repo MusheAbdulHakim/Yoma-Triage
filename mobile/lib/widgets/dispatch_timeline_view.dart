@@ -168,7 +168,7 @@ class _Dot extends StatelessWidget {
           decoration: BoxDecoration(
             color: YomaColors.surface,
             shape: BoxShape.circle,
-            border: Border.all(color: YomaColors.grey400, width: 2),
+            border: Border.all(color: YomaColors.grey500, width: 2),
           ),
         ),
     };
