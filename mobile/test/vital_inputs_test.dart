@@ -56,10 +56,10 @@ void main() {
       // says it once for both halves, and Oxygen saturation (optional) says nothing.
       for (final id in ['hr', 'rr', 'temp']) {
         final shown = tester.widget<Text>(find.byKey(Key('vitals_${id}_error')));
-        expect(shown.data, 'Enter a value or tick Not measured', reason: id);
+        expect(shown.data, 'Enter a value or tap Not measured', reason: id);
       }
       expect(tester.widget<Text>(find.byKey(const Key('vitals_sbp_error'))).data,
-          'Enter both values or tick Not measured');
+          'Enter both values or tap Not measured');
       expect(find.byKey(const Key('vitals_dbp_error')), findsNothing);
       expect(find.byKey(const Key('vitals_spo2_error')), findsNothing);
       expect(find.text('Select AVPU or Not measured'), findsOneWidget);

@@ -213,8 +213,8 @@ class _VitalsScreenState extends State<VitalsScreen> {
             {bool decimal = false, bool optional = false}) =>
         vitalProblem(input, limits, decimal: decimal, optional: optional);
     String say(String name, bool missing, String? problem) => switch ((name, missing)) {
-          ('Consciousness', true) => '$name missing. Choose a level or tick Not measured.',
-          (_, true) => '$name missing. Enter a value or tick Not measured.',
+          ('Consciousness', true) => '$name missing. Choose a level or tap Not measured.',
+          (_, true) => '$name missing. Enter a value or tap Not measured.',
           _ => '$name: $problem',
         };
     final checks = <(_VitalId, String, bool, String?)>[

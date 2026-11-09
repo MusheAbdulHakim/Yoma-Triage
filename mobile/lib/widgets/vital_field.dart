@@ -47,7 +47,7 @@ String? _validateVital(VitalInput input, VitalLimits limits, bool decimal, Strin
     {bool optional = false}) {
   if (input.notMeasured) return null;
   final raw = value?.trim() ?? '';
-  if (raw.isEmpty) return optional ? null : 'Enter a value or tick Not measured';
+  if (raw.isEmpty) return optional ? null : 'Enter a value or tap Not measured';
   final parsed = decimal ? double.tryParse(raw) : int.tryParse(raw);
   if (parsed == null) {
     return decimal ? 'Invalid number' : 'Invalid whole number';
@@ -579,8 +579,8 @@ class _BloodPressureFieldState extends State<BloodPressureField> {
                 ],
                 if (sameError)
                   _VitalError(
-                    text: errors[0].$3 == 'Enter a value or tick Not measured'
-                        ? 'Enter both values or tick Not measured'
+                    text: errors[0].$3 == 'Enter a value or tap Not measured'
+                        ? 'Enter both values or tap Not measured'
                         : 'Systolic and diastolic: ${errors[0].$3}',
                     errorKey: Key('${widget.systolicKey}_error'),
                   )

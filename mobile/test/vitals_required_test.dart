@@ -64,6 +64,16 @@ void main() {
     expect(_buttonLabel(tester), 'See result');
   });
 
+  testWidgets('messages say "tap Not measured", never "tick"', (tester) async {
+    await _open(tester);
+    await tester.enterText(find.byKey(const Key('vitals_hr')), '');
+    await tester.tap(find.byKey(const Key('vitals_see_result')));
+    await tester.pumpAndSettle();
+    expect(find.text('Enter a value or tap Not measured'), findsWidgets);
+    expect(find.text('Enter both values or tap Not measured'), findsOneWidget);
+    expect(find.textContaining('tick'), findsNothing);
+  });
+
   testWidgets('Oxygen saturation is marked optional and may be left blank', (tester) async {
     await _open(tester);
     expect(find.text('(optional)'), findsOneWidget);
@@ -113,7 +123,7 @@ void main() {
     final top = tester.getTopLeft(avpu).dy;
     expect(top, inInclusiveRange(viewport.top, viewport.bottom - 48), reason: 'scrolled to');
     expect(_cardBorder(tester, find.byKey(const Key('vitals_avpu_A'))), YomaColors.error);
-    expect(announced, ['Consciousness missing. Choose a level or tick Not measured.']);
+    expect(announced, ['Consciousness missing. Choose a level or tap Not measured.']);
   });
 
   testWidgets('the first problem is the earliest card on screen, not the last one filled',
