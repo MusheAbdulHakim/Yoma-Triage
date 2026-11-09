@@ -5,6 +5,41 @@ Two passes are recorded here. **[Batch 5 rerun](#batch-5-rerun)** is the current
 **[original pass](#original-pass-testemulator-pass)** below it is kept as found, on
 `test/emulator-pass` at `9fe1d01`, because its bug list is what batch 5 fixed.
 
+## Round 6: emulator boot (UI redesign)
+
+In UI round 5 the API 34 AVD (`yoma_api34`) crashed during cold boot three times in a row
+(exit 139, a segfault in the emulator process). That happened on the NVIDIA GPU (`-gpu
+host`) with `-no-snapshot-save`, with `-no-snapshot`, and with `-no-snapshot -feature
+-Vulkan`.
+
+**What changed since UI round 4, when it worked:** nothing that could be found.
+
+| Item | Value |
+|---|---|
+| NVIDIA driver (`nvidia-smi`) | 580.178.04, unchanged; NVIDIA OpenGL 4.6 works (`glxinfo -B` with PRIME offload) |
+| apt (`/var/log/apt/history.log`) | Last run 2026-11-07 18:26, before round 4. Nothing touching nvidia, mesa or the kernel since. The last kernel change was `linux-generic-hwe-24.04` 7.0.0-42 → 7.0.0-43 on 2026-11-06, but the machine still runs 7.0.0-42 |
+| Emulator | 37.2.13.0 (build 16740729), installed 2026-11-06/07, unchanged |
+| KVM | `emulator -accel-check`: KVM 12 usable |
+| Memory at the round-5 failures | about 3.3 GB free, swap about 3.2 / 4 GB used |
+| Memory at the round-6 tries | about 6.4 GB free (8 GB available), swap 3.7 / 4 GB used |
+
+**Tried in order, stopping at the first that booted 3 times in a row:**
+
+1. **`-gpu host -no-snapshot-load` (cold boot, no snapshot loaded): 3/3**, in 40 s, 36 s and
+   39 s, still on the NVIDIA GPU. Software rendering (`-gpu swiftshader_indirect`) and
+   `-wipe-data` were not needed.
+
+The runs used `scratchpad/boot3.sh`: boot, wait for `sys.boot_completed`, `adb emu kill`, three
+times. Stale `*.lock` files in the AVD folder were removed before each boot.
+
+**The cause is not proven.** The flag that differs from the crashing runs is snapshot
+*saving*: `-no-snapshot` turns off both loading and saving, and the log of the crashing runs
+shows the quick-boot machinery ("Feature QuickbootFileBacked is disabled…") just before the
+crash. Free memory was also about 3 GB lower then.
+
+**What `scripts/run_emulator_pass.py` does now:** it uses `-no-snapshot-load` instead of
+`-no-snapshot` and removes stale AVD lock files before booting.
+
 ## Batch 5 rerun
 
 Date: 2026-11-07. Branch `fix/batch-5`, app at `b3d3b2f` plus test-only commits up to `f046c2b`.

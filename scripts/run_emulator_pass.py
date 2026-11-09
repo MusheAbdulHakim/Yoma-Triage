@@ -161,6 +161,9 @@ class Device:
             self.process = None
         else:
             stop_gradle()
+            # Locks left by an emulator that crashed or was killed block the next start.
+            for lock in (Path.home() / ".android" / "avd" / f"{self.avd}.avd").glob("*.lock"):
+                lock.unlink(missing_ok=True)
             # The emulator keeps its own copy of the file handle.
             with open(self.out / "emulator.log", "w") as emulator_log:
                 self.process = subprocess.Popen(
@@ -173,7 +176,11 @@ class Device:
                         "-no-window",
                         "-no-audio",
                         "-no-boot-anim",
-                        "-no-snapshot",
+                        # Cold boot without loading a snapshot. Round 6: "-no-snapshot"
+                        # (no load and no save) crashed API 34 during cold boot (exit
+                        # 139) three times; "-no-snapshot-load" booted 3/3 on the same GPU.
+                        # See docs/testing/EMULATOR_PASS.md, "Round 6: emulator boot".
+                        "-no-snapshot-load",
                         "-gpu",
                         EMULATOR_GPU,
                         "-memory",
