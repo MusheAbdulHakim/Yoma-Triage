@@ -33,7 +33,8 @@ class _StepRow extends StatelessWidget {
     final text = Theme.of(context).textTheme;
     final labelColour = switch (step.state) {
       TimelineState.done => YomaColors.grey900,
-      TimelineState.current => YomaColors.brand,
+      // The current step stands out from the navy done steps (the design's coloured label).
+      TimelineState.current => YomaColors.tertiary,
       TimelineState.future => YomaColors.grey600,
     };
     final time = step.at == null ? null : shortWhen(context, step.at!);
@@ -69,7 +70,7 @@ class _StepRow extends StatelessWidget {
             const SizedBox(width: 10),
             Expanded(
               child: Padding(
-                padding: EdgeInsets.only(bottom: isLast ? 0 : 20),
+                padding: EdgeInsets.only(bottom: isLast ? 0 : 28),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -96,12 +97,21 @@ class _StepRow extends StatelessWidget {
                           ),
                       ],
                     ),
+                    // Who is coming, in a small bordered card as in the design.
                     if (step.detail != null)
-                      Padding(
-                        padding: const EdgeInsets.only(top: 4),
+                      Container(
+                        key: Key('timeline_${step.id}_detail'),
+                        width: double.infinity,
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+                        decoration: BoxDecoration(
+                          color: YomaColors.surface,
+                          borderRadius: BorderRadius.circular(YomaRadii.sm),
+                          border: Border.all(color: YomaColors.line),
+                        ),
                         child: Text(
                           step.detail!,
-                          style: text.bodyMedium?.copyWith(color: YomaColors.grey700),
+                          style: text.labelMedium?.copyWith(color: YomaColors.grey900),
                         ),
                       ),
                     if (step.note != null)
@@ -154,6 +164,10 @@ class _Dot extends StatelessWidget {
             color: YomaColors.surface,
             shape: BoxShape.circle,
             border: Border.all(color: YomaColors.brand, width: 2.5),
+            // The design's soft halo around the current step.
+            boxShadow: [
+              BoxShadow(color: YomaColors.tertiary.withValues(alpha: 0.25), spreadRadius: 4),
+            ],
           ),
           alignment: Alignment.center,
           child: Container(
@@ -202,7 +216,7 @@ class NavyHelpCard extends StatelessWidget {
             Expanded(
               child: Text(
                 text,
-                style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                style: Theme.of(context).textTheme.labelMedium?.copyWith(
                       color: YomaColors.onPrimary,
                       fontWeight: FontWeight.w700,
                     ),

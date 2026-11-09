@@ -63,11 +63,10 @@ void main() {
       find.text('From Tamale Teaching Hospital, by the hospital'),
       findsOneWidget,
     );
-    expect(find.byType(CircularProgressIndicator), findsOneWidget, reason: 'still live');
+    expect(api.calls, 2, reason: 'still live: it keeps checking after the diversion');
 
     await _nextPoll(tester);
     expect(find.byKey(const Key('dispatch_status_COMPLETED')), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
     final callsAtEnd = api.calls;
     await _nextPoll(tester);
     expect(api.calls, callsAtEnd, reason: 'COMPLETED is the end; polling stops');
@@ -81,7 +80,6 @@ void main() {
     ]);
     await _open(tester, api);
     expect(find.byKey(const Key('dispatch_status_DIVERTED')), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     await _nextPoll(tester);
     expect(api.calls, 2, reason: 'it polled again after DIVERTED');

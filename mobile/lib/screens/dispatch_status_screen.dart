@@ -41,8 +41,7 @@ class DispatchStatusScreen extends StatefulWidget {
   State<DispatchStatusScreen> createState() => _DispatchStatusScreenState();
 }
 
-class _DispatchStatusScreenState extends State<DispatchStatusScreen>
-    with WidgetsBindingObserver {
+class _DispatchStatusScreenState extends State<DispatchStatusScreen> with WidgetsBindingObserver {
   late final ApiClient _api = widget.api ?? ApiClient();
   late final OfflineQueue _queue = widget.queue ?? OfflineQueue.shared;
   Timer? _timer;
@@ -396,6 +395,32 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen>
             ),
             const SizedBox(height: 16),
           ],
+          // When the CHO has to act (no driver, not sent, no connection), the design puts the
+          // banner and the Call/SMS rows first; the timeline follows.
+          if (_needsManualHelp) ...[
+            if (help != null) ...[
+              NavyHelpCard(key: const Key('dispatch_help'), text: help),
+              if (_watchingForLateClaim)
+                Padding(
+                  padding: const EdgeInsets.only(top: 8),
+                  child: Text(
+                    'Still checking: a driver can accept until '
+                    '${clockTime(context, _lateClaimUntil!.toLocal())}.',
+                    key: const Key('dispatch_late_claim_watch'),
+                    style: text.bodySmall?.copyWith(color: YomaColors.grey700),
+                  ),
+                ),
+            ],
+            if (showContacts) ...[
+              const SizedBox(height: 12),
+              ManualContactsPanel(
+                key: ValueKey(_facilityId),
+                facilityIds: {if (_facilityId != null) _facilityId!},
+                launcher: _launchContact,
+              ),
+            ],
+            const SizedBox(height: 24),
+          ],
           // Lets tests and tools see which status this screen is showing.
           KeyedSubtree(
             key: Key('dispatch_status_${_status.toUpperCase()}'),
@@ -415,25 +440,14 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen>
               ),
             ),
           if (_divertedFrom != null) const SizedBox.shrink(key: Key('dispatch_diverted')),
-          if (!_terminal && _dispatchId != null)
-            Padding(
-              padding: const EdgeInsets.only(top: 16),
-              child: Row(
-                children: [
-                  const SizedBox.square(
-                    dimension: 16,
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                  const SizedBox(width: 10),
-                  Flexible(
-                    child: Text(
-                      'Checking for updates…',
-                      style: text.bodySmall?.copyWith(color: YomaColors.grey700),
-                    ),
-                  ),
-                ],
-              ),
+          if (_showContacts && !_needsManualHelp) ...[
+            const SizedBox(height: 16),
+            ManualContactsPanel(
+              key: ValueKey(_facilityId),
+              facilityIds: {if (_facilityId != null) _facilityId!},
+              launcher: _launchContact,
             ),
+          ],
           if (timeline.waitingForDriver && !_showContacts && !_needsManualHelp)
             Align(
               alignment: Alignment.centerLeft,
@@ -443,28 +457,6 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen>
                 child: const Text('Call a driver instead'),
               ),
             ),
-          if (help != null) ...[
-            const SizedBox(height: 20),
-            NavyHelpCard(key: const Key('dispatch_help'), text: help),
-            if (_watchingForLateClaim)
-              Padding(
-                padding: const EdgeInsets.only(top: 8),
-                child: Text(
-                  'Still checking: a driver can accept until '
-                  '${clockTime(context, _lateClaimUntil!.toLocal())}.',
-                  key: const Key('dispatch_late_claim_watch'),
-                  style: text.bodySmall?.copyWith(color: YomaColors.grey700),
-                ),
-              ),
-          ],
-          if (showContacts) ...[
-            const SizedBox(height: 16),
-            ManualContactsPanel(
-              key: ValueKey(_facilityId),
-              facilityIds: {if (_facilityId != null) _facilityId!},
-              launcher: _launchContact,
-            ),
-          ],
           const SizedBox(height: 24),
           OutlinedButton(
             onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
@@ -484,12 +476,6 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen>
               ),
             ),
           ],
-          const SizedBox(height: 8),
-          Text(
-            'Request: ${widget.clientRequestId}',
-            textAlign: TextAlign.center,
-            style: text.bodySmall?.copyWith(color: YomaColors.grey600),
-          ),
         ],
       ),
     );
