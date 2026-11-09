@@ -1096,7 +1096,7 @@ def scenario_2(device: Device, apk: dict) -> bool:
         # Leave the screen alone until the countdown ends and the analysis finishes. A touch
         # during analysis is what anr_probe tests.
         to_result_screen(device)
-        allowed = screen_text(wait_screen(device, "Advisory only", 30))
+        allowed = screen_text(wait_screen(device, "Confirm referral", 60))
         device.screenshot("s2_6_result_mic_allowed")
         notes.append(f"Result with the mic allowed: {allowed[:500]}")
         entry["mic_allowed_green"] = "GREEN" in allowed.upper()
@@ -1238,7 +1238,7 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
         open_breathing_check(device, 60)
         tap_text(device, "Stop", 30)
         to_result_screen(device)
-        wait_screen(device, "Advisory only", 30)
+        wait_screen(device, "Confirm referral", 60)
         tap_scrolling(device, "Confirm referral", exact=True)
         tap_text(device, "Tap to confirm", 30)
         tap_text(device, "Tamale Teaching Hospital", 20)
