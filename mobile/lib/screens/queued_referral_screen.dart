@@ -205,10 +205,15 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
               launcher: widget.launcher,
               onContactUsed: () => _queue.markManualContact(widget.clientRequestId),
             ),
-            const SizedBox(height: 24),
-            OutlinedButton(
-              onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
-              child: const Text('Back to Home'),
+            const SizedBox(height: 16),
+            // Quiet, as on the status screen (round 7).
+            Center(
+              child: TextButton(
+                key: const Key('queued_back_home'),
+                style: TextButton.styleFrom(minimumSize: const Size(140, YomaSizes.minTap)),
+                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
+                child: const Text('Back to Home'),
+              ),
             ),
           ],
         ),

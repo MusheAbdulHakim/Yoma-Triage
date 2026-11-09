@@ -87,9 +87,11 @@ void main() {
     final back = find.byKey(const Key('dispatch_back_home'));
     expect(tester.widget(back), isA<TextButton>(), reason: 'a quiet text button');
     expect(find.widgetWithText(OutlinedButton, 'Back to Home'), findsNothing);
-    // At the bottom: below Cancel referral.
-    expect(tester.getRect(back).top,
-        greaterThanOrEqualTo(tester.getRect(find.byKey(const Key('dispatch_cancel'))).bottom));
+    // Pinned at the bottom with Cancel referral, out of the scrolling content (round 7).
+    final scroll = tester.getRect(find.byKey(const Key('dispatch_scroll')));
+    expect(tester.getRect(back).top, greaterThanOrEqualTo(scroll.bottom));
+    expect(tester.getRect(find.byKey(const Key('dispatch_cancel'))).top,
+        greaterThanOrEqualTo(scroll.bottom));
   });
 
   testWidgets('a DIVERTED status from an older server is not treated as the end',

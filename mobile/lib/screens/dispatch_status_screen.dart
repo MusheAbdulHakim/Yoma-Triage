@@ -395,6 +395,43 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
             ),
         ],
       ),
+      // As in the updated design: the quiet actions stay pinned at the bottom, out of the
+      // scrolling timeline and contacts.
+      bottomNavigationBar: SafeArea(
+        top: false,
+        child: DecoratedBox(
+          decoration: const BoxDecoration(
+            color: YomaColors.canvas,
+            border: Border(top: BorderSide(color: YomaColors.grey200)),
+          ),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+            child: Wrap(
+              alignment: WrapAlignment.center,
+              spacing: 8,
+              children: [
+                if (_canCancel)
+                  TextButton(
+                    key: const Key('dispatch_cancel'),
+                    style: TextButton.styleFrom(
+                      foregroundColor: YomaColors.grey700,
+                      minimumSize: const Size(140, YomaSizes.minTap),
+                    ),
+                    onPressed: _cancelling ? null : _confirmCancel,
+                    child: Text(_cancelling ? 'Cancelling…' : 'Cancel referral'),
+                  ),
+                // Android back does the same.
+                TextButton(
+                  key: const Key('dispatch_back_home'),
+                  style: TextButton.styleFrom(minimumSize: const Size(140, YomaSizes.minTap)),
+                  onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
+                  child: const Text('Back to Home'),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
       body: ListView(
         key: const Key('dispatch_scroll'),
         padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
@@ -463,30 +500,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> with Widget
                 child: const Text('Call a driver instead'),
               ),
             ),
-          const SizedBox(height: 24),
-          if (_canCancel) ...[
-            const SizedBox(height: 8),
-            Center(
-              child: TextButton(
-                key: const Key('dispatch_cancel'),
-                style: TextButton.styleFrom(
-                  foregroundColor: YomaColors.grey700,
-                  minimumSize: const Size(160, YomaSizes.minTap),
-                ),
-                onPressed: _cancelling ? null : _confirmCancel,
-                child: Text(_cancelling ? 'Cancelling…' : 'Cancel referral'),
-              ),
-            ),
-          ],
-          // Quiet, at the bottom: Android back does the same.
-          Center(
-            child: TextButton(
-              key: const Key('dispatch_back_home'),
-              style: TextButton.styleFrom(minimumSize: const Size(160, YomaSizes.minTap)),
-              onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
-              child: const Text('Back to Home'),
-            ),
-          ),
+          const SizedBox(height: 16),
         ],
       ),
     );
