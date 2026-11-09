@@ -55,14 +55,17 @@ TEST_CHO = "+233240000777"
 SMALL_WIDTH_PX, SMALL_HEIGHT_PX, SMALL_DENSITY = 640, 1136, 320  # 320 x 568 dp
 
 AVDS = {"yoma_api34": 5554, "yoma_api24_2gb": 5556}
-# Render on the discrete NVIDIA GPU (PRIME render offload), not the integrated Radeon or
-# the CPU (swiftshader). YOMA_EMULATOR_GPU=swiftshader_indirect restores software rendering.
-EMULATOR_GPU = os.environ.get("YOMA_EMULATOR_GPU", "host")
+# Local test tooling only; nothing here affects the app or its builds.
+# On a dev machine with an NVIDIA GPU, render the emulator there (PRIME render offload)
+# instead of on the CPU/integrated GPU, which can freeze the desktop. Anywhere else (no
+# nvidia-smi, CI) keep software rendering. YOMA_EMULATOR_GPU overrides either way.
+HAS_NVIDIA = shutil.which("nvidia-smi") is not None
+EMULATOR_GPU = os.environ.get("YOMA_EMULATOR_GPU", "host" if HAS_NVIDIA else "swiftshader_indirect")
 
 
 def emulator_env() -> dict[str, str]:
     env = dict(os.environ)
-    if EMULATOR_GPU == "host":
+    if EMULATOR_GPU == "host" and HAS_NVIDIA:
         env.update(
             {
                 "__NV_PRIME_RENDER_OFFLOAD": "1",
