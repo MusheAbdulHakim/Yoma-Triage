@@ -19,21 +19,18 @@ void main() {
     await tester.tapOn(find.text('Continue'));
     final error = find.byKey(const Key('setup_error'));
     await tester.waitFor(error);
-    final message = tester.widget<Text>(error).data!;
+    final message = tester
+        .widget<Text>(find.descendant(of: error, matching: find.byType(Text)))
+        .data!;
     await Host.note('Unregistered phone is told: "$message"');
-    expect(message, contains('not registered'));
-    expect(find.text('Community Health Officer'), findsNothing);
+    expect(message, "This number isn't registered. Ask your district coordinator.");
+    expect(find.byKey(const Key('home_emergency_referral')), findsNothing);
     await tester.shot('s3_2_unregistered');
 
     await tester.setUpCho();
+    // The compound the server set up shows on Home (since round 5 the referral form no
+    // longer repeats it under Send to).
+    await tester.waitFor(find.text(compoundName), reason: 'the CHO\'s compound on Home');
     await tester.shot('s3_3_home');
-    await Host.note(
-      'Home shows the compound name: '
-      '${find.text(compoundName).evaluate().isNotEmpty}',
-    );
-
-    await tester.tapOn(find.text('Emergency Referral'));
-    await tester.waitFor(find.text(compoundName), reason: 'the CHO\'s compound');
-    await tester.shot('s3_4_compound');
   });
 }

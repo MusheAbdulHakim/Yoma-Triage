@@ -18,19 +18,21 @@ void main() {
       (tester) async {
     await tester.pumpWidget(const YomaApp());
     await tester.pumpAndSettle();
-    expect(find.text('Screen Breathing'), findsNothing);
-    expect(find.text('Record Vitals'), findsOneWidget);
-    expect(find.text('Emergency Referral'), findsOneWidget);
+    expect(find.text('Check breathing'), findsNothing);
+    expect(find.text('Record vitals'), findsOneWidget);
+    expect(find.text('Emergency referral'), findsOneWidget);
   });
 
-  testWidgets('Home shows Screen Breathing when explicitly enabled',
+  testWidgets('Home shows Check breathing when explicitly enabled',
       (tester) async {
     await tester.pumpWidget(
       const MaterialApp(home: HomeScreen(acousticEnabled: true)),
     );
-    expect(find.text('Screen Breathing'), findsOneWidget);
-    expect(find.text('Record Vitals'), findsNothing);
-    expect(find.text('Emergency Referral'), findsOneWidget);
+    expect(find.text('Check breathing'), findsOneWidget);
+    expect(find.text('Advisory'), findsOneWidget);
+    // Round 5: acoustic builds show all three actions.
+    expect(find.text('Record vitals'), findsOneWidget);
+    expect(find.text('Emergency referral'), findsOneWidget);
   });
 
   testWidgets('Record Vitals goes straight to vitals, no recording',
@@ -38,16 +40,16 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(home: HomeScreen(acousticEnabled: false)),
     );
-    await tester.tap(find.text('Record Vitals'));
+    await tester.tap(find.text('Record vitals'));
     await tester.pumpAndSettle();
-    expect(find.text('Continue to Result'), findsOneWidget);
-    expect(find.text('Stop & Analyze Early'), findsNothing);
+    expect(find.byKey(const Key('vitals_see_result')), findsOneWidget);
+    expect(find.byKey(const Key('screening_stop')), findsNothing);
   });
 
   testWidgets('Emergency Referral bypasses screening', (tester) async {
     await tester.pumpWidget(const YomaApp());
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Emergency Referral'));
+    await tester.tap(find.text('Emergency referral'));
     await tester.pumpAndSettle();
     expect(find.textContaining('Vitals'), findsWidgets);
   });

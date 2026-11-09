@@ -21,6 +21,7 @@ dependencies:
   tflite_flutter: ^0.11.0
   crypto: ^3.0.7
   url_launcher: ^6.3.3
+  app_settings: ^9.0.1
 
 dev_dependencies:
   flutter_test:
@@ -44,3 +45,18 @@ flutter:
     # INCONCLUSIVE, "not included in this build".
     - assets/models/yamnet.tflite
     - assets/catalog/northern_bootstrap.json
+    # Licence for the bundled font; registered with LicenseRegistry in main.dart.
+    - assets/fonts/atkinson_hyperlegible_next/OFL.txt
+  # Atkinson Hyperlegible Next (SIL OFL 1.1), bundled so it is never fetched at runtime.
+  # Static instances cut from the upstream variable font; see docs/audit/UI_REDESIGN.md.
+  fonts:
+    - family: AtkinsonHyperlegibleNext
+      fonts:
+        - asset: assets/fonts/atkinson_hyperlegible_next/AtkinsonHyperlegibleNext-Regular.ttf
+          weight: 400
+        - asset: assets/fonts/atkinson_hyperlegible_next/AtkinsonHyperlegibleNext-Medium.ttf
+          weight: 500
+        - asset: assets/fonts/atkinson_hyperlegible_next/AtkinsonHyperlegibleNext-SemiBold.ttf
+          weight: 600
+        - asset: assets/fonts/atkinson_hyperlegible_next/AtkinsonHyperlegibleNext-Bold.ttf
+          weight: 700

@@ -243,8 +243,9 @@ void main() {
     testWidgets('shows when the list was last updated', (tester) async {
       await pumpPanel(tester);
       final text = tester.widget<Text>(find.byKey(const Key('contacts_updated'))).data!;
-      final local = DateTime.utc(2026, 11, 5, 14, 3).toLocal();
-      expect(text, startsWith('Contacts last updated: ${local.year}-11-'));
+      // A friendly date (the saved time is in the past), never a raw ISO timestamp.
+      expect(text, startsWith('Contacts last updated: 5 Nov, '));
+      expect(text, isNot(contains('2026-')));
     });
 
     testWidgets('says so when nothing has been saved yet', (tester) async {
@@ -382,6 +383,8 @@ void main() {
 
       expect(find.byKey(const Key('call_$_otherHospital')), findsNothing);
       expect(find.byKey(const Key('call_$_driver')), findsOneWidget);
+      // No raw request id outside test builds.
+      expect(find.textContaining('Request:'), findsNothing);
       await tester.tap(find.byKey(const Key('call_$_driver')));
       await tester.pump();
       expect(launched.single.toString(), 'tel:$_driver');
@@ -402,7 +405,7 @@ void main() {
       );
       await pumpUntil(tester, find.byKey(const Key('call_$_chosenHospital')));
 
-      expect(find.text('FAILED'), findsOneWidget);
+      expect(find.byKey(const Key('dispatch_status_FAILED')), findsOneWidget);
       await tester.tap(find.byKey(const Key('call_$_driver')));
       await tester.pump();
       expect(launched.single.toString(), 'tel:$_driver');
@@ -472,6 +475,7 @@ void _refreshTriggerTests() {
         MaterialApp(home: SetupScreen(api: api, onComplete: (_) {})),
       );
       await tester.enterText(find.byKey(const Key('setup_phone')), '0240000100');
+      await tester.pump();
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 
@@ -486,6 +490,7 @@ void _refreshTriggerTests() {
         MaterialApp(home: SetupScreen(api: api, onComplete: (_) {})),
       );
       await tester.enterText(find.byKey(const Key('setup_phone')), '0240000100');
+      await tester.pump();
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
 

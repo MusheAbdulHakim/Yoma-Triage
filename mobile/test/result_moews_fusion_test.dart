@@ -11,7 +11,7 @@ import 'helpers/vitals_helper.dart';
 void main() {
   _neverGatedTests();
 
-  testWidgets('GREEN acoustic + RED MOEWS shows Confirm Referral',
+  testWidgets('GREEN acoustic + RED MOEWS shows Confirm referral',
       (tester) async {
     await tester.pumpWidget(
       MaterialApp(
@@ -27,9 +27,12 @@ void main() {
       ),
     );
 
-    expect(find.text('Confirm Referral'), findsOneWidget);
-    expect(find.text('MOEWS RED'), findsOneWidget);
-    expect(find.textContaining('Acoustic (advisory)'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
+    expect(find.text('MOEWS RED'), findsNothing, reason: 'word and score only, as in the design');
+    expect(find.text('Breathing check (advisory)'), findsOneWidget);
+    // An acoustic GREEN is never shown as normal.
+    expect(find.text("Couldn't tell"), findsOneWidget);
+    expect(find.textContaining('GREEN'), findsNothing);
     expect(find.textContaining('Heart rate contributes MOEWS'), findsOneWidget);
   });
 
@@ -45,11 +48,11 @@ void main() {
     await tester.pumpWidget(MaterialApp(home: VitalsScreen(result: result)));
 
     await fillVitals(tester, overrides: {'sbp': '70'});
-    await tester.tap(find.text('Continue to Result'));
+    await tester.tap(find.byKey(const Key('vitals_see_result')));
     await tester.pumpAndSettle();
 
-    expect(find.text('Screening Result'), findsOneWidget);
-    expect(find.text('Confirm Referral'), findsOneWidget);
+    expect(find.text('Result'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
   });
 
   testWidgets('completed screening opens vitals before result', (tester) async {
@@ -61,12 +64,13 @@ void main() {
     await tester.pump(const Duration(milliseconds: 800));
     await tester.pumpAndSettle();
 
-    expect(find.text('Record Vitals'), findsOneWidget);
-    expect(find.text('Screening Result'), findsNothing);
+    expect(find.text('Record vitals'), findsOneWidget);
+    expect(find.text('Result'), findsNothing);
   });
 
   testWidgets('screening-session vitals prefill the referral form',
       (tester) async {
+    useTallScreen(tester);
     final result = ScreeningResult(
       label: 'GREEN',
       confidence: 0.6,
@@ -91,12 +95,15 @@ void main() {
       ),
     );
 
-    await tester.tap(find.text('Confirm Referral'));
+    await tester.tap(find.text('Confirm referral'));
     await tester.pumpAndSettle();
 
-    final sbp = tester.widget<TextFormField>(
-      find.byKey(const Key('referral_sbp')),
-    );
+    // The form carries the session's vitals: scored on its summary row, and
+    // shown again when the CHO opens Record vitals from it.
+    expect(find.byKey(const Key('referral_vitals_summary')), findsOneWidget);
+    await tester.tap(find.byKey(const Key('referral_vitals_summary')));
+    await tester.pumpAndSettle();
+    final sbp = tester.widget<TextFormField>(find.byKey(const Key('vitals_sbp')));
     expect(sbp.controller?.text, '70');
   });
 }
@@ -117,7 +124,7 @@ void _neverGatedTests() {
       ),
     );
 
-    expect(find.text('Continue Monitoring'), findsOneWidget);
-    expect(find.text('Refer with clinical judgment'), findsOneWidget);
+    expect(find.text('Continue monitoring'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
   });
 }

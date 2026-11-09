@@ -56,7 +56,7 @@ void main() {
     );
   });
 
-  test('INCOMPLETE vitals do not lead with Continue Monitoring', () {
+  test('INCOMPLETE vitals do not lead with Continue monitoring', () {
     expect(
       referralIndicated(
         acousticLabel: 'INCONCLUSIVE',

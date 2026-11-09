@@ -125,7 +125,7 @@ void main() {
 
       expect(find.byType(DispatchStatusScreen), findsOneWidget);
       expect(find.textContaining('Drivers have not been notified'), findsNothing);
-      expect(find.text('TIER1_NOTIFIED'), findsOneWidget);
+      expect(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), findsOneWidget);
     });
 
     testWidgets('a stale reply opens the question', (tester) async {
@@ -134,7 +134,7 @@ void main() {
       await tester.runAsync(() => queue.flush(server));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
       await _pumpFor(tester, const Duration(milliseconds: 500));
-      expect(find.byType(StaleReferralScreen), findsOneWidget);
+      expect(find.byType(StaleReferralSheet), findsOneWidget);
     });
 
     testWidgets('still no signal: it stays, and says nothing new', (tester) async {
@@ -189,7 +189,7 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
       await tester.pump();
 
-      expect(find.text('TIER1_NOTIFIED'), findsOneWidget);
+      expect(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), findsOneWidget);
       expect(find.text(dispatchUnreachableMessage), findsNothing);
       expect(find.byType(ManualContactsPanel), findsNothing);
     });
@@ -207,13 +207,15 @@ void main() {
     testWidgets('the screen never shows the exception', (tester) async {
       await tester.pumpWidget(
         MaterialApp(
-          home: ScreeningScreen(forceWebSimulator: false, service: _PermissionDenied()),
+          home: ScreeningScreen(
+              forceWebSimulator: false, service: _PermissionDenied(), showReadyStep: false),
         ),
       );
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.text('Microphone permission is off.'), findsOneWidget);
+      expect(find.text('Microphone not allowed'), findsOneWidget);
       expect(find.textContaining('Bad state'), findsNothing);
-      expect(find.textContaining('Settings'), findsOneWidget);
+      expect(find.textContaining('settings to check'), findsOneWidget);
+      expect(find.byKey(const Key('screening_open_settings')), findsOneWidget);
     });
   });
 

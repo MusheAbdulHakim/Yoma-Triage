@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 
+import '../release_settings.dart';
+import '../models/emergency_type.dart';
+
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/manual_contacts_panel.dart';
@@ -81,11 +84,12 @@ class _FailedReferralsScreenState extends State<FailedReferralsScreen> {
                     children: [
                       ListTile(
                         title: Text(
-                          item.payload['emergency_type']?.toString() ?? 'Referral',
+                          emergencyTypeLabel(item.payload['emergency_type']?.toString()),
                         ),
                         subtitle: Text(
-                          'Reason: ${item.lastError ?? 'Unknown'}\n'
-                          'Request: ${item.clientRequestId}',
+                          'Reason: ${item.lastError ?? 'Unknown'}'
+                          // The raw id is for testers only, never in a build CHOs use.
+                          '${yomaTestRelease ? '\nRequest: ${item.clientRequestId}' : ''}',
                         ),
                       ),
                       TextButton(
@@ -101,15 +105,13 @@ class _FailedReferralsScreenState extends State<FailedReferralsScreen> {
                 key: ValueKey(items.length),
                 facilityIds: {
                   for (final item in items)
-                    if (item.payload['facility_id'] is int)
-                      item.payload['facility_id'] as int,
+                    if (item.payload['facility_id'] is int) item.payload['facility_id'] as int,
                 },
                 launcher: widget.launcher,
               ),
               const SizedBox(height: 16),
               OutlinedButton(
-                onPressed: () =>
-                    Navigator.of(context).popUntil((route) => route.isFirst),
+                onPressed: () => Navigator.of(context).popUntil((route) => route.isFirst),
                 child: const Text('Back to Home'),
               ),
             ],

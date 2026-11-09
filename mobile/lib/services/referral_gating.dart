@@ -9,8 +9,7 @@ bool referralIndicated({
   // Escalate-only: MOEWS RED never suppressed by acoustic GREEN.
   if (moews == 'RED') return true;
   if (acousticLabel.toUpperCase() == 'RED') return true;
-  if (acousticLabel.toUpperCase() == 'INCONCLUSIVE' &&
-      choReferDespiteInconclusive) {
+  if (acousticLabel.toUpperCase() == 'INCONCLUSIVE' && choReferDespiteInconclusive) {
     return true;
   }
   // INCOMPLETE: nothing says this patient is fine, so don't lead with Monitoring.

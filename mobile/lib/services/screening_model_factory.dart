@@ -16,8 +16,7 @@ class PackPendingClassifier implements YamnetClassifier {
     return ScreeningResult(
       label: 'INCONCLUSIVE',
       confidence: 0.0,
-      reason:
-          '$modelId model pack not installed — use MOEWS and clinical judgment',
+      reason: '$modelId model pack not installed — use MOEWS and clinical judgment',
       source: modelId,
       modelVersion: '$modelId-pending',
     );

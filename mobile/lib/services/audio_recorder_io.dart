@@ -58,6 +58,13 @@ class AudioRecorderIo implements AudioRecorderService {
     return bytes;
   }
 
+  /// Polls the platform's amplitude (record's onAmplitudeChanged) every 120 ms. It reads
+  /// a number the recorder already keeps; the PCM file and the classifier are untouched.
+  @override
+  Stream<double> levels() => _recorder
+      .onAmplitudeChanged(const Duration(milliseconds: 120))
+      .map((amplitude) => levelFromDbfs(amplitude.current));
+
   @override
   Future<void> dispose() async {
     try {
@@ -88,9 +95,7 @@ Future<int> purgeStaleRecordings({Directory? directory}) async {
     final dir = directory ?? await getTemporaryDirectory();
     await for (final entity in dir.list()) {
       final name = p.basename(entity.path);
-      if (entity is File &&
-          name.startsWith(_recordingPrefix) &&
-          name.endsWith('.wav')) {
+      if (entity is File && name.startsWith(_recordingPrefix) && name.endsWith('.wav')) {
         await entity.delete();
         removed++;
       }

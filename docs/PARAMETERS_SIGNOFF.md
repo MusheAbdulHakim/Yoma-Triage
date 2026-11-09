@@ -11,6 +11,7 @@ Please answer these first, because they can change the numbers below.
 3. **Which band should a boundary value fall in?** The spec's bands overlap at their edges (SBP 90 is in two). The system uses the higher score.
 4. **Should diastolic BP below 60 be RED?** The spec table has no low diastolic band. The system adds one, scoring it 3.
 5. **Is the handling of missing vitals in "How the risk level is decided" right?** In particular: a patient with every vital measured except SpO₂ can still be GREEN, with a visible note.
+6. **Are "Critical", "Elevated" and "Stable" the right words for the risk levels?** *(Open: added in UI round 5.)* The redesigned screens lead with a plain word and keep the MOEWS name beside it: RED shows as **Critical** (MOEWS RED), YELLOW as **Elevated** (MOEWS YELLOW), GREEN as **Stable** (MOEWS GREEN); INCOMPLETE stays **Incomplete**. The words are what a screen reader announces and what the CHO sees first, so they need clinical approval: in particular, whether "Stable" could be read as "no referral needed", and whether CHOs and hospitals already use other words.
 
 ## Vital sign entry limits
 
@@ -50,7 +51,7 @@ The first matching row applies. Only measured vitals are scored.
 | INCOMPLETE: any required vital missing | n/a | Otherwise, if any vital except SpO₂ wasn't measured. The missing vitals are listed. Never GREEN | Product owner (batch 2) | |
 | YELLOW: total of measured scores | 3 | This total or more, or any vital scoring 1 | Spec §9.3 | |
 | GREEN | n/a | Otherwise. If SpO₂ wasn't measured, the result says "SpO₂ not measured" | Spec §9.3; note set by the product owner (batch 2) | |
-| UNKNOWN | n/a | The CHO chose "Emergency: skip vitals". Dispatch goes ahead at once, flagged vitals not taken | Product owner (batch 2) | |
+| UNKNOWN | n/a | The CHO sent without vitals ("Send now (vitals not taken)"; formerly "Emergency: skip vitals"). Dispatch goes ahead at once, flagged vitals not taken | Product owner (batch 2) | |
 
 ## Operational settings
 

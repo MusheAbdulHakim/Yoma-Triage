@@ -10,7 +10,6 @@ import 'package:integration_test/integration_test.dart';
 
 import 'support/harness.dart';
 
-const _patient = 'Zebra Testpatient';
 
 void main() {
   IntegrationTestWidgetsFlutterBinding.ensureInitialized();
@@ -25,12 +24,13 @@ void main() {
     await tester.wait(const Duration(seconds: 2));
 
     await tester.openReferralForm();
-    await tester.fillPatientName(_patient);
-    await tester.fillVitals('referral');
-    final confirm = find.text('Confirm Referral');
+    await tester.recordVitalsFromForm();
+    final confirm = find.byKey(const Key('referral_send'));
     await tester.tapOn(confirm);
 
-    await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));
+    await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
+    // Below the contacts since the pre-merge fixes.
+    await tester.reveal(find.textContaining('Drivers have not been notified'));
     expect(find.textContaining('Drivers have not been notified'), findsOneWidget);
     await tester.shot('s6_1_queued');
 
@@ -82,7 +82,7 @@ void main() {
       timeout: const Duration(seconds: 20),
       reason: 'the screen to follow the automatic send to the question',
     );
-    expect(find.textContaining('You used Call or SMS'), findsOneWidget);
+    expect(find.text('You called or texted a driver for this referral.'), findsOneWidget);
     await tester.wait(const Duration(seconds: 2));
     await tester.shot('s6_6_manual_contact_question');
 
@@ -93,24 +93,24 @@ void main() {
     final id = (tester.widget(sendNow).key! as ValueKey<String>)
         .value
         .substring('stale_send_now_'.length);
-    await tester.tapOn(sendNow);
-    await tester.tapOn(find.byKey(Key('stale_confirm_$id')));
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 20));
+    expect(id, isNotEmpty);
+    await tester.tapOn(sendNow); // one tap: no Confirm
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 20));
     expect(await Host.rows('dispatches'), hasLength(1));
     await tester.shot('s6_7_send_now_dispatched');
 
     // A4 with no Call or SMS: a second referral queues offline and, when signal returns,
     // the screen moves on to drivers notified by itself.
     await tester.tapOn(find.text('Back to Home'));
-    await tester.waitFor(find.text('Community Health Officer'));
+    await tester.waitFor(find.byKey(const Key('home_emergency_referral')));
     await Host.airplane(true);
     await tester.wait(const Duration(seconds: 2));
     await tester.openReferralForm();
-    await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
-    await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));
+    await tester.tapOn(find.byKey(const Key('referral_send')));
+    await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
     await Host.airplane(false);
     await tester.waitFor(
-      find.text('TIER1_NOTIFIED'),
+      find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')),
       timeout: const Duration(seconds: 60),
       reason: 'the screen to show drivers notified after the automatic send',
     );

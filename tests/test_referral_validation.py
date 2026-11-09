@@ -177,10 +177,11 @@ async def test_ussd_typo_does_not_claim_dispatch(
 
 
 def test_every_emergency_type_in_the_app_is_accepted():
-    source = (REPO / "mobile/lib/screens/referral_screen.dart").read_text()
-    block = source[source.index("labelText: 'Emergency type'") :]
-    values = re.findall(r"value: '(\w+)'", block[: block.index("onChanged")])
-    assert values
+    # The app's one list of types (the form's chips and every label come from it).
+    source = (REPO / "mobile/lib/models/emergency_type.dart").read_text()
+    block = source[source.index("const emergencyTypes") :]
+    values = re.findall(r"\('(\w+)', '", block[: block.index("];")])
+    assert len(values) == 4, values
     from typing import get_args
 
     from src.api.referral import EmergencyType

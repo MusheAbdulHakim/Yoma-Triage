@@ -12,6 +12,7 @@ import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
 import 'helpers/cho_helper.dart';
+import 'helpers/vitals_helper.dart';
 
 class _FailingApi extends ApiClient {
   _FailingApi(this.error);
@@ -173,21 +174,24 @@ void main() {
     testWidgets('a refused referral says why and to call manually',
         (tester) async {
       final api = _FailingApi(ApiException(404, '{"detail":"Facility not found","code":"FACILITY_NOT_FOUND"}'));
+      // Tall, so the whole not-sent-yet screen is built (its Retry sync now follows the
+      // contacts).
+      useTallScreen(tester);
       await tester.pumpWidget(
         MaterialApp(home: ReferralScreen(queue: queue, api: api)),
       );
       await tester.tap(find.text('Emergency type'));
-      await pumpUntil(tester, find.text('Postpartum hemorrhage'));
+      await pumpUntil(tester, find.text('Heavy bleeding'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Postpartum hemorrhage').last);
+      await tester.tap(find.text('Heavy bleeding').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.edit_location_alt));
+      await tester.tap(find.byKey(const Key('referral_send_to')));
       await pumpUntil(tester, find.text('Choose receiving facility'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(ListTile).first);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tap(find.byKey(const Key('referral_send')));
       await pumpUntil(tester, find.byType(FailedReferralsScreen));
       await pumpUntil(tester, find.textContaining('Facility not found'));
 
@@ -199,21 +203,24 @@ void main() {
     testWidgets('a captive portal on a direct send keeps it queued and warns',
         (tester) async {
       final api = _FailingApi(ApiException(403, '<html>Log in to Wi-Fi</html>'));
+      // Tall, so the whole not-sent-yet screen is built (its Retry sync now follows the
+      // contacts).
+      useTallScreen(tester);
       await tester.pumpWidget(
         MaterialApp(home: ReferralScreen(queue: queue, api: api)),
       );
       await tester.tap(find.text('Emergency type'));
-      await pumpUntil(tester, find.text('Postpartum hemorrhage'));
+      await pumpUntil(tester, find.text('Heavy bleeding'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Postpartum hemorrhage').last);
+      await tester.tap(find.text('Heavy bleeding').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.edit_location_alt));
+      await tester.tap(find.byKey(const Key('referral_send_to')));
       await pumpUntil(tester, find.text('Choose receiving facility'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(ListTile).first);
       await tester.pumpAndSettle();
 
-      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tap(find.byKey(const Key('referral_send')));
       await pumpUntil(tester, find.byType(QueuedReferralScreen));
       await pumpUntil(tester, find.byKey(const Key('queued_retry_warning')));
 
@@ -227,6 +234,9 @@ void main() {
         (tester) async {
       final api = _FailingApi(ApiException(422, '{"detail":"Bad","code":"VALIDATION_ERROR"}'));
       await tester.runAsync(() => queue.enqueue(_sample('a')));
+      // Tall, so the whole not-sent-yet screen is built (its Retry sync now follows the
+      // contacts).
+      useTallScreen(tester);
       await tester.pumpWidget(
         MaterialApp(
           home: QueuedReferralScreen(
@@ -244,6 +254,9 @@ void main() {
     testWidgets('a retryable error does not show as refused', (tester) async {
       final api = _FailingApi(ApiException(503, ''));
       await tester.runAsync(() => queue.enqueue(_sample('a')));
+      // Tall, so the whole not-sent-yet screen is built (its Retry sync now follows the
+      // contacts).
+      useTallScreen(tester);
       await tester.pumpWidget(
         MaterialApp(
           home: QueuedReferralScreen(

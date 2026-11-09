@@ -29,6 +29,9 @@ class ScreeningService {
     await _recorder!.start();
   }
 
+  /// The live microphone level for the recording screen; empty when there is no recorder.
+  Stream<double> microphoneLevels() => _recorder?.levels() ?? const Stream.empty();
+
   Future<ScreeningResult> stopAndClassify() async {
     lastDualRunSecondary = null;
     if (kIsWeb) {
@@ -80,8 +83,7 @@ class ScreeningService {
   }
 
   /// Web-only demo buttons.
-  ScreeningResult simulate({required bool forceRed}) =>
-      simulatorClassify(forceRed: forceRed);
+  ScreeningResult simulate({required bool forceRed}) => simulatorClassify(forceRed: forceRed);
 
   Future<void> dispose() async {
     try {

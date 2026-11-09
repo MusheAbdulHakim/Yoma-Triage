@@ -5,6 +5,67 @@ Two passes are recorded here. **[Batch 5 rerun](#batch-5-rerun)** is the current
 **[original pass](#original-pass-testemulator-pass)** below it is kept as found, on
 `test/emulator-pass` at `9fe1d01`, because its bug list is what batch 5 fixed.
 
+## Round 6: emulator boot (UI redesign)
+
+In UI round 5 the API 34 AVD (`yoma_api34`) crashed during cold boot three times in a row
+(exit 139, a segfault in the emulator process). That happened on the NVIDIA GPU (`-gpu
+host`) with `-no-snapshot-save`, with `-no-snapshot`, and with `-no-snapshot -feature
+-Vulkan`.
+
+**What changed since UI round 4, when it worked:** nothing that could be found.
+
+| Item | Value |
+|---|---|
+| NVIDIA driver (`nvidia-smi`) | 580.178.04, unchanged; NVIDIA OpenGL 4.6 works (`glxinfo -B` with PRIME offload) |
+| apt (`/var/log/apt/history.log`) | Last run 2026-11-07 18:26, before round 4. Nothing touching nvidia, mesa or the kernel since. The last kernel change was `linux-generic-hwe-24.04` 7.0.0-42 → 7.0.0-43 on 2026-11-06, but the machine still runs 7.0.0-42 |
+| Emulator | 37.2.13.0 (build 16740729), installed 2026-11-06/07, unchanged |
+| KVM | `emulator -accel-check`: KVM 12 usable |
+| Memory at the round-5 failures | about 3.3 GB free, swap about 3.2 / 4 GB used |
+| Memory at the round-6 tries | about 6.4 GB free (8 GB available), swap 3.7 / 4 GB used |
+
+**Tried in order, stopping at the first that booted 3 times in a row:**
+
+1. **`-gpu host -no-snapshot-load` (cold boot, no snapshot loaded): 3/3**, in 40 s, 36 s and
+   39 s, still on the NVIDIA GPU. Software rendering (`-gpu swiftshader_indirect`) and
+   `-wipe-data` were not needed.
+
+The runs used `scratchpad/boot3.sh`: boot, wait for `sys.boot_completed`, `adb emu kill`, three
+times. Stale `*.lock` files in the AVD folder were removed before each boot.
+
+**The cause is not proven.** The flag that differs from the crashing runs is snapshot
+*saving*: `-no-snapshot` turns off both loading and saving, and the log of the crashing runs
+shows the quick-boot machinery ("Feature QuickbootFileBacked is disabled…") just before the
+crash. Free memory was also about 3 GB lower then.
+
+**What `scripts/run_emulator_pass.py` does now:** it uses `-no-snapshot-load` instead of
+`-no-snapshot` and removes stale AVD lock files before booting.
+
+## Round 7: emulator deaths mid-run
+
+The host-GPU boot fix above held: every boot succeeded. During the round-7 regression,
+though, the API 34 emulator died about ten times and API 24 once.
+
+- **When:** mostly at the end of a scenario, and during scenario 2's long YAMNet recording
+  and analysis.
+- **Cause:** `systemd-oomd` (`oomctl`). It kills a process group when memory pressure on
+  the user session stays above 50% for 20 s. Swap on this 13 GB host stays near 90%, and a
+  Gradle build next to the emulator crossed the limit. The same mechanism killed the agent's
+  own session twice.
+- **What the script does now:**
+  - 2 GB for API 34, like API 24;
+  - Gradle capped at 3 GB;
+  - the Gradle daemon stopped after every scenario's build;
+  - each scenario in its own try, with the emulator booted again if it has gone; deaths are
+    listed at the end of the run.
+- **Still unresolved:** scenario 2's ANR probe and, on API 34, the release timings did not
+  complete. Running them needs more free memory: close other heavy apps first, or use a
+  machine with more RAM.
+- **Results:** in `docs/audit/UI_REDESIGN.md`, round 7, step 6.
+- **Removed screenshots:** the older sections below used to show screenshots that were
+  removed from the repo in round 7 (`9415e0c`). Each is now named in plain text, for example
+  (`api34_s4_accepted.png`). To see one, use
+  `git show 9415e0c^:docs/testing/screenshots/<file> > <file>`.
+
 ## Batch 5 rerun
 
 Date: 2026-11-07. Branch `fix/batch-5`, app at `b3d3b2f` plus test-only commits up to `f046c2b`.
@@ -95,7 +156,7 @@ and open, then taps it through the hit test and expects the referral form.
 It doesn't move when the banner opens or Home scrolls. Cosmetic: with the banner open, its
 header repeats the first card's title.
 
-![320 dp, closed](screenshots/b5_api24_320dp_banners_closed.png) ![320 dp, open](screenshots/b5_api24_320dp_banners_open.png) ![360 dp, closed](screenshots/b5_api24_360dp_banners_closed.png)
+320 dp, closed (`b5_api24_320dp_banners_closed.png`) 320 dp, open (`b5_api24_320dp_banners_open.png`) 360 dp, closed (`b5_api24_360dp_banners_closed.png`)
 
 ### A3 and A5: release build
 
@@ -118,7 +179,7 @@ header repeats the first card's title.
   `libflutter.so` 12.3 MB, the compiled Dart 5.9 MB, the TFLite runtime 5.0 MB, YAMNet 3.9 MB and
   the unused TFLite GPU library 3.8 MB.
 
-![Labelled test release](screenshots/b5_api34_s2_release_home_labelled.png)
+Labelled test release (`b5_api34_s2_release_home_labelled.png`)
 
 ### A4 and B2: scenario 6
 
@@ -132,7 +193,7 @@ header repeats the first card's title.
 - A second referral, queued offline with no Call or SMS, dispatches when signal returns, and the
   queued screen moves on to TIER1_NOTIFIED by itself (A4).
 
-![Question after Call or SMS](screenshots/b5_api24_s6_manual_contact_question.png) ![Dispatched by itself](screenshots/b5_api24_s6_dispatched_by_itself.png)
+Question after Call or SMS (`b5_api24_s6_manual_contact_question.png`) Dispatched by itself (`b5_api24_s6_dispatched_by_itself.png`)
 
 ### Timings (full pass)
 
@@ -299,7 +360,7 @@ Built with `flutter build apk --release --dart-define=MOEWS_ONLY=false` (debug s
 - Mic allowed → `INCONCLUSIVE … yamnet`, so the release build's TFLite and model work end to end.
 - Home in a release build shows `Env: development · model: yamnet` (B7).
 
-![Release Home](screenshots/api34_s2_release_home.png) ![Mic denied](screenshots/api34_s2_mic_denied_screen.png) ![Result after denial](screenshots/api34_s2_result_mic_denied.png) ![Mic allowed](screenshots/api24_s2_result_mic_allowed.png)
+Release Home (`api34_s2_release_home.png`) Mic denied (`api34_s2_mic_denied_screen.png`) Result after denial (`api34_s2_result_mic_denied.png`) Mic allowed (`api24_s2_result_mic_allowed.png`)
 
 ### 3. CHO setup — PASS on both
 
@@ -309,7 +370,7 @@ Built with `flutter build apk --release --dart-define=MOEWS_ONLY=false` (debug s
   referral form as the referring location.
 - Home itself doesn't name the compound (minor, B11).
 
-![Setup](screenshots/api34_s3_setup.png) ![Unregistered](screenshots/api34_s3_unregistered.png) ![Compound on the form](screenshots/api34_s3_compound_on_form.png)
+Setup (`api34_s3_setup.png`) Unregistered (`api34_s3_unregistered.png`) Compound on the form (`api34_s3_compound_on_form.png`)
 
 ### 4. Full referral — PASS on both
 
@@ -336,7 +397,7 @@ The dispatch log (`GET /api/v1/dispatch/{id}/logs`) lists `sms_send` (driver), `
 
 The patient name ("Zebra Testpatient") appears in no SMS body and no referral row.
 
-![Vitals](screenshots/api34_s4_vitals.png) ![Tier 1](screenshots/api34_s4_tier1.png) ![Accepted](screenshots/api34_s4_accepted.png) ![Completed](screenshots/api34_s4_completed.png)
+Vitals (`api34_s4_vitals.png`) Tier 1 (`api34_s4_tier1.png`) Accepted (`api34_s4_accepted.png`) Completed (`api34_s4_completed.png`)
 
 ### 5. Skip vitals — PASS on both
 
@@ -358,7 +419,7 @@ Dispatch: #1
 Reply CONFIRM 1 or DIVERT 1 <facility_id>
 ```
 
-![Form](screenshots/api34_s5_form.png) ![Tier 1](screenshots/api34_s5_tier1.png)
+Form (`api34_s5_form.png`) Tier 1 (`api34_s5_tier1.png`)
 
 ### 6. Offline — PASS on both
 
@@ -377,7 +438,7 @@ The test used real airplane mode, checked by ping.
 - When signal returns, the queue sends by itself. The queued screen doesn't update, though (B5).
 - The patient name never reached the server.
 
-![Queued](screenshots/api24_s6_queued.png) ![Contacts](screenshots/api24_s6_contacts.png) ![Dialler](screenshots/api24_s6_dialler.png) ![Chooser](screenshots/api24_s6_sms_chooser.png) ![Messages](screenshots/api24_s6_messaging.png) ![Messages API 34](screenshots/api34_s6_messaging.png)
+Queued (`api24_s6_queued.png`) Contacts (`api24_s6_contacts.png`) Dialler (`api24_s6_dialler.png`) Chooser (`api24_s6_sms_chooser.png`) Messages (`api24_s6_messaging.png`) Messages API 34 (`api34_s6_messaging.png`)
 
 ### 7. Stale referral — PASS on both
 
@@ -395,7 +456,7 @@ app wasn't changed. Three referrals were queued offline, then the test waited 70
 | Cancel | CANCELLED | none | referral_cancel |
 | Send now | CONFIRMED | one, with driver offers only for it | referral_send_now |
 
-![Three queued](screenshots/api34_s7_three_queued.png) ![Prompt](screenshots/api34_s7_prompt.png) ![Send now](screenshots/api34_s7_send_now_dispatched.png)
+Three queued (`api34_s7_three_queued.png`) Prompt (`api34_s7_prompt.png`) Send now (`api34_s7_send_now_dispatched.png`)
 
 ### 8. Backend restart — PASS on both
 
@@ -411,7 +472,7 @@ The backend ran with `CASCADE_TIER_SECONDS=30` for this test only.
 5. Each driver was offered exactly once (`+233240000001`, `…002`, `…003`), with no repeat after
    the restart. Escalation SMS went to `+233240000100` and to the CHO, `+233240000777`.
 
-![Backend down](screenshots/api34_s8_backend_down.png) ![Tier 2 after restart](screenshots/api34_s8_tier2_after_restart.png) ![Failed](screenshots/api34_s8_failed_with_contacts.png)
+Backend down (`api34_s8_backend_down.png`) Tier 2 after restart (`api34_s8_tier2_after_restart.png`) Failed (`api34_s8_failed_with_contacts.png`)
 
 ### 9. Small screen (320 dp) — FAIL on API 24, PASS on API 34
 
@@ -442,9 +503,9 @@ measures where Emergency Referral ends against the bottom of the screen:
 The button is 72 dp tall. The 360 dp screenshots are from a debug build, which draws the
 overflow stripes; a release build simply cuts the button off.
 
-![Home none](screenshots/api24_320dp_banners_none.png) ![Two banners](screenshots/api24_320dp_banners_2.png) ![Three banners](screenshots/api24_320dp_banners_3.png) ![360 dp, three banners](screenshots/api24_360dp_banners_3.png) ![360 dp, four banners](screenshots/api24_360dp_banners_4.png)
+Home none (`api24_320dp_banners_none.png`) Two banners (`api24_320dp_banners_2.png`) Three banners (`api24_320dp_banners_3.png`) 360 dp, three banners (`api24_360dp_banners_3.png`) 360 dp, four banners (`api24_360dp_banners_4.png`)
 
-Other 320 dp screens: ![Form](screenshots/api24_320dp_s4_form.png) ![Accepted](screenshots/api24_320dp_s4_accepted.png) ![Contacts](screenshots/api24_320dp_s6_contacts.png) ![Prompt](screenshots/api24_320dp_s7_prompt.png)
+Other 320 dp screens: Form (`api24_320dp_s4_form.png`) Accepted (`api24_320dp_s4_accepted.png`) Contacts (`api24_320dp_s6_contacts.png`) Prompt (`api24_320dp_s7_prompt.png`)
 
 ## Timings
 
@@ -521,7 +582,7 @@ Evidence:
 - ANR trace from `/data/system/dropbox/data_app_anr@…` on the API 34 AVD: `Subject: Input
   dispatching timed out (… gh.yomatriage.yoma_triage/.MainActivity … Waited 5002ms for
   MotionEvent …)`. The `"main"` thread is `state=R`, in `TfLiteInterpreterInvoke`.
-- Screenshot: ![ANR dialog](screenshots/api34_s2_anr_dialog.png), from the 07:58 run.
+- Screenshot: ANR dialog (`api34_s2_anr_dialog.png`), from the 07:58 run.
 
 A budget phone with a slower CPU will take longer than these emulators, so a CHO who touches the
 screen while waiting is likely to see the dialog. "Close app" loses the screening result.
@@ -569,7 +630,7 @@ Retry sync, which then went to the dispatch screen. This happened on both AVDs.
 
 A CHO could phone drivers who have already been offered the trip, or not know the referral went.
 
-![Stale queued screen](screenshots/api24_s6_stale_after_auto_send.png)
+Stale queued screen (`api24_s6_stale_after_auto_send.png`)
 
 ### B6. Raw exception text on the dispatch screen (medium)
 

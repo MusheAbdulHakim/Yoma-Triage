@@ -1,6 +1,8 @@
 import 'dart:async';
 
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'release_settings.dart';
 import 'screens/home_screen.dart';
@@ -14,6 +16,7 @@ final queueSyncService = QueueSyncService();
 
 void main() {
   WidgetsFlutterBinding.ensureInitialized();
+  registerFontLicence();
   // A release without production settings refuses to run, before it can sync anything.
   final root = rootApp(currentReleaseProblems());
   if (root is MisconfiguredBuildApp) {
@@ -25,11 +28,18 @@ void main() {
   runApp(root);
 }
 
+/// Lists the bundled font's licence on the app's licence page.
+void registerFontLicence() {
+  LicenseRegistry.addLicense(() async* {
+    final text = await rootBundle.loadString('assets/fonts/atkinson_hyperlegible_next/OFL.txt');
+    yield LicenseEntryWithLineBreaks(const ['Atkinson Hyperlegible Next'], text);
+  });
+}
+
 /// The app to run: the real one, or, if this build's settings are wrong, only the screen
 /// that says so.
-Widget rootApp(List<String> releaseProblems) => releaseProblems.isEmpty
-    ? const YomaApp()
-    : MisconfiguredBuildApp(problems: releaseProblems);
+Widget rootApp(List<String> releaseProblems) =>
+    releaseProblems.isEmpty ? const YomaApp() : MisconfiguredBuildApp(problems: releaseProblems);
 
 class YomaApp extends StatefulWidget {
   const YomaApp({super.key});

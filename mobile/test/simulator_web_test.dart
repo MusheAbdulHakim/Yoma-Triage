@@ -28,7 +28,7 @@ void main() {
     SharedPreferences.setMockInitialValues(registeredChoPrefs());
   });
 
-  testWidgets('web simulator Code Red shows Confirm Referral', (tester) async {
+  testWidgets('web simulator Code Red shows Confirm referral', (tester) async {
     useTallScreen(tester);
     await tester.pumpWidget(
       const MaterialApp(
@@ -39,16 +39,17 @@ void main() {
     await tester.tap(find.text('Demo Code Red'));
     await tester.pump();
     expect(find.byKey(const Key('breathing_pulse_rings')), findsOneWidget);
-    await pumpUntilFound(tester, find.text('Continue to Result'));
-    expect(find.text('Record Vitals'), findsOneWidget);
+    await pumpUntilFound(tester, find.byKey(const Key('vitals_see_result')));
+    expect(find.text('Record vitals'), findsOneWidget);
     await fillVitals(tester);
-    await tester.tap(find.text('Continue to Result'));
+    await tester.tap(find.byKey(const Key('vitals_see_result')));
     await tester.pumpAndSettle();
-    // MOEWS leads the result; the acoustic RED appears as an advisory card.
-    expect(find.text('MOEWS GREEN'), findsOneWidget);
-    expect(find.text('Acoustic (advisory): RED'), findsOneWidget);
-    expect(find.text('Confirm Referral'), findsOneWidget);
-    expect(find.text('Continue Monitoring'), findsOneWidget);
+    // MOEWS leads the result; the acoustic RED appears as the advisory row.
+    expect(find.text('MOEWS GREEN'), findsNothing, reason: 'word and score only, as in the design');
+    expect(find.text('Breathing check (advisory)'), findsOneWidget);
+    expect(find.text('Possible breathing problem'), findsOneWidget);
+    expect(find.text('Confirm referral'), findsOneWidget);
+    expect(find.text('Continue monitoring'), findsOneWidget);
     expect(find.byKey(const Key('breathing_pulse_rings')), findsNothing);
   });
 }

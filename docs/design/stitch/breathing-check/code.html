@@ -1,0 +1,653 @@
+<!DOCTYPE html><html lang="en"><head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Yoma Care - Breathing Check Flow</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&amp;display=swap" rel="stylesheet">
+<style>
+  * {
+    font-family: 'Atkinson Hyperlegible Next', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    box-sizing: border-box;
+  }
+
+  /* Animated sound wave for Screen C */
+  @keyframes waveBar {
+    0%, 100% { height: 8px; opacity: 0.4; }
+    50% { height: 32px; opacity: 1; }
+  }
+  .animate-wave-1 { animation: waveBar 1.2s ease-in-out infinite 0.1s; }
+  .animate-wave-2 { animation: waveBar 1.0s ease-in-out infinite 0.3s; }
+  .animate-wave-3 { animation: waveBar 1.4s ease-in-out infinite 0.0s; }
+  .animate-wave-4 { animation: waveBar 0.9s ease-in-out infinite 0.4s; }
+  .animate-wave-5 { animation: waveBar 1.1s ease-in-out infinite 0.2s; }
+  .animate-wave-6 { animation: waveBar 1.3s ease-in-out infinite 0.5s; }
+  .animate-wave-7 { animation: waveBar 0.8s ease-in-out infinite 0.15s; }
+
+  /* Circular countdown animation */
+  @keyframes circleCountdown {
+    from { stroke-dashoffset: 0; }
+    to { stroke-dashoffset: 377; }
+  }
+  .countdown-circle {
+    stroke-dasharray: 377;
+    stroke-dashoffset: 80;
+    transition: stroke-dashoffset 1s linear;
+  }
+
+  /* Spinner for Screen D */
+  @keyframes spinSlow {
+    from { transform: rotate(0deg); }
+    to { transform: rotate(360deg); }
+  }
+  .animate-spin-custom {
+    animation: spinSlow 1.4s cubic-bezier(0.4, 0, 0.2, 1) infinite;
+  }
+</style>
+</head>
+<body class="bg-[#0b1b2d] text-slate-900 min-h-screen p-6 md:p-10 flex flex-col items-center">
+
+  <!-- Header bar on Canvas presentation -->
+  <header class="w-full max-w-[2400px] mb-8 flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-slate-700/60 pb-5">
+    <div>
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="inline-block w-2.5 h-2.5 rounded-full bg-[#005F60]"></span>
+        <span class="text-xs font-bold tracking-widest uppercase text-teal-400">Clinical Emergency Workflow • 360×640 dp Form Factor</span>
+      </div>
+      <h1 class="text-2xl md:text-3xl font-bold tracking-tight text-white">Yoma Care • Breathing Check Module</h1>
+    </div>
+    <div class="flex items-center gap-3">
+      <span class="px-3 py-1 rounded bg-[#0f2744] border border-slate-700 text-xs font-medium text-slate-300">Harsh Light Contrast (AAA)</span>
+      <span class="px-3 py-1 rounded bg-[#0f2744] border border-slate-700 text-xs font-medium text-slate-300">No Red / Yellow / Green</span>
+      <span class="px-3 py-1 rounded bg-[#005F60]/20 border border-teal-500/40 text-xs font-bold text-teal-300">6 Clinical States</span>
+    </div>
+  </header>
+
+  <!-- Screens Container: Horizontal side-by-side flex with scrolling if needed -->
+  <main class="w-full max-w-[2400px] overflow-x-auto pb-8">
+    <div class="flex flex-nowrap items-start gap-8 min-w-max mx-auto justify-center">
+
+      <!-- ======================================================== -->
+      <!-- SCREEN A: HOME (BREATHING CHECK ENABLED) -->
+      <!-- ======================================================== -->
+      <div class="flex flex-col items-center">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+          Screen A • Home (Breathing check enabled)
+        </div>
+
+        <!-- Mobile Frame: 360 x 640 dp -->
+        <div class="w-[360px] h-[640px] bg-[#f9f9ff] rounded-[28px] shadow-2xl border-4 border-slate-800 flex flex-col overflow-hidden relative select-none">
+
+          <!-- System Status Bar -->
+          <div class="pt-2 px-6 flex justify-between items-center text-xs font-medium text-slate-600 shrink-0">
+            <span class="">09:41</span>
+            <div class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4z"></path>
+              </svg>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 4h-3V2h-4v2H7v18h10V4z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Top App Bar / Clinic Header -->
+          <div class="pt-3 px-6 pb-4 flex justify-between items-start shrink-0">
+            <div>
+              <h2 class="text-lg font-bold text-[#0f2744] leading-tight">Yoma Care</h2>
+              <p class="text-xs text-slate-600 font-medium">Tamale South CHPS</p>
+            </div>
+            <!-- Offline Status Pill -->
+            <div class="flex items-center gap-1.5 px-2.5 py-1 rounded-full bg-slate-200/80 border border-slate-300 text-[11px] font-semibold text-slate-700">
+              <svg class="w-3 h-3 text-slate-600" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M3 3l18 18M8.5 8.5a7 7 0 019.9 0M10.8 13.2a3 3 0 013.4 0M12 17h.01"></path>
+              </svg>
+              <span class="">Offline</span>
+            </div>
+          </div>
+
+          <!-- Actions Stack (Top-anchored as established in latest Home design) -->
+          <div class="px-6 flex flex-col gap-3 shrink-0">
+            <!-- 1. Emergency referral Hero Card Button -->
+            <button class="w-full bg-[#005F60] text-white rounded-2xl py-4 px-4 flex flex-col items-center justify-center shadow-sm active:scale-[0.99] transition-transform">
+              <div class="w-11 h-11 rounded-full border-2 border-white/80 flex items-center justify-center mb-1.5 bg-white/10">
+                <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M9 17a2 2 0 11-4 0 2 2 0 014 0zM19 17a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M13 16V6a1 1 0 00-1-1H4a1 1 0 00-1 1v10a1 1 0 001 1h1m8-1a1 1 0 01-1 1H9m4-1V8h4l3 3v5h-2m-7 0h7"></path>
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M8 8v3m-1.5-1.5h3"></path>
+                </svg>
+              </div>
+              <span class="text-base font-bold tracking-tight">Emergency referral</span>
+            </button>
+
+            <!-- 2. Record Vitals Outlined Button -->
+            <button class="w-full bg-white border-2 border-[#005F60]/30 rounded-2xl h-[56px] px-4 flex items-center justify-center gap-2.5 active:bg-slate-50 transition-colors shadow-xs">
+              <svg class="w-5 h-5 text-[#005F60]" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4.318 6.318a4.5 4.5 0 000 6.364L12 20.364l7.682-7.682a4.5 4.5 0 00-6.364-6.364L12 7.636l-1.318-1.318a4.5 4.5 0 00-6.364 0z"></path>
+                <path stroke-linecap="round" stroke-linejoin="round" d="M8 12h2l1-2 2 4 1-2h2"></path>
+              </svg>
+              <span class="text-base font-bold text-[#005F60]">Record vitals</span>
+            </button>
+
+            <!-- 3. NEW: Check Breathing Outlined Button (56 dp tall) -->
+            <button class="w-full bg-white border-2 border-[#005F60]/30 rounded-2xl h-[56px] px-4 flex items-center justify-between active:bg-slate-50 transition-colors shadow-xs">
+              <div class="flex items-center gap-2.5">
+                <!-- Sound-wave icon -->
+                <svg class="w-5 h-5 text-[#005F60]" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M3 12h1m3-4v8m4-11v14m4-10v6m4-4v2m3-1h1"></path>
+                </svg>
+                <span class="text-base font-bold text-[#005F60]">Check breathing</span>
+              </div>
+              <!-- Small grey Advisory tag -->
+              <span class="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[11px] font-semibold text-slate-600">Advisory</span>
+            </button>
+          </div>
+
+          <!-- Calm white lower field space (Generous whitespace standard) -->
+          <div class="flex-1"></div>
+
+          <!-- Android Bottom Navigation Indicator -->
+          <div class="pb-2 flex justify-center shrink-0">
+            <div class="w-24 h-1 bg-slate-300 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ======================================================== -->
+      <!-- SCREEN B: CHECK BREATHING - READY -->
+      <!-- ======================================================== -->
+      <div class="flex flex-col items-center">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+          Screen B • Check breathing – ready
+        </div>
+
+        <!-- Mobile Frame: 360 x 640 dp -->
+        <div class="w-[360px] h-[640px] bg-[#f9f9ff] rounded-[28px] shadow-2xl border-4 border-slate-800 flex flex-col overflow-hidden relative select-none">
+
+          <!-- System Status Bar -->
+          <div class="pt-2 px-6 flex justify-between items-center text-xs font-medium text-slate-600 shrink-0">
+            <span class="">09:41</span>
+            <div class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4z"></path>
+              </svg>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 4h-3V2h-4v2H7v18h10V4z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Top Bar: Back arrow and title -->
+          <div class="pt-3 px-6 pb-2 flex items-center gap-3 shrink-0">
+            <button class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#0f2744] active:bg-slate-200/60">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+              </svg>
+            </button>
+            <h2 class="text-lg font-bold text-[#0f2744]">Check breathing</h2>
+          </div>
+
+          <!-- Content Body -->
+          <div class="flex-1 px-6 flex flex-col items-center justify-center text-center">
+
+            <!-- Simple line illustration: Phone held near chest -->
+            <div class="w-20 h-20 mb-5 rounded-2xl bg-[#f0f3ff] border border-slate-200 flex items-center justify-center text-[#005F60]">
+              <svg class="w-12 h-12 text-[#005F60]" fill="none" stroke="currentColor" stroke-width="1.8" viewBox="0 0 24 24">
+                <!-- Human chest silhouette line -->
+                <path stroke-linecap="round" stroke-linejoin="round" d="M4 20v-2a5 5 0 015-5h1m6 7v-2a5 5 0 00-3-4.6"></path>
+                <circle cx="9" cy="7" r="3" stroke-linecap="round" stroke-linejoin="round"></circle>
+                <!-- Phone rectangle held close -->
+                <rect x="14" y="9" width="7" height="11" rx="1.5" stroke-linecap="round" stroke-linejoin="round" stroke-width="1.8" fill="white"></rect>
+                <!-- Phone microphone wave line -->
+                <path stroke-linecap="round" stroke-linejoin="round" d="M17.5 12v3M16 13.5h3"></path>
+              </svg>
+            </div>
+
+            <!-- Numbered Instructions (3 short clear lines) -->
+            <div class="w-full bg-white rounded-2xl p-4 border border-slate-200/80 shadow-xs mb-4 text-left">
+              <ul class="flex flex-col gap-3">
+                <li class="flex items-start gap-3">
+                  <span class="w-6 h-6 rounded-full bg-[#f0f3ff] text-[#005F60] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 border border-[#005F60]/20">1</span>
+                  <span class="text-sm font-semibold text-slate-800 leading-snug">Hold the phone close to the chest</span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <span class="w-6 h-6 rounded-full bg-[#f0f3ff] text-[#005F60] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 border border-[#005F60]/20">2</span>
+                  <span class="text-sm font-semibold text-slate-800 leading-snug">Keep the room quiet</span>
+                </li>
+                <li class="flex items-start gap-3">
+                  <span class="w-6 h-6 rounded-full bg-[#f0f3ff] text-[#005F60] font-bold text-xs flex items-center justify-center shrink-0 mt-0.5 border border-[#005F60]/20">3</span>
+                  <span class="text-sm font-semibold text-slate-800 leading-snug">Keep the phone still for 15 seconds</span>
+                </li>
+              </ul>
+            </div>
+
+            <!-- Grey advisory note -->
+            <p class="text-xs text-slate-500 font-medium leading-relaxed px-2">
+              This is advice only. Always use your own judgement.
+            </p>
+          </div>
+
+          <!-- Bottom Action Area -->
+          <div class="p-6 pt-2 shrink-0 flex flex-col gap-2">
+            <button class="w-full h-[52px] bg-[#005F60] hover:bg-[#004f50] text-white font-bold rounded-xl active:scale-[0.99] transition-transform shadow-xs flex items-center justify-center text-base">
+              Start
+            </button>
+            <div class="pb-1 flex justify-center">
+              <div class="w-24 h-1 bg-slate-300 rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ======================================================== -->
+      <!-- SCREEN C: RECORDING -->
+      <!-- ======================================================== -->
+      <div class="flex flex-col items-center">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2"><span class="w-2 h-2 rounded-full bg-teal-400"></span> Screen C • Recording (Pulse Animation: 3 Frames)</div>
+
+        <!-- Mobile Frame: 360 x 640 dp -->
+        <div class="flex items-start gap-5">
+  <!-- PULSE FRAME 1: TIGHT / SMALL RIPPLES -->
+  <div class="flex flex-col items-center">
+    <div class="text-[11px] font-bold uppercase tracking-wider text-teal-400 mb-2 px-2.5 py-0.5 rounded bg-[#0f2744] border border-slate-700/80">Pulse frame 1</div>
+    <div class="w-[360px] h-[640px] bg-[#f9f9ff] rounded-[28px] shadow-2xl border-4 border-slate-800 flex flex-col overflow-hidden relative select-none">
+      <!-- System Status Bar -->
+      <div class="pt-2 px-6 flex justify-between items-center text-xs font-medium text-slate-600 shrink-0">
+        <span class="">09:41</span>
+        <div class="flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4z"></path></svg>
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17 4h-3V2h-4v2H7v18h10V4z"></path></svg>
+        </div>
+      </div>
+      <!-- Top minimal header spacer -->
+      <div class="pt-3 px-6 pb-2 flex items-center justify-center shrink-0">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#005F60] bg-[#f0f3ff] px-3 py-1 rounded-full border border-[#005F60]/20">Listening</span>
+      </div>
+      <!-- Content Body: Concentric Ripples (Tight) -->
+      <div class="flex-1 px-6 flex flex-col items-center justify-center text-center">
+        <div class="relative w-52 h-52 flex items-center justify-center mb-6">
+          <!-- Concentric Ring 2: tight (higher opacity) -->
+          <div class="absolute w-48 h-48 rounded-full border-2 border-[#005F60] opacity-25"></div>
+          <!-- Concentric Ring 1: close (higher opacity) -->
+          <div class="absolute w-44 h-44 rounded-full border-2 border-[#005F60] opacity-40"></div>
+          <!-- Progress arc outside solid circle -->
+          <svg class="absolute w-40 h-40 transform -rotate-90 pointer-events-none" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r="74" stroke="#e2e8f0" stroke-width="4" fill="none"></circle>
+            <circle cx="80" cy="80" r="74" stroke="#005F60" stroke-width="4" stroke-linecap="round" stroke-dasharray="465" stroke-dashoffset="93" fill="none"></circle>
+          </svg>
+          <!-- Solid teal center circle (~140px) -->
+          <div class="relative w-[138px] h-[138px] rounded-full bg-[#005F60] shadow-md flex flex-col items-center justify-center text-white z-10">
+            <span class="text-3xl font-extrabold text-white tracking-tight leading-none">12 s</span>
+            <span class="text-[10px] font-bold text-white/80 uppercase tracking-widest mt-1.5">Remaining</span>
+          </div>
+        </div>
+        <h3 class="text-base font-bold text-[#0f2744]">Listening… keep the phone still</h3>
+        <p class="text-xs text-slate-500 font-medium mt-1">Do not speak or move until complete</p>
+      </div>
+      <!-- Bottom Action Area -->
+      <div class="p-6 pt-2 shrink-0 flex flex-col gap-2">
+        <button class="w-full h-[52px] bg-white border-2 border-slate-300 text-slate-800 font-bold rounded-xl active:bg-slate-50 transition-colors shadow-xs flex items-center justify-center text-base">Stop</button>
+        <div class="pb-1 flex justify-center"><div class="w-24 h-1 bg-slate-300 rounded-full"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PULSE FRAME 2: MEDIUM EXPANSION -->
+  <div class="flex flex-col items-center">
+    <div class="text-[11px] font-bold uppercase tracking-wider text-teal-400 mb-2 px-2.5 py-0.5 rounded bg-[#0f2744] border border-slate-700/80">Pulse frame 2</div>
+    <div class="w-[360px] h-[640px] bg-[#f9f9ff] rounded-[28px] shadow-2xl border-4 border-slate-800 flex flex-col overflow-hidden relative select-none">
+      <!-- System Status Bar -->
+      <div class="pt-2 px-6 flex justify-between items-center text-xs font-medium text-slate-600 shrink-0">
+        <span class="">09:41</span>
+        <div class="flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4z"></path></svg>
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17 4h-3V2h-4v2H7v18h10V4z"></path></svg>
+        </div>
+      </div>
+      <!-- Top minimal header spacer -->
+      <div class="pt-3 px-6 pb-2 flex items-center justify-center shrink-0">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#005F60] bg-[#f0f3ff] px-3 py-1 rounded-full border border-[#005F60]/20">Listening</span>
+      </div>
+      <!-- Content Body: Concentric Ripples (Medium expansion) -->
+      <div class="flex-1 px-6 flex flex-col items-center justify-center text-center">
+        <div class="relative w-52 h-52 flex items-center justify-center mb-6">
+          <!-- Concentric Ring 3: outer medium ripple -->
+          <div class="absolute w-52 h-52 rounded-full border-2 border-[#005F60] opacity-15"></div>
+          <!-- Concentric Ring 2: expanding outward (intermediate opacity) -->
+          <div class="absolute w-46 h-46 rounded-full border-2 border-[#005F60] opacity-25"></div>
+          <!-- Concentric Ring 1: inner wave -->
+          <div class="absolute w-42 h-42 rounded-full border-2 border-[#005F60] opacity-30"></div>
+          <!-- Progress arc outside solid circle -->
+          <svg class="absolute w-40 h-40 transform -rotate-90 pointer-events-none" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r="74" stroke="#e2e8f0" stroke-width="4" fill="none"></circle>
+            <circle cx="80" cy="80" r="74" stroke="#005F60" stroke-width="4" stroke-linecap="round" stroke-dasharray="465" stroke-dashoffset="93" fill="none"></circle>
+          </svg>
+          <!-- Solid teal center circle (~140px) -->
+          <div class="relative w-[138px] h-[138px] rounded-full bg-[#005F60] shadow-md flex flex-col items-center justify-center text-white z-10">
+            <span class="text-3xl font-extrabold text-white tracking-tight leading-none">12 s</span>
+            <span class="text-[10px] font-bold text-white/80 uppercase tracking-widest mt-1.5">Remaining</span>
+          </div>
+        </div>
+        <h3 class="text-base font-bold text-[#0f2744]">Listening… keep the phone still</h3>
+        <p class="text-xs text-slate-500 font-medium mt-1">Do not speak or move until complete</p>
+      </div>
+      <!-- Bottom Action Area -->
+      <div class="p-6 pt-2 shrink-0 flex flex-col gap-2">
+        <button class="w-full h-[52px] bg-white border-2 border-slate-300 text-slate-800 font-bold rounded-xl active:bg-slate-50 transition-colors shadow-xs flex items-center justify-center text-base">Stop</button>
+        <div class="pb-1 flex justify-center"><div class="w-24 h-1 bg-slate-300 rounded-full"></div></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- PULSE FRAME 3: LARGE EXPANSION (WIDE RIPPLES) -->
+  <div class="flex flex-col items-center">
+    <div class="text-[11px] font-bold uppercase tracking-wider text-teal-400 mb-2 px-2.5 py-0.5 rounded bg-[#0f2744] border border-slate-700/80">Pulse frame 3</div>
+    <div class="w-[360px] h-[640px] bg-[#f9f9ff] rounded-[28px] shadow-2xl border-4 border-slate-800 flex flex-col overflow-hidden relative select-none">
+      <!-- System Status Bar -->
+      <div class="pt-2 px-6 flex justify-between items-center text-xs font-medium text-slate-600 shrink-0">
+        <span class="">09:41</span>
+        <div class="flex items-center gap-1.5">
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4z"></path></svg>
+          <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor"><path d="M17 4h-3V2h-4v2H7v18h10V4z"></path></svg>
+        </div>
+      </div>
+      <!-- Top minimal header spacer -->
+      <div class="pt-3 px-6 pb-2 flex items-center justify-center shrink-0">
+        <span class="text-xs font-bold uppercase tracking-widest text-[#005F60] bg-[#f0f3ff] px-3 py-1 rounded-full border border-[#005F60]/20">Listening</span>
+      </div>
+      <!-- Content Body: Concentric Ripples (Large expansion, reaching outer boundary) -->
+      <div class="flex-1 px-6 flex flex-col items-center justify-center text-center">
+        <div class="relative w-56 h-56 flex items-center justify-center mb-6">
+          <!-- Concentric Ring 3: wide outer boundary (softer opacity 0.08) -->
+          <div class="absolute w-56 h-56 rounded-full border-2 border-[#005F60] opacity-[0.08]"></div>
+          <!-- Concentric Ring 2: expanding outward (softer opacity 0.15) -->
+          <div class="absolute w-48 h-48 rounded-full border-2 border-[#005F60] opacity-15"></div>
+          <!-- Concentric Ring 1: middle pulse (opacity 0.20) -->
+          <div class="absolute w-44 h-44 rounded-full border-2 border-[#005F60] opacity-20"></div>
+          <!-- Progress arc outside solid circle -->
+          <svg class="absolute w-40 h-40 transform -rotate-90 pointer-events-none" viewBox="0 0 160 160">
+            <circle cx="80" cy="80" r="74" stroke="#e2e8f0" stroke-width="4" fill="none"></circle>
+            <circle cx="80" cy="80" r="74" stroke="#005F60" stroke-width="4" stroke-linecap="round" stroke-dasharray="465" stroke-dashoffset="93" fill="none"></circle>
+          </svg>
+          <!-- Solid teal center circle (~140px) -->
+          <div class="relative w-[138px] h-[138px] rounded-full bg-[#005F60] shadow-md flex flex-col items-center justify-center text-white z-10">
+            <span class="text-3xl font-extrabold text-white tracking-tight leading-none">12 s</span>
+            <span class="text-[10px] font-bold text-white/80 uppercase tracking-widest mt-1.5">Remaining</span>
+          </div>
+        </div>
+        <h3 class="text-base font-bold text-[#0f2744]">Listening… keep the phone still</h3>
+        <p class="text-xs text-slate-500 font-medium mt-1">Do not speak or move until complete</p>
+      </div>
+      <!-- Bottom Action Area -->
+      <div class="p-6 pt-2 shrink-0 flex flex-col gap-2">
+        <button class="w-full h-[52px] bg-white border-2 border-slate-300 text-slate-800 font-bold rounded-xl active:bg-slate-50 transition-colors shadow-xs flex items-center justify-center text-base">Stop</button>
+        <div class="pb-1 flex justify-center"><div class="w-24 h-1 bg-slate-300 rounded-full"></div></div>
+      </div>
+    </div>
+  </div>
+</div>
+      </div>
+
+
+      <!-- ======================================================== -->
+      <!-- SCREEN D: ANALYSING -->
+      <!-- ======================================================== -->
+      <div class="flex flex-col items-center">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+          Screen D • Analysing
+        </div>
+
+        <!-- Mobile Frame: 360 x 640 dp -->
+        <div class="w-[360px] h-[640px] bg-[#f9f9ff] rounded-[28px] shadow-2xl border-4 border-slate-800 flex flex-col overflow-hidden relative select-none">
+
+          <!-- System Status Bar -->
+          <div class="pt-2 px-6 flex justify-between items-center text-xs font-medium text-slate-600 shrink-0">
+            <span class="">09:41</span>
+            <div class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4z"></path>
+              </svg>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 4h-3V2h-4v2H7v18h10V4z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Content Body: Centered spinner and text ONLY -->
+          <div class="flex-1 px-6 flex flex-col items-center justify-center text-center">
+
+            <!-- Teal Progress Spinner -->
+            <div class="w-16 h-16 relative flex items-center justify-center mb-6">
+              <div class="w-14 h-14 rounded-full border-4 border-[#005F60]/20 border-t-[#005F60] animate-spin-custom"></div>
+            </div>
+
+            <!-- Exact required text: "Checking the recording…" -->
+            <h3 class="text-base font-bold text-[#0f2744]">
+              Checking the recording…
+            </h3>
+            <p class="text-xs text-slate-500 font-medium mt-1">
+              Analyzing breath rate and sound patterns
+            </p>
+          </div>
+
+          <!-- Bottom Action Area -->
+          <div class="p-6 pt-2 shrink-0 flex flex-col gap-2">
+            <!-- Outlined "Cancel" button -->
+            <button class="w-full h-[52px] bg-white border-2 border-slate-300 text-slate-800 font-bold rounded-xl active:bg-slate-50 transition-colors shadow-xs flex items-center justify-center text-base">
+              Cancel
+            </button>
+            <div class="pb-1 flex justify-center">
+              <div class="w-24 h-1 bg-slate-300 rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ======================================================== -->
+      <!-- SCREEN E: BREATHING CHECK RESULT (2 VARIANTS) -->
+      <!-- ======================================================== -->
+      <div class="flex flex-col items-center">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+          Screen E • Result (2 Variants)
+        </div>
+
+        <!-- Mobile Frame: 360 x 640 dp -->
+        <div class="w-[360px] h-[640px] bg-[#f9f9ff] rounded-[28px] shadow-2xl border-4 border-slate-800 flex flex-col overflow-hidden relative select-none">
+
+          <!-- System Status Bar -->
+          <div class="pt-2 px-6 flex justify-between items-center text-xs font-medium text-slate-600 shrink-0">
+            <span class="">09:41</span>
+            <div class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4z"></path>
+              </svg>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 4h-3V2h-4v2H7v18h10V4z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Top Bar: Back arrow and title -->
+          <div class="pt-3 px-6 pb-2 flex items-center gap-3 shrink-0">
+            <button class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#0f2744] active:bg-slate-200/60">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+              </svg>
+            </button>
+            <h2 class="text-lg font-bold text-[#0f2744]">Breathing check result</h2>
+          </div>
+
+          <!-- Content Body: Showing Both Result Variants Stacked within 640 dp viewport -->
+          <div class="flex-1 px-6 py-2 flex flex-col gap-3 justify-center overflow-y-auto">
+
+            <!-- Sub-label 1: Variant 1 -->
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 pl-1">Variant 1</div>
+
+            <!-- Variant 1: "Possible breathing problem" -->
+            <!-- White card with dark navy left border, alert icon, title, line, grey Advisory tag -->
+            <div class="w-full bg-white rounded-xl p-3.5 border border-slate-200/90 border-l-[6px] border-l-[#0f2744] shadow-xs">
+              <div class="flex items-start justify-between gap-2 mb-1.5">
+                <div class="flex items-center gap-2">
+                  <!-- Alert icon (dark navy) -->
+                  <div class="w-6 h-6 rounded-full bg-[#0f2744]/10 flex items-center justify-center shrink-0 text-[#0f2744]">
+                    <svg class="w-4 h-4 text-[#0f2744]" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                      <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                    </svg>
+                  </div>
+                  <h4 class="text-sm font-bold text-[#0f2744] leading-snug">Possible breathing problem</h4>
+                </div>
+                <!-- Small grey Advisory tag -->
+                <span class="px-2 py-0.5 rounded bg-slate-100 border border-slate-200 text-[10px] font-semibold text-slate-600 shrink-0">Advisory</span>
+              </div>
+              <p class="text-xs text-slate-600 font-medium pl-8">
+                Unusual breathing sounds were detected
+              </p>
+            </div>
+
+            <!-- Sub-label 2: Variant 2 -->
+            <div class="text-[10px] font-bold uppercase tracking-wider text-slate-400 pl-1 mt-1">Variant 2</div>
+
+            <!-- Variant 2: "Couldn't tell" -->
+            <!-- White card with a grey dashed border, question-mark icon, title, line -->
+            <div class="w-full bg-white rounded-xl p-3.5 border-2 border-dashed border-slate-300 shadow-xs">
+              <div class="flex items-center gap-2 mb-1.5">
+                <!-- Question-mark icon -->
+                <div class="w-6 h-6 rounded-full bg-slate-100 flex items-center justify-center shrink-0 text-slate-600">
+                  <svg class="w-4 h-4 text-slate-600" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                  </svg>
+                </div>
+                <h4 class="text-sm font-bold text-slate-800 leading-snug">Couldn't tell</h4>
+              </div>
+              <p class="text-xs text-slate-600 font-medium pl-8">
+                Use your own judgement and record vitals
+              </p>
+            </div>
+
+            <p class="text-[11px] text-slate-500 font-medium text-center mt-1">
+              Field guidance: Results do not replace nurse auscultation
+            </p>
+          </div>
+
+          <!-- Bottom Action Area -->
+          <div class="p-6 pt-2 shrink-0 flex flex-col gap-2">
+            <!-- Full-width teal button "Continue to vitals" -->
+            <button class="w-full h-[52px] bg-[#005F60] hover:bg-[#004f50] text-white font-bold rounded-xl active:scale-[0.99] transition-transform shadow-xs flex items-center justify-center text-base">
+              Continue to vitals
+            </button>
+            <div class="pb-1 flex justify-center">
+              <div class="w-24 h-1 bg-slate-300 rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+
+      <!-- ======================================================== -->
+      <!-- SCREEN F: MICROPHONE BLOCKED -->
+      <!-- ======================================================== -->
+      <div class="flex flex-col items-center">
+        <div class="text-xs font-bold uppercase tracking-wider text-slate-400 mb-3 flex items-center gap-2">
+          <span class="w-2 h-2 rounded-full bg-teal-400"></span>
+          Screen F • Microphone blocked
+        </div>
+
+        <!-- Mobile Frame: 360 x 640 dp -->
+        <div class="w-[360px] h-[640px] bg-[#f9f9ff] rounded-[28px] shadow-2xl border-4 border-slate-800 flex flex-col overflow-hidden relative select-none">
+
+          <!-- System Status Bar -->
+          <div class="pt-2 px-6 flex justify-between items-center text-xs font-medium text-slate-600 shrink-0">
+            <span class="">09:41</span>
+            <div class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M12 4C7.31 4 3.07 5.9 0 8.98L12 21 24 8.98A16.88 16.88 0 0 0 12 4z"></path>
+              </svg>
+              <svg class="w-3.5 h-3.5" viewBox="0 0 24 24" fill="currentColor">
+                <path d="M17 4h-3V2h-4v2H7v18h10V4z"></path>
+              </svg>
+            </div>
+          </div>
+
+          <!-- Top minimal header spacer -->
+          <div class="pt-3 px-6 pb-2 flex items-center gap-3 shrink-0">
+            <button class="w-10 h-10 -ml-2 rounded-full flex items-center justify-center text-[#0f2744] active:bg-slate-200/60">
+              <svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2.2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M10 19l-7-7m0 0l7-7m-7 7h18"></path>
+              </svg>
+            </button>
+            <h2 class="text-lg font-bold text-[#0f2744]">Permission needed</h2>
+          </div>
+
+          <!-- Content Body: Centered mic-off icon, title, prompt -->
+          <div class="flex-1 px-6 flex flex-col items-center justify-center text-center">
+
+            <!-- Mic-off icon -->
+            <div class="w-16 h-16 mb-5 rounded-2xl bg-[#0f2744]/10 border border-slate-200 flex items-center justify-center text-[#0f2744]">
+              <svg class="w-8 h-8 text-[#0f2744]" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z"></path>
+                <!-- Slash across -->
+                <line x1="3" y1="3" x2="21" y2="21" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"></line>
+              </svg>
+            </div>
+
+            <!-- Title: "Microphone not allowed" -->
+            <h3 class="text-base font-bold text-[#0f2744] mb-2">
+              Microphone not allowed
+            </h3>
+
+            <!-- One line: "Allow the microphone in settings to check breathing, or skip this step" -->
+            <p class="text-xs text-slate-600 font-medium leading-relaxed max-w-[260px]">
+              Allow the microphone in settings to check breathing, or skip this step
+            </p>
+          </div>
+
+          <!-- Bottom Action Area: 2 stacked buttons -->
+          <div class="p-6 pt-2 shrink-0 flex flex-col gap-2.5">
+            <!-- Teal button "Open settings" -->
+            <button class="w-full h-[52px] bg-[#005F60] hover:bg-[#004f50] text-white font-bold rounded-xl active:scale-[0.99] transition-transform shadow-xs flex items-center justify-center text-base">
+              Open settings
+            </button>
+            <!-- Outlined button "Skip to vitals" -->
+            <button class="w-full h-[52px] bg-white border-2 border-slate-300 text-slate-800 font-bold rounded-xl active:bg-slate-50 transition-colors shadow-xs flex items-center justify-center text-base">
+              Skip to vitals
+            </button>
+            <div class="pb-1 flex justify-center">
+              <div class="w-24 h-1 bg-slate-300 rounded-full"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <!-- Footer Design System Metadata & Clinical Compliance -->
+  <footer class="w-full max-w-[2400px] mt-2 pt-4 border-t border-slate-800 text-xs text-slate-400 flex flex-col md:flex-row items-center justify-between gap-3">
+    <div class="flex items-center gap-2">
+      <svg class="w-4 h-4 text-teal-400" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24">
+        <path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+      </svg>
+      <span class="">Clinical Field Optimization • Atkinson Hyperlegible Next • 360×640 dp Android Standard Viewports</span>
+    </div>
+    <div class="flex items-center gap-4 text-slate-500">
+      <span class="">Brand Teal: #005F60</span>
+      <span class="">•</span>
+      <span class="">Dark Navy: #0F2744</span>
+      <span class="">•</span>
+      <span class="">WCAG AAA Outdoor Contrast</span>
+    </div>
+  </footer>
+
+
+
+
+
+</body></html>

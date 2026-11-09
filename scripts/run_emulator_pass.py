@@ -53,11 +53,43 @@ BACKEND_PORT = 8000
 PG_PORT = 55490
 TEST_CHO = "+233240000777"
 SMALL_WIDTH_PX, SMALL_HEIGHT_PX, SMALL_DENSITY = 640, 1136, 320  # 320 x 568 dp
+# The Stitch designs' 360 x 640 dp, for the fidelity side-by-sides.
+FIDELITY_WIDTH_PX, FIDELITY_HEIGHT_PX, FIDELITY_DENSITY = 1080, 1920, 480
+# Run at 360 x 640 dp, screenshots prefixed "fid_": scenario name -> the test it runs.
+FIDELITY_SCENARIOS = {"ui360": "ui", "breathing360": "breathing"}
+ANIMATION_SCALES = (
+    "window_animation_scale",
+    "transition_animation_scale",
+    "animator_duration_scale",
+)
 
 AVDS = {"yoma_api34": 5554, "yoma_api24_2gb": 5556}
+# Local test tooling only; nothing here affects the app or its builds.
+# On a dev machine with an NVIDIA GPU, render the emulator there (PRIME render offload)
+# instead of on the CPU/integrated GPU, which can freeze the desktop. Anywhere else (no
+# nvidia-smi, CI) keep software rendering. YOMA_EMULATOR_GPU overrides either way.
+HAS_NVIDIA = shutil.which("nvidia-smi") is not None
+EMULATOR_GPU = os.environ.get("YOMA_EMULATOR_GPU", "host" if HAS_NVIDIA else "swiftshader_indirect")
+
+
+def emulator_env() -> dict[str, str]:
+    env = dict(os.environ)
+    if EMULATOR_GPU == "host" and HAS_NVIDIA:
+        env.update(
+            {
+                "__NV_PRIME_RENDER_OFFLOAD": "1",
+                "__GLX_VENDOR_LIBRARY_NAME": "nvidia",
+                "__VK_LAYER_NV_optimus": "NVIDIA_only",
+                "VK_ICD_FILENAMES": "/usr/share/vulkan/icd.d/nvidia_icd.json",
+            }
+        )
+    return env
 # Guest RAM for each run, in MB, whatever the AVD's own setting. The API 34 AVD is set to
 # 4 GB, which with a Gradle build alongside was enough for the host to kill the emulator.
-AVD_MEMORY_MB = {"yoma_api34": 3072, "yoma_api24_2gb": 2048}
+# Round 7: 2 GB for API 34 too. With 3 GB, a Gradle build and the desktop's own apps,
+# systemd-oomd (memory pressure over 50% for 20 s on the user session) killed the emulator
+# several times in one pass.
+AVD_MEMORY_MB = {"yoma_api34": 2048, "yoma_api24_2gb": 2048}
 
 # What each integration test file needs from the backend, and from the build.
 SCENARIOS: dict[str, dict] = {
@@ -73,10 +105,19 @@ SCENARIOS: dict[str, dict] = {
     # Batch 6: a hospital diverts the patient; the screen follows the trip to the new one.
     "11": {"file": "s11_diversion_test.dart"},
     "banners": {"file": "s9_home_banners_test.dart"},
+    # UI redesign: every redesigned screen and state, for the side-by-side screenshots.
+    "ui": {"file": "s12_ui_redesign_test.dart"},
+    # UI redesign round 2: the breathing check, measured with the real recorder, and shots.
+    "breathing": {"file": "s13_breathing_test.dart", "defines": {"MOEWS_ONLY": "false"}},
     # The same test at the device's own size. It can fail there too: that's a finding.
     "banners_native": {"file": "s9_home_banners_test.dart"},
+    # Round 6: what TalkBack can read on each main screen, with TalkBack really on.
+    "talkback": {"file": "s14_talkback_test.dart"},
 }
-SMALL_SCREEN_SCENARIOS = ["3", "4", "5", "6", "7", "banners"]
+SMALL_SCREEN_SCENARIOS = ["3", "4", "5", "6", "7", "banners", "ui"]
+
+# Emulator deaths seen during the run (round 7), reported at the end.
+CRASHES: list[str] = []
 
 # Read-only views the tests may ask for.
 QUERIES = {
@@ -137,6 +178,9 @@ class Device:
             self.process = None
         else:
             stop_gradle()
+            # Locks left by an emulator that crashed or was killed block the next start.
+            for lock in (Path.home() / ".android" / "avd" / f"{self.avd}.avd").glob("*.lock"):
+                lock.unlink(missing_ok=True)
             # The emulator keeps its own copy of the file handle.
             with open(self.out / "emulator.log", "w") as emulator_log:
                 self.process = subprocess.Popen(
@@ -147,16 +191,28 @@ class Device:
                         "-port",
                         str(self.port),
                         "-no-window",
-                        "-no-audio",
+                        # Opt-in: let the emulator's microphone hear a host source (e.g. a
+                        # PULSE_SOURCE set by the caller), to check the breathing pulse with
+                        # real sound. Otherwise no audio at all.
+                        *(
+                            ["-allow-host-audio"]
+                            if os.environ.get("YOMA_EMULATOR_HOST_AUDIO") == "1"
+                            else ["-no-audio"]
+                        ),
                         "-no-boot-anim",
-                        "-no-snapshot",
+                        # Cold boot without loading a snapshot. Round 6: "-no-snapshot"
+                        # (no load and no save) crashed API 34 during cold boot (exit
+                        # 139) three times; "-no-snapshot-load" booted 3/3 on the same GPU.
+                        # See docs/testing/EMULATOR_PASS.md, "Round 6: emulator boot".
+                        "-no-snapshot-load",
                         "-gpu",
-                        "swiftshader_indirect",
+                        EMULATOR_GPU,
                         "-memory",
                         str(AVD_MEMORY_MB[self.avd]),
                     ],
                     stdout=emulator_log,
                     stderr=subprocess.STDOUT,
+                    env=emulator_env(),
                 )
         self.wait_booted()
         self.api = int(self.shell("getprop ro.build.version.sdk").strip())
@@ -189,6 +245,11 @@ class Device:
                 break
             time.sleep(5)
         log(f"Settled: {self.shell('cat /proc/loadavg').strip()}")
+
+    def alive(self) -> bool:
+        """The emulator still answers adb."""
+        state = run([ADB, "-s", self.serial, "get-state"], check=False, timeout=30).strip()
+        return state == "device"
 
     def wait_booted(self) -> None:
         deadline = time.time() + 300
@@ -291,6 +352,55 @@ class Device:
                 return [dict(n.attrib) for n in root.iter("node")]
             time.sleep(1)
         return []
+
+    TALKBACK = "com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService"
+
+    def talkback(self, on: bool) -> dict:
+        """TalkBack on or off, through Settings, as a CHO would."""
+        if on:
+            # Its first-run notification prompt would sit over the app.
+            self.shell(
+                "pm grant com.google.android.marvin.talkback android.permission.POST_NOTIFICATIONS"
+            )
+            self.shell(f"settings put secure enabled_accessibility_services {self.TALKBACK}")
+            self.shell("settings put secure accessibility_enabled 1")
+            time.sleep(4)
+            for label in ("Allow", "ALLOW", "Got it", "OK"):
+                node = find_node(self.dump(), label, exact=True)
+                if node and node.get("package") != PACKAGE:
+                    tap_node(self, node)
+                    time.sleep(1)
+        else:
+            self.shell("settings delete secure enabled_accessibility_services")
+            self.shell("settings put secure accessibility_enabled 0")
+        time.sleep(4)
+        enabled = self.shell("settings get secure enabled_accessibility_services").strip()
+        return {"enabled": enabled}
+
+    def talkback_read(self, name: str) -> dict:
+        """What TalkBack can read on this screen, in its reading order (the accessibility
+        tree, top to bottom), saved next to a screenshot taken with TalkBack running."""
+        time.sleep(2)
+        read = []
+        for node in self.dump():
+            # An edit box's name is its hint (Flutter puts the field's label there).
+            words = (
+                node.get("content-desc") or node.get("text") or node.get("hint") or ""
+            ).strip()
+            if not words or node.get("package") != PACKAGE:
+                continue
+            kind = []
+            if node.get("clickable") == "true":
+                kind.append("button")
+            if node.get("class", "").endswith("EditText"):
+                kind.append("edit box")
+            if node.get("checked") == "true" or node.get("selected") == "true":
+                kind.append("selected")
+            read.append(words.replace("\n", " ") + (f" ({', '.join(kind)})" if kind else ""))
+        (self.out / f"talkback_{name}.txt").write_text("\n".join(read) + "\n")
+        self.screenshot(f"talkback_{name}")
+        record("talkback", {name: read})
+        return {"read": read}
 
     def install(self, apk: Path) -> None:
         """Replaces whatever is there. An install can hang on the small emulator, so retry."""
@@ -553,6 +663,10 @@ class Handler(BaseHTTPRequestHandler):
             return {"path": device.screenshot(query["name"])}
         if path == "/airplane":
             return device.airplane(query["on"] == "1")
+        if path == "/grant-mic":
+            # The app is reinstalled per scenario, so the grant has to come after install.
+            device.shell(f"pm grant {PACKAGE} android.permission.RECORD_AUDIO")
+            return {"granted": True}
         if path == "/backend/kill":
             backend.kill()
             return {}
@@ -563,6 +677,18 @@ class Handler(BaseHTTPRequestHandler):
             return backend.rows(query["q"])
         if path == "/external-app":
             return device.external_app(query["name"])
+        if path == "/key":
+            # A real key press, e.g. 4 = Android back.
+            device.shell(f"input keyevent {int(query['code'])}")
+            return {}
+        if path == "/font-scale":
+            # The system text size, as a CHO would set it in Settings.
+            device.shell(f"settings put system font_scale {float(query['scale'])}")
+            return {}
+        if path == "/talkback":
+            return device.talkback(query["on"] == "1")
+        if path == "/talkback-read":
+            return device.talkback_read(query["name"])
         if path == "/metric":
             record("metrics", {query["name"]: float(query["value"])})
             return {}
@@ -615,12 +741,14 @@ def run_until_done(command: list[str], limit: float = 900) -> tuple[bool, str]:
     return process.returncode == 0, "".join(lines)
 
 
-def run_integration(device: Device, scenario: str, *, small: bool = False) -> bool:
+def run_integration(
+    device: Device, scenario: str, *, small: bool = False, prefix: str | None = None
+) -> bool:
     spec = SCENARIOS.get(scenario) or {"file": scenario}
-    label = f"s{scenario}{'_small' if small else ''}"
+    label = f"s{scenario}{'_small' if small else ''}{'_' + prefix.strip('_') if prefix else ''}"
     CURRENT["scenario"] = label
     RESULTS.setdefault(device.avd, {})[label] = {}
-    SCREEN_PREFIX[0] = "small_" if small else ""
+    SCREEN_PREFIX[0] = prefix if prefix is not None else ("small_" if small else "")
     CURRENT["backend"].reset(spec.get("env"))
     device.adb("uninstall", PACKAGE, check=False)
     device.keep_awake()
@@ -647,6 +775,8 @@ def run_integration(device: Device, scenario: str, *, small: bool = False) -> bo
         device.adb("uninstall", PACKAGE, check=False, timeout=120)
         passed, output = run_until_done(command)
     log_file.write_text(output)
+    # The Gradle daemon keeps its build heap after the build; free it while the emulator runs.
+    stop_gradle()
     if CURRENT["backend"].log_path.exists():
         shutil.copy(CURRENT["backend"].log_path, device.out / f"{label}.server.log")
     entry = RESULTS.setdefault(device.avd, {}).setdefault(label, {})
@@ -805,18 +935,21 @@ def tap_text(device: Device, text: str, timeout: float = 45) -> None:
 def release_setup(device: Device) -> None:
     device.shell(f"pm clear {PACKAGE}")
     device.shell(f"am start -n {ACTIVITY}")
-    nodes = wait_screen(device, "Set up this phone", 90)
+    # Round 7 setup: "+233" is shown, so only the 9 local digits are typed; then the
+    # clinic the server found, and Start.
+    nodes = wait_screen(device, "Enter the phone number", 90)
     field = next((n for n in nodes if n.get("class") == "android.widget.EditText"), None)
     if field is None:
         raise RuntimeError(f"No phone field. Screen: {screen_text(nodes)[:500]}")
     tap_node(device, field)
     time.sleep(1)
-    device.shell(f"input text '{TEST_CHO}'")
+    device.shell(f"input text '{TEST_CHO.removeprefix('+233')}'")
     time.sleep(1)
     device.shell("input keyevent KEYCODE_BACK")
     time.sleep(1)
     tap_text(device, "Continue")
-    wait_screen(device, "Community Health Officer", 45)
+    tap_text(device, "Start", 45)
+    wait_screen(device, "Emergency referral", 45)
 
 
 def tap_permission(device: Device, allow: bool) -> str:
@@ -843,41 +976,61 @@ def tap_permission(device: Device, allow: bool) -> str:
     return "no dialog"
 
 
+def open_breathing_check(device: Device, timeout: float = 60) -> None:
+    """Home > Check breathing, then Start on the Ready step (on by default since round 7)."""
+    tap_text(device, "Check breathing", timeout)
+    deadline = time.time() + 10
+    while time.time() < deadline:
+        nodes = device.dump()
+        start = find_node(nodes, "Start", exact=True)
+        if start:
+            tap_node(device, start)
+            return
+        if find_node(nodes, "Listening") or find_node(nodes, "Allow"):
+            return
+        time.sleep(0.5)
+
+
 def to_result_screen(device: Device) -> None:
-    """Mark every vital Not measured, which needs no typing, then continue to the result."""
-    wait_screen(device, "Record Vitals", 90)
-    for _ in range(10):
-        boxes = [
-            n for n in device.dump() if n.get("checkable") == "true" and n.get("checked") != "true"
+    """Mark every vital Not measured, which needs no typing, then continue to the result.
+
+    Each vital (and Consciousness) has a toggle whose screen-reader label is
+    "<vital> not measured"; once tapped it reads "Clear: …". The breathing result step
+    (round 7 default) is passed with Continue to vitals.
+    """
+    deadline = time.time() + 90
+    while time.time() < deadline:
+        nodes = device.dump()
+        go_on = find_node(nodes, "Continue to vitals", exact=True)
+        if go_on:
+            tap_node(device, go_on)
+            break
+        if find_node(nodes, "Record vitals"):
+            break
+        time.sleep(1)
+    wait_screen(device, "Record vitals", 90)
+    for _ in range(12):
+        nodes = device.dump()
+        toggles = [
+            n
+            for n in nodes
+            if (n.get("content-desc") or "").endswith("not measured")
+            and not (n.get("content-desc") or "").startswith("Clear")
         ]
-        if not boxes:
-            nodes = device.dump()
-            if find_node(nodes, "AVPU"):
-                break
-        for box in boxes:
-            tap_node(device, box)
+        for toggle in toggles:
+            tap_node(device, toggle)
             time.sleep(0.3)
         nodes = device.dump()
-        if find_node(nodes, "AVPU") and not any(
-            n.get("checkable") == "true" and n.get("checked") != "true" for n in nodes
-        ):
+        done = find_node(nodes, "Clear: Consciousness") and not any(
+            (n.get("content-desc") or "").endswith("not measured")
+            and not (n.get("content-desc") or "").startswith("Clear")
+            for n in nodes
+        )
+        if done:
             break
         device.shell("input swipe 300 1000 300 500 400")
         time.sleep(0.7)
-    tap_node(device, find_node(device.dump(), "AVPU"))
-    time.sleep(1)
-    # The menu lists the options; its own "Not measured" is the last of them on screen.
-    options = [
-        n
-        for n in device.dump()
-        if (n.get("content-desc") or n.get("text")) == "Not measured"
-        and n.get("clickable") == "true"
-    ]
-    if not options:
-        raise RuntimeError(f"No AVPU option. Screen: {screen_text(device.dump())[:500]}")
-    tap_node(device, options[-1])
-    time.sleep(1)
-
+    tap_text(device, "See result", 20)
 
 def scenario_2(device: Device, apk: dict) -> bool:
     CURRENT["scenario"] = "s2"
@@ -909,7 +1062,7 @@ def scenario_2(device: Device, apk: dict) -> bool:
 
         # Mic denied.
         device.shell(f"pm revoke {PACKAGE} android.permission.RECORD_AUDIO")
-        tap_text(device, "Screen Breathing")
+        open_breathing_check(device)
         answered = tap_permission(device, allow=False)
         notes.append(f"Mic dialog answered with: {answered}")
         time.sleep(2)
@@ -920,11 +1073,11 @@ def scenario_2(device: Device, apk: dict) -> bool:
             if text_value in denied:
                 notes.append(f"Demo string visible after denial: {text_value}")
                 passed = False
-        tap_text(device, "Stop & Analyze Early", 20)
-        to_result_screen(device)
+        tap_text(device, "Skip to vitals", 20)
+        wait_screen(device, "Record vitals", 30)
         device.screenshot("s2_3_vitals_after_denial")
-        tap_text(device, "Continue to Result", 20)
-        result = wait_screen(device, "Screening Result", 20)
+        to_result_screen(device)
+        result = wait_screen(device, "Confirm referral", 60)
         device.screenshot("s2_4_result_after_denial")
         denied_result = screen_text(result)
         notes.append(f"Result after denying the mic: {denied_result[:500]}")
@@ -937,14 +1090,13 @@ def scenario_2(device: Device, apk: dict) -> bool:
         device.shell(f"am force-stop {PACKAGE}")
         device.shell(f"pm grant {PACKAGE} android.permission.RECORD_AUDIO")
         device.shell(f"am start -n {ACTIVITY}")
-        tap_text(device, "Screen Breathing", 60)
+        open_breathing_check(device, 60)
         wait_screen(device, "Listening", 20)
         device.screenshot("s2_5_listening")
         # Leave the screen alone until the countdown ends and the analysis finishes. A touch
         # during analysis is what anr_probe tests.
         to_result_screen(device)
-        tap_text(device, "Continue to Result", 20)
-        allowed = screen_text(wait_screen(device, "Screening Result", 30))
+        allowed = screen_text(wait_screen(device, "Confirm referral", 60))
         device.screenshot("s2_6_result_mic_allowed")
         notes.append(f"Result with the mic allowed: {allowed[:500]}")
         entry["mic_allowed_green"] = "GREEN" in allowed.upper()
@@ -995,7 +1147,7 @@ def anr_probe(device: Device, entry: dict, runs: int = 3) -> None:
             device.shell(f"am force-stop {PACKAGE}")
             device.shell("logcat -b events -c")
             device.shell(f"am start -n {ACTIVITY}")
-            tap_text(device, "Screen Breathing", 60)
+            open_breathing_check(device, 60)
             wait_screen(device, "Listening", 20)
             # Touch the app bar, which has no action, once a second until analysis is over.
             started = time.monotonic()
@@ -1007,7 +1159,7 @@ def anr_probe(device: Device, entry: dict, runs: int = 3) -> None:
                 if re.search(rf"am_anr.*{re.escape(PACKAGE)}", events):
                     break
                 # Past the countdown and off the screening page: analysis has finished.
-                if time.monotonic() - started > 12 and find_node(device.dump(), "Record Vitals"):
+                if time.monotonic() - started > 12 and find_node(device.dump(), "Record vitals"):
                     break
             events = device.shell("logcat -d -b events", timeout=30)
             anr = bool(re.search(rf"am_anr.*{re.escape(PACKAGE)}", events))
@@ -1044,7 +1196,7 @@ def cold_start(device: Device, runs: int = 5) -> None:
         match = re.search(r"TotalTime:\s*(\d+)", output)
         if match:
             first_frame.append(int(match.group(1)))
-        wait_screen(device, "Community Health Officer", 60)
+        wait_screen(device, "Emergency referral", 60)
         to_home.append(round((time.monotonic() - started) * 1000))
     RESULTS[device.avd].setdefault("timings", {}).update(
         {
@@ -1072,7 +1224,7 @@ def tap_scrolling(device: Device, text: str, *, exact: bool = False) -> None:
 
 
 def release_confirm_timing(device: Device, runs: int = 3) -> None:
-    """Confirm Referral to "TIER1_NOTIFIED" on the release APK. Read through the accessibility
+    """Confirm referral to "TIER1_NOTIFIED" on the release APK. Read through the accessibility
     tree, so each figure is an upper bound: it includes the time one read of the screen takes.
     """
     CURRENT["scenario"] = "timings"
@@ -1083,54 +1235,31 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
         CURRENT["backend"].reset()
         device.shell(f"am force-stop {PACKAGE}")
         device.shell(f"am start -n {ACTIVITY}")
-        tap_text(device, "Screen Breathing", 60)
-        tap_text(device, "Stop & Analyze Early", 30)
+        open_breathing_check(device, 60)
+        tap_text(device, "Stop", 30)
         to_result_screen(device)
-        tap_text(device, "Continue to Result", 20)
-        wait_screen(device, "Screening Result", 30)
-        tap_scrolling(device, "Confirm Referral", exact=True)
-        tap_text(device, "tap to confirm facility", 30)
+        wait_screen(device, "Confirm referral", 60)
+        tap_scrolling(device, "Confirm referral", exact=True)
+        tap_text(device, "Tap to confirm", 30)
         tap_text(device, "Tamale Teaching Hospital", 20)
-        wait_screen(device, "(confirmed)", 20)
+        wait_screen(device, "confirmed", 20)
         tap_text(device, "Emergency type", 20)
-        tap_text(device, "Postpartum hemorrhage", 20)
+        tap_text(device, "Heavy bleeding", 20)
         time.sleep(1)
-        # Every vital is marked Not measured, so the name is the only field still enabled.
-        field = None
-        for _ in range(8):
-            field = next(
-                (
-                    n
-                    for n in device.dump()
-                    if n.get("class") == "android.widget.EditText" and n.get("enabled") == "true"
-                ),
-                None,
-            )
-            if field:
-                break
-            device.shell("input swipe 300 900 300 600 300")
-            time.sleep(0.5)
-        if field is None:
-            raise RuntimeError(f"No name field. Screen: {screen_text(device.dump())[:500]}")
-        tap_node(device, field)
-        time.sleep(1)
-        device.shell("input text 'Unknown'")
-        time.sleep(0.5)
-        device.shell("input keyevent KEYCODE_BACK")
-        time.sleep(1)
+        # The vitals came with the referral from Result (all Not measured); no name field.
         confirm = None
         for _ in range(12):
             nodes = device.dump()
-            confirm = find_node(nodes, "Confirm Referral", exact=True)
+            confirm = find_node(nodes, "Send referral", exact=True)
             if confirm:
                 break
             device.shell("input swipe 300 1000 300 300 300")
             time.sleep(0.5)
         if confirm is None:
-            raise RuntimeError(f"No Confirm Referral. Screen: {screen_text(device.dump())[:500]}")
+            raise RuntimeError(f"No Send referral. Screen: {screen_text(device.dump())[:500]}")
         started = time.monotonic()
         tap_node(device, confirm)
-        wait_screen(device, "TIER1_NOTIFIED", 45)
+        wait_screen(device, "Waiting for a driver to accept", 45)
         samples.append(round((time.monotonic() - started) * 1000))
         if run_number == 0:
             device.screenshot("timing_release_tier1")
@@ -1140,7 +1269,7 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
             "confirm_to_notified_release_median_ms": statistics.median(samples),
         }
     )
-    log(f"  Confirm Referral to notified, release: {samples}")
+    log(f"  Confirm referral to notified, release: {samples}")
     save_results(device)
 
 
@@ -1167,11 +1296,14 @@ def main() -> int:
             "7",
             "8",
             "11",
+            "ui",
+            "breathing",
             "9",
             "banners_native",
             "timings",
         ],
-        help="1-9, 11, responsive, banners, banners_native and timings",
+        help="1-9, 11, ui, ui360, breathing, breathing360, responsive, banners, "
+        "banners_native and timings",
     )
     parser.add_argument(
         "--keep-running",
@@ -1180,6 +1312,16 @@ def main() -> int:
     )
     args = parser.parse_args()
     KEEP_RUNNING[0] = args.keep_running
+
+    # The project's gradle.properties asks for an 8 GB build heap. With an emulator, R8 and
+    # the Kotlin daemon alongside, a release build used enough memory on a 13 GB host for
+    # the kernel to kill processes (round 6). Cap the builds this script starts; a command
+    # line -D overrides gradle.properties, and the project file is left alone.
+    os.environ.setdefault(
+        "GRADLE_OPTS",
+        "-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g "
+        "-Dkotlin.daemon.jvm.options=-Xmx1g",
+    )
 
     for tool in (FLUTTER, ADB, EMULATOR, PYTHON):
         if not Path(tool).exists():
@@ -1205,30 +1347,61 @@ def main() -> int:
             device.boot()
             try:
                 for scenario in args.scenarios:
-                    if scenario == "2" or (scenario == "timings" and apk is None):
-                        apk = apk or build_release()
-                    if scenario == "2":
-                        all_passed &= scenario_2(device, apk)
-                    elif scenario == "timings":
-                        cold_start(device)
-                        release_confirm_timing(device)
-                    elif scenario in ("9", "banners"):
-                        device.shell(f"wm size {SMALL_WIDTH_PX}x{SMALL_HEIGHT_PX}")
-                        device.shell(f"wm density {SMALL_DENSITY}")
-                        try:
-                            inner = SMALL_SCREEN_SCENARIOS if scenario == "9" else ["banners"]
-                            for name in inner:
-                                all_passed &= run_integration(device, name, small=True)
-                        finally:
-                            device.reset_screen()
-                    else:
-                        all_passed &= run_integration(device, scenario)
+                    # The emulator's host-GPU renderer has died mid-run (round 7). Record it
+                    # against the scenario that was running and boot again, instead of
+                    # losing the rest of the pass.
+                    if not device.alive():
+                        CRASHES.append(f"{avd}: emulator died before {scenario}")
+                        log(f"  EMULATOR DIED before {scenario}. Booting again.")
+                        device.process = None
+                        device.boot()
+                    try:
+                        if scenario == "2" or (scenario == "timings" and apk is None):
+                            apk = apk or build_release()
+                        if scenario == "2":
+                            all_passed &= scenario_2(device, apk)
+                        elif scenario == "timings":
+                            cold_start(device)
+                            release_confirm_timing(device)
+                        elif scenario in ("9", "banners"):
+                            device.shell(f"wm size {SMALL_WIDTH_PX}x{SMALL_HEIGHT_PX}")
+                            device.shell(f"wm density {SMALL_DENSITY}")
+                            try:
+                                inner = SMALL_SCREEN_SCENARIOS if scenario == "9" else ["banners"]
+                                for name in inner:
+                                    all_passed &= run_integration(device, name, small=True)
+                            finally:
+                                device.reset_screen()
+                        elif scenario in FIDELITY_SCENARIOS:
+                            device.shell(f"wm size {FIDELITY_WIDTH_PX}x{FIDELITY_HEIGHT_PX}")
+                            device.shell(f"wm density {FIDELITY_DENSITY}")
+                            # Animations on, so the breathing pulse is drawn as it moves.
+                            for key in ANIMATION_SCALES:
+                                device.shell(f"settings put global {key} 1")
+                            try:
+                                all_passed &= run_integration(
+                                    device, FIDELITY_SCENARIOS[scenario], prefix="fid_"
+                                )
+                            finally:
+                                device.shell("settings put system font_scale 1.0")
+                                for key in ANIMATION_SCALES:
+                                    device.shell(f"settings put global {key} 0")
+                                device.reset_screen()
+                        else:
+                            all_passed &= run_integration(device, scenario)
+                    except (RuntimeError, subprocess.TimeoutExpired) as error:
+                        # Usually the emulator dying under the scenario; the next one boots it again.
+                        all_passed = False
+                        CRASHES.append(f"{avd}: {scenario} stopped: {str(error).splitlines()[0][:160]}")
+                        log(f"  {scenario} STOPPED: {error}")
             finally:
                 save_results(device)
                 device.shutdown()
     finally:
         backend.stop()
         server.shutdown()
+    for crash in CRASHES:
+        log(f"Emulator crash: {crash}")
     log("All passed" if all_passed else "Some scenarios FAILED")
     return 0 if all_passed else 1
 

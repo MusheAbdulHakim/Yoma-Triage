@@ -10,6 +10,7 @@ import 'dart:io';
 
 import 'package:flutter/foundation.dart' show FlutterExceptionHandler;
 import 'package:flutter/material.dart';
+import 'package:yoma_triage/screens/dispatch_status_screen.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
 import 'package:integration_test/integration_test.dart';
@@ -48,10 +49,22 @@ abstract final class Host {
 
   static Future<void> airplane(bool on) => call('/airplane', {'on': on ? '1' : '0'});
   static Future<void> killBackend() => call('/backend/kill');
+  static Future<void> grantMicrophone() => call('/grant-mic');
   static Future<void> startBackend() => call('/backend/start');
   static Future<void> metric(String name, num value) =>
       call('/metric', {'name': name, 'value': '$value'});
   static Future<void> note(String text) => call('/note', {'text': text});
+
+  /// A real key press on the device; 4 is Android back.
+  static Future<void> key(int code) => call('/key', {'code': '$code'});
+  static Future<void> back() => key(4);
+
+  /// The system text size (Settings > Display > Font size).
+  static Future<void> fontScale(double scale) => call('/font-scale', {'scale': '$scale'});
+
+  /// Waits for the app Call or SMS opened, photographs it, and returns to Yoma.
+  static Future<Map> externalApp(String name) async =>
+      await call('/external-app', {'name': name}) as Map;
 
   static Future<List<Map<String, dynamic>>> rows(String name) async =>
       ((await call('/db', {'q': name})) as List).cast<Map<String, dynamic>>();
@@ -256,21 +269,28 @@ extension Drive on WidgetTester {
     // which happens here when a CHO retries after a refusal.
     widget<TextField>(find.byKey(const Key('setup_phone'))).controller!.text = phone;
     await tapOn(find.text('Continue'));
-    await waitFor(find.text('Community Health Officer'), reason: 'Home after setup');
+    // The clinic the server found for this number, then Start.
+    await waitFor(find.byKey(const Key('setup_start')), reason: 'clinic confirmed');
+    await tapOn(find.byKey(const Key('setup_start')));
+    await waitFor(find.byKey(const Key('home_emergency_referral')), reason: 'Home after setup');
   }
 
   Future<void> chooseFacility() async {
-    final card = find.textContaining('(tap to confirm facility)');
-    await waitFor(card);
+    await waitFor(find.byKey(const Key('referral_send_to_confirm')));
     // Wait for the catalog, or the suggested facility shows before it is ready.
     await wait(const Duration(milliseconds: 500));
-    await tapOn(card);
+    await tapOn(find.byKey(const Key('referral_send_to')));
     await waitFor(find.text('Choose receiving facility'));
     await tapOn(find.text(facilityName));
-    await waitFor(find.textContaining('(confirmed)'));
+    // "Tap to confirm" goes once the facility is confirmed.
+    await waitFor(find.byKey(const Key('referral_send_to')));
+    for (var i = 0; i < 50; i++) {
+      if (find.byKey(const Key('referral_send_to_confirm')).evaluate().isEmpty) break;
+      await pump(const Duration(milliseconds: 100));
+    }
   }
 
-  Future<void> chooseEmergency([String label = 'Postpartum hemorrhage']) async {
+  Future<void> chooseEmergency([String label = 'Heavy bleeding']) async {
     final field = find.text('Emergency type');
     await tapOn(field);
     await waitFor(find.text(label));
@@ -302,26 +322,23 @@ extension Drive on WidgetTester {
 
   /// From Home, to the Emergency Referral form with facility and type chosen.
   Future<void> openReferralForm() async {
-    await tapOn(find.text('Emergency Referral'));
+    await tapOn(find.text('Emergency referral'));
     await chooseFacility();
     await chooseEmergency();
   }
 
-  Future<void> fillPatientName(String name) async {
-    final field = find.ancestor(
-      of: find.text('Patient name (local only)'),
-      matching: find.byType(TextField),
-    );
-    await reveal(field);
-    await enterText(field, name);
-    await pump(const Duration(milliseconds: 100));
+  /// From the referral form: open Record vitals from the summary row, fill it, save.
+  Future<void> recordVitalsFromForm() async {
+    await tapOn(find.byKey(const Key('referral_vitals_summary')));
+    await waitFor(find.byKey(const Key('vitals_see_result')));
+    await fillVitals('vitals');
+    await tapOn(find.byKey(const Key('vitals_see_result')));
+    await waitFor(find.byKey(const Key('referral_send')));
   }
 
-  /// The text "Dispatch #12 · tier 1" holds the id the rest of the test needs.
-  int dispatchIdOnScreen() {
-    final text = widget<Text>(find.textContaining('Dispatch #').first).data!;
-    return int.parse(RegExp(r'Dispatch #(\d+)').firstMatch(text)!.group(1)!);
-  }
+  /// The id of the dispatch the status screen is following.
+  int dispatchIdOnScreen() =>
+      widget<DispatchStatusScreen>(find.byType(DispatchStatusScreen)).dispatchId!;
 }
 
 /// A driver's USSD reply, as Africa's Talking would deliver it. Mock SMS, no live traffic.

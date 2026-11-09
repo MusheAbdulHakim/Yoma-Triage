@@ -35,7 +35,6 @@ class VitalLimits {
   final num min;
   final num max;
 
-  String? errorFor(num value) => value < min || value > max
-      ? 'Check this value: must be $min to $max'
-      : null;
+  String? errorFor(num value) =>
+      value < min || value > max ? 'Check this value: must be $min to $max' : null;
 }

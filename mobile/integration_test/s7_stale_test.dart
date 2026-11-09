@@ -27,10 +27,10 @@ void main() {
     const answers = 3;
     for (var i = 0; i < answers; i++) {
       await tester.openReferralForm();
-      await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
-      await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));
+      await tester.tapOn(find.byKey(const Key('referral_send')));
+      await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
       await tester.tapOn(find.text('Back to Home'));
-      await tester.waitFor(find.text('Community Health Officer'));
+      await tester.waitFor(find.byKey(const Key('home_emergency_referral')));
     }
     await tester.shot('s7_1_three_queued');
 
@@ -45,9 +45,10 @@ void main() {
       reason: 'the stale prompt to open after reconnecting',
     );
     await Host.metric('reconnect_to_prompt_ms', stopwatch.elapsedMilliseconds);
-    await tester.waitFor(_keyStarting('stale_confirm_'));
+    await tester.waitFor(_keyStarting('stale_cancel_'));
     await tester.wait(const Duration(seconds: 3));
     await tester.shot('s7_2_prompt');
+    expect(find.text('1 of $answers'), findsOneWidget, reason: 'one at a time');
 
     var stored = await Host.rows('referrals');
     expect(stored, hasLength(answers), reason: 'all three reached the server');
@@ -62,16 +63,16 @@ void main() {
       final id = (tester.widget(option).key! as ValueKey<String>)
           .value
           .substring('stale_${action}_'.length);
+      // One tap answers: the sheet then shows the next one, or closes.
       await tester.tapOn(find.byKey(Key('stale_${action}_$id')));
-      await tester.tapOn(find.byKey(Key('stale_confirm_$id')));
-      await tester.waitUntilGone(find.byKey(Key('stale_confirm_$id')));
+      await tester.waitUntilGone(find.byKey(Key('stale_cancel_$id')));
     }
 
     await answer('already_handled');
     await answer('cancel');
     await tester.shot('s7_3_two_answered');
     await answer('send_now');
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 20));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 20));
     await tester.shot('s7_4_send_now_dispatched');
 
     stored = await Host.rows('referrals');

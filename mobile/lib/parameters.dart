@@ -46,8 +46,8 @@ abstract final class Parameters {
       yellowHighMin: 140,
       yellowHighMax: 150,
       redAbove: 150);
-  static const diastolicBpBand = MoewsBand(
-      redBelow: 60, yellowHighMin: 90, yellowHighMax: 100, redAbove: 100);
+  static const diastolicBpBand =
+      MoewsBand(redBelow: 60, yellowHighMin: 90, yellowHighMax: 100, redAbove: 100);
   static const heartRateBand = MoewsBand(
       redBelow: 50,
       yellowLowMin: 50,
@@ -69,8 +69,7 @@ abstract final class Parameters {
       yellowHighMin: 38,
       yellowHighMax: 39,
       redAbove: 39);
-  static const spo2Band =
-      MoewsBand(redBelow: 90, yellowLowMin: 90, yellowLowMax: 94);
+  static const spo2Band = MoewsBand(redBelow: 90, yellowLowMin: 90, yellowLowMax: 94);
   static const moewsRedParameterScore = 3;
   static const moewsRedTotal = 5;
   static const moewsYellowTotal = 3;

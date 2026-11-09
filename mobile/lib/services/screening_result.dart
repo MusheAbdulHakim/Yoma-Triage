@@ -80,10 +80,22 @@ ScreeningResult cancelledResult() => ScreeningResult(
 ScreeningResult moewsOnlyResult() => ScreeningResult(
       label: 'INCONCLUSIVE',
       confidence: 0.0,
-      reason:
-          'Acoustic screening disabled (MOEWS_ONLY) — use vitals and judgment',
+      reason: 'Acoustic screening disabled (MOEWS_ONLY) — use vitals and judgment',
       source: 'moews_only',
       modelVersion: 'moews-only-v0',
+    );
+
+/// What a referral carries when no breathing check was done (acoustic builds only). The
+/// hospital notice says "Breathing check: not screened".
+const notScreenedLabel = 'NOT_SCREENED';
+
+/// Vitals recorded straight from Home in an acoustic build, with no breathing check.
+ScreeningResult notScreenedResult() => ScreeningResult(
+      label: notScreenedLabel,
+      confidence: 0.0,
+      reason: 'No breathing check — vitals only',
+      source: 'not_screened',
+      modelVersion: 'not-screened',
     );
 
 /// `SCREENING_MODEL=stub`: labelled demo output, and still never reassuring.
@@ -101,13 +113,11 @@ ScreeningResult simulatorClassify({required bool forceRed}) {
   return _demoSimulatorResult(forceRed: forceRed);
 }
 
-ScreeningResult _demoSimulatorResult({required bool forceRed}) =>
-    ScreeningResult(
+ScreeningResult _demoSimulatorResult({required bool forceRed}) => ScreeningResult(
       label: forceRed ? 'RED' : 'GREEN',
       confidence: forceRed ? 0.82 : 0.91,
-      reason: forceRed
-          ? 'Simulator: abnormal breathing (demo)'
-          : 'Simulator: normal breathing (demo)',
+      reason:
+          forceRed ? 'Simulator: abnormal breathing (demo)' : 'Simulator: normal breathing (demo)',
       source: 'simulator',
       modelVersion: 'simulator-v0',
     );

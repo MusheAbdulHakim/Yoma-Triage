@@ -17,28 +17,27 @@ void main() {
       (tester) async {
     await tester.setUpCho();
 
-    await tester.tapOn(find.text('Record Vitals'));
+    await tester.tapOn(find.text('Record vitals'));
     await tester.waitFor(find.byKey(const Key('vitals_sbp')));
     await tester.fillVitals('vitals');
     await tester.shot('s4_1_vitals');
-    await tester.tapOn(find.text('Continue to Result'));
-    await tester.waitFor(find.text('Screening Result'));
+    await tester.tapOn(find.byKey(const Key('vitals_see_result')));
+    await tester.waitFor(find.text('Result'));
     await tester.shot('s4_2_result');
 
-    await tester.tapOn(find.text('Confirm Referral'));
+    await tester.tapOn(find.text('Confirm referral'));
     await tester.chooseFacility();
     await tester.chooseEmergency();
-    await tester.fillPatientName('Zebra Testpatient');
     await tester.shot('s4_3_form');
 
-    // Spec timing: from tapping Confirm Referral to the screen showing drivers notified.
-    final confirm = find.text('Confirm Referral');
+    // Spec timing: from tapping Send referral to the screen showing drivers notified.
+    final confirm = find.byKey(const Key('referral_send'));
     await tester.closeKeyboard();
     await tester.reveal(confirm);
     await tester.wait(const Duration(milliseconds: 300));
     final stopwatch = Stopwatch()..start();
     await tester.tap(confirm);
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 30));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 30));
     await Host.metric('confirm_to_notified_ms_debug', stopwatch.elapsedMilliseconds);
     await tester.shot('s4_4_tier1');
 
@@ -48,14 +47,15 @@ void main() {
     final accept = await ussdAccept(motorKingDriver, dispatchId);
     await Host.note('USSD accept replied: "$accept"');
     expect(accept, contains('Accepted'));
-    await tester.waitFor(find.text('HOSPITAL_NOTIFIED'), timeout: const Duration(seconds: 15));
-    await tester.waitFor(find.textContaining('Driver: Ibrahim'));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), timeout: const Duration(seconds: 15));
+    // The driver card, with the vehicle from the API (round 6).
+    await tester.waitFor(find.textContaining('Ibrahim – Motor-King'));
     await tester.shot('s4_5_accepted');
 
     final arrival = await ussdArrival(motorKingDriver);
     await Host.note('USSD arrival replied: "$arrival"');
     expect(arrival, contains('Arrival confirmed'));
-    await tester.waitFor(find.text('COMPLETED'), timeout: const Duration(seconds: 15));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_COMPLETED')), timeout: const Duration(seconds: 15));
     await tester.shot('s4_6_completed');
 
     // Let the sender reach everything, then check who was told what.

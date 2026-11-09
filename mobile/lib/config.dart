@@ -52,6 +52,14 @@ abstract final class ScreeningConfig {
     return parsed;
   }
 
+  /// The redesign's Ready step (Start before recording) and breathing-check result step
+  /// (before vitals). On by default since round 7 (decision); the breathing check only
+  /// exists in acoustic builds. `--dart-define=BREATHING_STEPS=false` turns both off.
+  static bool get breathingSteps {
+    const raw = String.fromEnvironment('BREATHING_STEPS', defaultValue: 'true');
+    return !(raw.toLowerCase() == 'false' || raw == '0');
+  }
+
   /// `yamnet` | `hear_event` | `opera_ce` | `stub`
   /// Pass `--dart-define=SCREENING_MODEL=...`
   static String get model {

@@ -12,6 +12,9 @@ class AudioRecorderStub implements AudioRecorderService {
 
   @override
   Future<void> dispose() async {}
+
+  @override
+  Stream<double> levels() => const Stream.empty();
 }
 
 AudioRecorderService createAudioRecorder() => AudioRecorderStub();

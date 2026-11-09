@@ -16,8 +16,11 @@ const _ids = ['sbp', 'dbp', 'hr', 'rr', 'temp', 'spo2'];
 String _text(WidgetTester tester, String key) =>
     tester.widget<TextFormField>(find.byKey(Key(key))).controller!.text;
 
+/// The "Not measured" toggles: blood pressure has one for both fields.
+const _toggleIds = ['bp', 'hr', 'rr', 'temp', 'spo2'];
+
 Future<void> _tickAllNotMeasured(WidgetTester tester, String prefix) async {
-  for (final id in _ids) {
+  for (final id in _toggleIds) {
     await tester.tap(find.byKey(Key('${prefix}_${id}_not_measured')));
     await tester.pump();
   }
@@ -41,15 +44,24 @@ void main() {
       for (final id in _ids) {
         expect(_text(tester, 'vitals_$id'), isEmpty, reason: id);
       }
-      expect(find.text('A — Alert'), findsNothing);
+      expectNoAvpuSelected(tester, 'vitals');
     });
 
     testWidgets('untouched form cannot continue', (tester) async {
       await open(tester);
-      await tester.tap(find.text('Continue to Result'));
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
       expect(find.byType(ResultScreen), findsNothing);
-      expect(find.text('Enter a value or tick Not measured'), findsNWidgets(6));
+      // Each required vital shows its own message, whole, below its field; blood pressure
+      // says it once for both halves, and Oxygen saturation (optional) says nothing.
+      for (final id in ['hr', 'rr', 'temp']) {
+        final shown = tester.widget<Text>(find.byKey(Key('vitals_${id}_error')));
+        expect(shown.data, 'Enter a value or tap Not measured', reason: id);
+      }
+      expect(tester.widget<Text>(find.byKey(const Key('vitals_sbp_error'))).data,
+          'Enter both values or tap Not measured');
+      expect(find.byKey(const Key('vitals_dbp_error')), findsNothing);
+      expect(find.byKey(const Key('vitals_spo2_error')), findsNothing);
       expect(find.text('Select AVPU or Not measured'), findsOneWidget);
     });
 
@@ -58,7 +70,7 @@ void main() {
       await _tickAllNotMeasured(tester, 'vitals');
       await selectAvpu(tester, avpu: 'Not measured');
 
-      await tester.tap(find.text('Continue to Result'));
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
 
       final result = tester.widget<ResultScreen>(find.byType(ResultScreen));
@@ -68,26 +80,36 @@ void main() {
       expect(result.vitals!.containsKey('systolic_bp'), isTrue);
       expect(find.text('Incomplete'), findsOneWidget);
       expect(find.textContaining('GREEN'), findsNothing);
-      expect(
-        find.text(
-          'Not measured: Systolic BP, Diastolic BP, Heart rate, '
-          'Respiratory rate, Temperature, SpO₂, AVPU',
-        ),
-        findsOneWidget,
-      );
-      expect(find.text('Confirm Referral'), findsOneWidget);
-      expect(find.text('Continue Monitoring'), findsOneWidget);
+      // Listed one per row under "Not measured", every vital named.
+      final missing = find.byKey(const Key('moews_not_measured'));
+      expect(missing, findsOneWidget);
+      expect(find.descendant(of: missing, matching: find.text('Not measured')), findsOneWidget);
+      for (final name in const [
+        'Blood pressure',
+        'Heart rate',
+        'Breathing rate',
+        'Temperature',
+        'Oxygen saturation',
+        'Consciousness',
+      ]) {
+        expect(find.descendant(of: missing, matching: find.text(name)), findsOneWidget,
+            reason: name);
+      }
+      expect(find.text('Confirm referral'), findsOneWidget);
+      expect(find.text('Continue monitoring'), findsOneWidget);
     });
 
     testWidgets('AVPU not measured alone is Incomplete, not Alert',
         (tester) async {
       await open(tester);
       await fillVitals(tester, avpu: 'Not measured');
-      await tester.tap(find.text('Continue to Result'));
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
       final result = tester.widget<ResultScreen>(find.byType(ResultScreen));
       expect(result.moews!.riskLevel, 'INCOMPLETE');
-      expect(find.text('Not measured: AVPU'), findsOneWidget);
+      final missing = find.byKey(const Key('moews_not_measured'));
+      expect(find.descendant(of: missing, matching: find.text('Consciousness')), findsOneWidget);
+      expect(find.descendant(of: missing, matching: find.text('Heart rate')), findsNothing);
     });
 
     testWidgets('measured critical value is RED even with vitals missing',
@@ -96,12 +118,13 @@ void main() {
       await fillVitals(tester, overrides: {'sbp': '60'});
       await tester.tap(find.byKey(const Key('vitals_temp_not_measured')));
       await tester.pump();
-      await tester.tap(find.text('Continue to Result'));
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
-      expect(find.text('MOEWS RED'), findsOneWidget);
+      expect(find.text('Critical'), findsOneWidget);
+      expect(find.text('MOEWS RED'), findsNothing, reason: 'word and score only, as in the design');
+      // What was not measured is still said, below the card.
       expect(find.text('Not measured: Temperature'), findsOneWidget);
-      expect(find.textContaining('from measured vitals'), findsOneWidget);
-      expect(find.text('Confirm Referral'), findsOneWidget);
+      expect(find.text('Confirm referral'), findsOneWidget);
     });
 
     testWidgets('GREEN without SpO₂ says so', (tester) async {
@@ -109,25 +132,25 @@ void main() {
       await fillVitals(tester);
       await tester.tap(find.byKey(const Key('vitals_spo2_not_measured')));
       await tester.pump();
-      await tester.tap(find.text('Continue to Result'));
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
-      expect(find.text('MOEWS GREEN'), findsOneWidget);
-      expect(find.text('SpO₂ not measured'), findsOneWidget);
+      expect(find.text('MOEWS GREEN'), findsNothing, reason: 'word and score only, as in the design');
+      expect(find.text('Oxygen saturation not measured'), findsOneWidget);
     });
 
     testWidgets('GREEN with a full set shows no missing note', (tester) async {
       await open(tester);
       await fillVitals(tester);
-      await tester.tap(find.text('Continue to Result'));
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
-      expect(find.text('MOEWS GREEN'), findsOneWidget);
+      expect(find.text('MOEWS GREEN'), findsNothing, reason: 'word and score only, as in the design');
       expect(find.byKey(const Key('moews_not_measured')), findsNothing);
     });
 
     testWidgets('typed values are scored', (tester) async {
       await open(tester);
       await fillVitals(tester, overrides: {'sbp': '70'});
-      await tester.tap(find.text('Continue to Result'));
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
       final result = tester.widget<ResultScreen>(find.byType(ResultScreen));
       expect(result.moews!.riskLevel, 'RED');
@@ -137,9 +160,11 @@ void main() {
     testWidgets('ticking not measured clears a typed value', (tester) async {
       await open(tester);
       await tester.enterText(find.byKey(const Key('vitals_sbp')), '120');
-      await tester.tap(find.byKey(const Key('vitals_sbp_not_measured')));
+      await tester.enterText(find.byKey(const Key('vitals_dbp')), '80');
+      await tester.tap(find.byKey(const Key('vitals_bp_not_measured')));
       await tester.pump();
       expect(_text(tester, 'vitals_sbp'), isEmpty);
+      expect(_text(tester, 'vitals_dbp'), isEmpty, reason: 'one toggle covers both');
     });
   });
 
@@ -155,48 +180,69 @@ void main() {
       await tester.pumpAndSettle();
     }
 
-    testWidgets('name and every vital start empty', (tester) async {
+    testWidgets('no name field and no vital fields: one summary row, not recorded',
+        (tester) async {
       await open(tester);
-      expect(find.text('Ama Mensah'), findsNothing);
-      for (final id in _ids) {
-        expect(_text(tester, 'referral_$id'), isEmpty, reason: id);
-      }
-      expect(find.text('V — Voice'), findsNothing);
+      expect(find.byType(TextField), findsNothing, reason: 'vitals are entered in one place');
+      expect(find.textContaining('Not recorded – Record vitals'), findsOneWidget);
       for (final fake in ['70', '50', '140', '35', '39.5', '85']) {
         expect(find.text(fake), findsNothing, reason: fake);
       }
     });
 
-    testWidgets('untouched form asks for each answer', (tester) async {
+    testWidgets('untouched form asks for a type, then the facility, before it sends', (tester) async {
       await open(tester);
-      // Facility confirmation is checked after validation.
-      await tester.tap(find.text('Confirm Referral'));
-      await tester.pumpAndSettle();
-      expect(find.text('Enter the name, or type Unknown'), findsOneWidget);
-      expect(find.text('Enter a value or tick Not measured'), findsNWidgets(6));
-      expect(find.text('Select AVPU or Not measured'), findsOneWidget);
+      // Send stays disabled until a type is chosen, and says so.
+      final send = find.byKey(const Key('referral_send'));
+      expect(tester.widget<FilledButton>(send).onPressed, isNull);
+      expect(find.byKey(const Key('referral_send_hint')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('referral_type_pph')));
+      await tester.pump();
+      expect(tester.widget<FilledButton>(send).onPressed, isNotNull);
+      // Facility confirmation is checked after the type (once the catalog has loaded,
+      // which only advances in real time here).
+      await tester.tap(send);
+      for (var i = 0; i < 100; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+        await tester.pump();
+        if (find.textContaining('choose the receiving facility').evaluate().isNotEmpty) break;
+      }
+      expect(find.textContaining('choose the receiving facility'), findsOneWidget);
     });
 
-    testWidgets('not measured carries over from the vitals step',
+    testWidgets('the summary opens Record vitals with the values carried over',
         (tester) async {
       await open(
         tester,
         vitals: const {
           'systolic_bp': null,
-          'diastolic_bp': 80,
+          'diastolic_bp': null,
+          'heart_rate': 80,
+          'respiratory_rate': 18,
+          'temperature': 37.0,
+          'spo2': 98,
           'consciousness_level': null,
         },
       );
-      expect(_text(tester, 'referral_sbp'), isEmpty);
-      final sbpBox = tester.widget<Checkbox>(
-        find.descendant(
-          of: find.byKey(const Key('referral_sbp_not_measured')),
-          matching: find.byType(Checkbox),
-        ),
-      );
-      expect(sbpBox.value, isTrue);
-      expect(_text(tester, 'referral_dbp'), '80');
-      expect(find.text('Not measured').evaluate().length, greaterThan(6));
+      expect(find.text('Incomplete'), findsOneWidget);
+      await tester.tap(find.byKey(const Key('referral_vitals_summary')));
+      await tester.pumpAndSettle();
+      // Not measured stays not measured; values stay values.
+      expect(_text(tester, 'vitals_sbp'), isEmpty);
+      expect(markedNotMeasured('vitals_bp_not_measured'), isTrue);
+      expect(_text(tester, 'vitals_hr'), '80');
+      expect(markedNotMeasured('vitals_avpu_not_measured'), isTrue);
+
+      // Saving hands the vitals back to the form, which scores them.
+      await tester.tap(find.byKey(const Key('vitals_bp_not_measured')));
+      await tester.pump();
+      await tester.enterText(find.byKey(const Key('vitals_sbp')), '185');
+      await tester.enterText(find.byKey(const Key('vitals_dbp')), '80');
+      await selectAvpu(tester, avpu: 'A — Alert');
+      await tester.tap(find.byKey(const Key('vitals_see_result')));
+      await tester.pumpAndSettle();
+      expect(find.byType(ReferralScreen), findsOneWidget);
+      expect(find.text('Critical (Score 3)'), findsOneWidget);
     });
   });
 
@@ -226,7 +272,7 @@ void _limitTests() {
       MaterialApp(home: VitalsScreen(result: moewsOnlyResult())),
     );
     await fillVitals(tester, overrides: {'sbp': '1200'});
-    await tester.tap(find.text('Continue to Result'));
+    await tester.tap(find.byKey(const Key('vitals_see_result')));
     await tester.pumpAndSettle();
     expect(find.byType(ResultScreen), findsNothing);
     expect(find.text('Check this value: must be 0 to 300'), findsOneWidget);

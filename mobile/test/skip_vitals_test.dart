@@ -24,7 +24,7 @@ class _RecordingApi extends ApiClient {
   }
 }
 
-const _skip = Key('referral_skip_vitals');
+const _skip = Key('referral_send');
 
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
@@ -69,17 +69,17 @@ void main() {
   Future<void> chooseType(WidgetTester tester) async {
     await tester.tap(find.text('Emergency type'));
     await tester.pumpAndSettle();
-    await tester.tap(find.text('Postpartum hemorrhage').last);
+    await tester.tap(find.text('Heavy bleeding').last);
     await tester.pumpAndSettle();
   }
 
   Future<void> chooseFacility(WidgetTester tester) async {
-    await tester.tap(find.byIcon(Icons.edit_location_alt));
+    await tester.tap(find.byKey(const Key('referral_send_to')));
     await pumpUntil(tester, find.text('Choose receiving facility'));
     await tester.pumpAndSettle();
     await tester.tap(find.byType(ListTile).first);
     await tester.pumpAndSettle();
-    expect(find.textContaining('(confirmed)'), findsOneWidget);
+    expect(find.byKey(const Key('referral_send_to_confirm')), findsNothing, reason: 'confirmed');
   }
 
   Future<void> tapSkipAndWait(WidgetTester tester) async {
@@ -88,7 +88,7 @@ void main() {
     await tester.pumpAndSettle();
   }
 
-  testWidgets('the button is on screen without scrolling, on a small phone',
+  testWidgets('the one Send button is on screen without scrolling, on a small phone',
       (tester) async {
     tester.view.physicalSize = const Size(320, 568);
     tester.view.devicePixelRatio = 1.0;
@@ -97,7 +97,8 @@ void main() {
     await open(tester);
 
     expect(find.byKey(_skip).hitTestable(), findsOneWidget);
-    expect(find.text('Emergency: skip vitals'), findsOneWidget);
+    expect(find.text('Send now (vitals not taken)'), findsOneWidget);
+    expect(find.text('Emergency: skip vitals'), findsNothing, reason: 'no separate red button');
   });
 
   testWidgets('tapping the facility before the catalog loads still opens it',
@@ -106,18 +107,19 @@ void main() {
       MaterialApp(home: ReferralScreen(queue: queue, api: api)),
     );
     // No wait: tap on the first frame, as a CHO on a slow phone might.
-    await tester.tap(find.byIcon(Icons.edit_location_alt));
+    await tester.tap(find.byKey(const Key('referral_send_to')));
     await pumpUntil(tester, find.text('Choose receiving facility'));
   });
 
-  testWidgets('skip without a type is stopped and says why', (tester) async {
+  testWidgets('without a type Send is disabled and says why', (tester) async {
     await open(tester);
     await chooseFacility(tester);
 
     await tester.tap(find.byKey(_skip));
     await tester.pump();
 
-    expect(find.text('Choose the emergency type first'), findsOneWidget);
+    expect(tester.widget<FilledButton>(find.byKey(_skip)).onPressed, isNull);
+    expect(find.text('Choose the emergency type to send'), findsOneWidget);
     expect(api.sent, isEmpty);
   });
 
@@ -148,7 +150,6 @@ void main() {
     expect(api.sent.single['emergency_type'], 'pph');
     expect(api.sent.single['vitals'], isEmpty);
     expect(api.sent.single.containsKey('patient_name'), isFalse);
-    expect(find.text('Enter the name, or type Unknown'), findsNothing);
     expect(find.byType(QueuedReferralScreen), findsOneWidget);
   });
 
@@ -173,12 +174,23 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await open(tester);
 
-    await tester.tap(find.text('Confirm Referral'));
+    // No type yet: Send can't be tapped, so nothing can go out.
+    final send = find.byKey(const Key('referral_send'));
+    expect(tester.widget<FilledButton>(send).onPressed, isNull);
+    await tester.tap(send, warnIfMissed: false);
     await tester.pumpAndSettle();
-
-    expect(find.text('Choose the emergency type'), findsOneWidget);
-    expect(find.text('Enter the name, or type Unknown'), findsOneWidget);
     expect(api.sent, isEmpty);
+
+    // With a type, the rest of the form is still checked on tap.
+    await tester.tap(find.byKey(const Key('referral_type_pph')));
+    await tester.pump();
+    await tester.tap(send);
+    await pumpUntil(tester, find.textContaining('choose the receiving facility'));
+    expect(api.sent, isEmpty);
+
+    // Facility confirmed, no vitals: the one button says it sends without them.
+    await chooseFacility(tester);
+    expect(find.text('Send now (vitals not taken)'), findsOneWidget);
   });
 
   test('a queued skip-vitals referral keeps its flag when flushed', () async {

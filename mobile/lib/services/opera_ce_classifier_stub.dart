@@ -17,8 +17,7 @@ class OperaCeClassifierStub implements YamnetClassifier {
       return ScreeningResult(
         label: 'INCONCLUSIVE',
         confidence: 0.0,
-        reason:
-            'OPERA-CE encoder present; TFLite unavailable on this platform — use MOEWS',
+        reason: 'OPERA-CE encoder present; TFLite unavailable on this platform — use MOEWS',
         source: 'opera_ce',
         modelVersion: 'opera-ce-encoder-v0',
       );

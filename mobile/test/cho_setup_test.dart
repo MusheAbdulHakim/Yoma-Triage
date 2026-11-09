@@ -104,8 +104,14 @@ void main() {
         ),
       );
       await tester.enterText(find.byKey(const Key('setup_phone')), phone);
+      await tester.pump();
       await tester.tap(find.text('Continue'));
       await tester.pumpAndSettle();
+      // Confirmed: the clinic, then Start.
+      if (find.byKey(const Key('setup_start')).evaluate().isNotEmpty) {
+        await tester.tap(find.byKey(const Key('setup_start')));
+        await tester.pumpAndSettle();
+      }
       return completed;
     }
 
@@ -114,7 +120,7 @@ void main() {
       final api = _Api(result: _lookup);
       final completed = await submit(tester, api, '0240000700');
 
-      expect(api.lookedUp, '0240000700');
+      expect(api.lookedUp, '+233240000700', reason: '+233 and the 9 digits');
       expect(completed!.compoundId, 7);
       expect((await ChoStore().load())!.compoundId, 7);
     });
@@ -127,7 +133,8 @@ void main() {
       final completed = await submit(tester, api, '0240000999');
 
       expect(completed, isNull);
-      expect(find.textContaining('not registered as a CHO'), findsOneWidget);
+      expect(find.text("This number isn't registered. Ask your district coordinator."),
+          findsOneWidget);
       expect(await ChoStore().load(), isNull);
     });
 
@@ -141,15 +148,16 @@ void main() {
         (tester) async {
       final api = _Api(error: ApiException(403, '<html>Log in to Wi-Fi</html>'));
       expect(await submit(tester, api, '0240000700'), isNull);
-      expect(find.textContaining('you may need to log in'), findsOneWidget);
+      expect(find.text("Can't reach the server. Check your signal and try again."),
+          findsOneWidget);
       expect(find.textContaining('<html>'), findsNothing);
     });
 
-    testWidgets('no network says so and points to a direct call', (tester) async {
+    testWidgets('no network says so', (tester) async {
       final api = _Api(error: const SocketException('no route'));
       expect(await submit(tester, api, '0240000700'), isNull);
-      expect(find.textContaining('No connection'), findsOneWidget);
-      expect(find.textContaining('call the driver'), findsOneWidget);
+      expect(find.text("Can't reach the server. Check your signal and try again."),
+          findsOneWidget);
     });
 
     testWidgets('a server fault is not shown as the CHO being refused', (tester) async {
@@ -158,12 +166,10 @@ void main() {
       expect(find.textContaining('server is having a problem'), findsOneWidget);
     });
 
-    testWidgets('an empty number is asked for again without calling the server',
-        (tester) async {
+    testWidgets('an empty number never reaches the server', (tester) async {
       final api = _Api(result: _lookup);
-      await submit(tester, api, '   ');
+      await submit(tester, api, '');
       expect(api.lookedUp, isNull);
-      expect(find.text('Enter your phone number'), findsOneWidget);
     });
 
     testWidgets('has no compound picker', (tester) async {
@@ -201,11 +207,11 @@ void main() {
 
     Future<void> chooseTypeAndFacility(WidgetTester tester) async {
       await tester.tap(find.text('Emergency type'));
-      await pumpUntil(tester, find.text('Postpartum hemorrhage'));
+      await pumpUntil(tester, find.text('Heavy bleeding'));
       await tester.pumpAndSettle();
-      await tester.tap(find.text('Postpartum hemorrhage').last);
+      await tester.tap(find.text('Heavy bleeding').last);
       await tester.pumpAndSettle();
-      await tester.tap(find.byIcon(Icons.edit_location_alt));
+      await tester.tap(find.byKey(const Key('referral_send_to')));
       await pumpUntil(tester, find.text('Choose receiving facility'));
       await tester.pumpAndSettle();
       await tester.tap(find.byType(ListTile).first);
@@ -223,7 +229,7 @@ void main() {
       );
       await chooseTypeAndFacility(tester);
 
-      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tap(find.byKey(const Key('referral_send')));
       for (var i = 0; i < 200 && api.sent.isEmpty; i++) {
         await tester.runAsync(
           () => Future<void>.delayed(const Duration(milliseconds: 25)),
@@ -243,12 +249,11 @@ void main() {
       );
       await chooseTypeAndFacility(tester);
 
-      await tester.tap(find.byKey(const Key('referral_skip_vitals')));
+      await tester.tap(find.byKey(const Key('referral_send')));
       await pumpUntil(tester, find.byKey(const Key('referral_skip_error')));
 
       expect(api.sent, isEmpty);
       expect(find.textContaining('not set up as a CHO'), findsOneWidget);
-      expect(find.text('This phone is not set up'), findsOneWidget);
     });
 
     test('a queued referral keeps its CHO phone when flushed', () async {

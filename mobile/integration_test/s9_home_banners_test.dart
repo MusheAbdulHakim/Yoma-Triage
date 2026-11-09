@@ -31,7 +31,7 @@ void main() {
     await prefs.remove(CatalogConfig.syncedAtPrefsKey);
     await prefs.remove(CatalogConfig.catalogVersionPrefsKey);
     await tester.startApp();
-    await tester.waitFor(find.text('Community Health Officer'));
+    await tester.waitFor(find.byKey(const Key('home_emergency_referral')));
     // Let Home's own refresh of the counts finish first, so it can't overwrite them.
     await tester.wait(const Duration(seconds: 3));
 
@@ -44,7 +44,7 @@ void main() {
     await tester.waitFor(find.byType(BackButton));
     queue.needsConfirmationCount.value = 1;
     await tester.tapOn(find.byType(BackButton));
-    await tester.waitFor(find.text('Community Health Officer'));
+    await tester.waitFor(find.byKey(const Key('home_emergency_referral')));
     queue.failedCount.value = 2;
     queue.expiringCount.value = 3;
     queue.retryWarning.value = 'Could not send. Will retry when there is signal.';

@@ -33,6 +33,8 @@ from src.services.dispatch_orchestrator import (
     ASSIGNED,
     DispatchNotCancellableError,
     DispatchOrchestrator,
+    late_claim_until,
+    vehicle_label,
 )
 from src.services.referral_expiry import EXPIRED_UNCONFIRMED
 from src.tools.clinical_summary import build_clinical_summary
@@ -188,22 +190,27 @@ def _referral_response(referral: Referral) -> dict[str, Any]:
 
 async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[str, Any]:
     driver_name = None
+    driver_vehicle = None
     eta_minutes = None
     if dispatch.driver_id is not None:
         driver = await session.get(Driver, dispatch.driver_id)
         if driver:
             driver_name = driver.name
+            # "Motor-King, Red tricycle": what the CHO should look out for.
+            driver_vehicle = vehicle_label(driver) or None
             # Demo ETA once a driver has claimed the trip.
             if dispatch.status in ASSIGNED:
                 eta_minutes = parameters.PLACEHOLDER_ETA_MINUTES
     facility = await session.get(Facility, dispatch.facility_id)
-    # The facility the most recent diversion sent the patient away from, if any.
-    divert = await session.scalar(
-        select(DispatchLog)
-        .where(DispatchLog.dispatch_id == dispatch.id, DispatchLog.action == "hospital_divert")
-        .order_by(DispatchLog.id.desc())
-        .limit(1)
+    logs = list(
+        await session.scalars(
+            select(DispatchLog)
+            .where(DispatchLog.dispatch_id == dispatch.id)
+            .order_by(DispatchLog.id)
+        )
     )
+    # The facility the most recent diversion sent the patient away from, if any.
+    divert = next((log for log in reversed(logs) if log.action == "hospital_divert"), None)
     diverted_from = None
     if divert is not None:
         origin_id = (divert.metadata_json or {}).get("from_facility_id")
@@ -217,9 +224,43 @@ async def _dispatch_response(session: AsyncSession, dispatch: Dispatch) -> dict[
         "diverted_from": diverted_from,
         "driver_id": dispatch.driver_id,
         "driver_name": driver_name,
+        "driver_vehicle": driver_vehicle,
         "eta_minutes": eta_minutes,
         "status": dispatch.status,
         "current_tier": dispatch.current_tier,
+        "step_times": _step_times(dispatch, logs),
+        # Until then a driver can still accept after FAILED; the app keeps checking.
+        "late_claim_until": late_claim_until(dispatch).isoformat(),
+    }
+
+
+def _step_times(dispatch: Dispatch, logs: list[DispatchLog]) -> dict[str, str | None]:
+    """When each step of the trip happened, from what the backend already records (the
+    dispatch's own timestamps and its log). ISO 8601 with the offset; null until it happens.
+    """
+
+    def first(action: str, role: str | None = None):
+        return next(
+            (log.created_at for log in logs
+             if log.action == action and (role is None or log.target_role == role)),
+            None,
+        )
+
+    def last(action: str):
+        return next((log.created_at for log in reversed(logs) if log.action == action), None)
+
+    def iso(value) -> str | None:
+        return value.isoformat() if value is not None else None
+
+    return {
+        "sent": iso(dispatch.initiated_at),
+        # The first driver offer that actually went out, not just queued.
+        "drivers_notified": iso(first("sms_send", "driver")),
+        "driver_accepted": iso(dispatch.driver_assigned_at),
+        "hospital_notified": iso(first("hospital_notify", "hospital")),
+        "hospital_confirmed": iso(last("hospital_confirm")),
+        "diverted": iso(last("hospital_divert")),
+        "completed": iso(dispatch.completed_at),
     }
 
 

@@ -3,6 +3,7 @@ import 'package:url_launcher/url_launcher.dart';
 
 import '../services/cho_store.dart';
 import '../services/contacts_store.dart';
+import '../services/friendly_time.dart';
 import '../theme/yoma_theme.dart';
 
 typedef ContactLauncher = Future<bool> Function(Uri uri);
@@ -44,12 +45,8 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
       'Yoma Triage: Emergency referral coming from $compoundName. '
       'Please prepare and call back.';
 
-  static String _updatedText(DateTime updatedAt) {
-    final local = updatedAt.toLocal();
-    String two(int value) => value.toString().padLeft(2, '0');
-    return 'Contacts last updated: ${local.year}-${two(local.month)}-${two(local.day)} '
-        '${two(local.hour)}:${two(local.minute)}';
-  }
+  String _updatedText(DateTime updatedAt) =>
+      'Contacts last updated: ${friendlyWhen(context, updatedAt)}';
 
   Future<void> _open(Uri uri, String phone) async {
     widget.onContactUsed?.call();
@@ -66,49 +63,98 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
     }
   }
 
+  /// One contact as in the design: the name (and role) on the left, Call and SMS on the
+  /// right. On a narrow screen or with large text the buttons go under the name.
   Widget _contact({
     required String title,
     required String subtitle,
     required String phone,
     required String message,
   }) {
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(12),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(title, style: const TextStyle(fontWeight: FontWeight.w700)),
-            Text('$subtitle · $phone'),
-            const SizedBox(height: 8),
-            Row(
+    final text = Theme.of(context).textTheme;
+    void callNow() => _open(Uri(scheme: 'tel', path: phone), phone);
+    // Encoded by hand: queryParameters would turn spaces into "+".
+    void smsNow() => _open(Uri.parse('sms:$phone?body=${Uri.encodeComponent(message)}'), phone);
+    // excludeSemantics drops each button's own tap, so the node carries it (TalkBack).
+    final call = Semantics(
+      button: true,
+      label: 'Call $title',
+      onTap: callNow,
+      excludeSemantics: true,
+      child: FilledButton(
+        key: Key('call_$phone'),
+        style: FilledButton.styleFrom(
+          minimumSize: const Size(64, YomaSizes.minTap),
+          padding: const EdgeInsets.symmetric(horizontal: 16),
+          textStyle: text.labelMedium,
+        ),
+        onPressed: callNow,
+        child: const Text('Call'),
+      ),
+    );
+    final sms = Semantics(
+      button: true,
+      label: 'SMS $title',
+      onTap: smsNow,
+      excludeSemantics: true,
+      child: OutlinedButton(
+        key: Key('sms_$phone'),
+        style: OutlinedButton.styleFrom(
+          minimumSize: const Size(64, YomaSizes.minTap),
+          padding: const EdgeInsets.symmetric(horizontal: 14),
+          side: const BorderSide(color: YomaColors.border, width: 1),
+          foregroundColor: YomaColors.grey900,
+        ),
+        onPressed: smsNow,
+        child: const Text('SMS'),
+      ),
+    );
+    final name = Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Text(title, style: text.titleMedium?.copyWith(fontWeight: FontWeight.w700)),
+        Text(subtitle, style: text.bodySmall?.copyWith(color: YomaColors.grey600)),
+      ],
+    );
+    return Padding(
+      padding: const EdgeInsets.only(top: YomaSpacing.sm),
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(14, 8, 10, 8),
+        decoration: BoxDecoration(
+          color: YomaColors.surface,
+          borderRadius: BorderRadius.circular(YomaRadii.md),
+          border: Border.all(color: YomaColors.grey200),
+        ),
+        child: LayoutBuilder(
+          builder: (context, constraints) {
+            final oneRow = constraints.maxWidth >= 280 &&
+                MediaQuery.textScalerOf(context).scale(16) <= 16 * 1.15;
+            if (oneRow) {
+              return Row(
+                children: [
+                  Expanded(child: name),
+                  call,
+                  const SizedBox(width: 8),
+                  sms,
+                ],
+              );
+            }
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Expanded(
-                  child: FilledButton.icon(
-                    key: Key('call_$phone'),
-                    style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                    onPressed: () => _open(Uri(scheme: 'tel', path: phone), phone),
-                    icon: const Icon(Icons.call),
-                    label: const Text('Call'),
-                  ),
-                ),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: OutlinedButton.icon(
-                    key: Key('sms_$phone'),
-                    style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-                    onPressed: () => _open(
-                      // Encoded by hand: queryParameters would turn spaces into "+".
-                      Uri.parse('sms:$phone?body=${Uri.encodeComponent(message)}'),
-                      phone,
-                    ),
-                    icon: const Icon(Icons.sms),
-                    label: const Text('SMS'),
-                  ),
+                name,
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    Expanded(child: call),
+                    const SizedBox(width: 8),
+                    Expanded(child: sms),
+                  ],
                 ),
               ],
-            ),
-          ],
+            );
+          },
         ),
       ),
     );
@@ -135,33 +181,17 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
             ),
           );
         }
-        final facilities = contacts.facilities
-            .where((facility) => widget.facilityIds.contains(facility.id));
+        final facilities =
+            contacts.facilities.where((facility) => widget.facilityIds.contains(facility.id));
         return Column(
           key: const Key('manual_contacts'),
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            const Text(
-              'Reach them yourself',
-              style: TextStyle(
-                fontSize: 18,
-                fontWeight: FontWeight.w700,
-                color: YomaColors.brand,
-              ),
-            ),
             Text(
               _updatedText(contacts.updatedAt),
               key: const Key('contacts_updated'),
-              style: TextStyle(color: Colors.grey.shade700),
+              style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey700),
             ),
-            const SizedBox(height: 8),
-            for (final facility in facilities)
-              _contact(
-                title: facility.name,
-                subtitle: 'Receiving facility',
-                phone: facility.phone,
-                message: facilityMessage(compoundName),
-              ),
             for (final driver in contacts.drivers)
               _contact(
                 title: driver.name,
@@ -169,8 +199,14 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
                 phone: driver.phone,
                 message: driverMessage(compoundName),
               ),
-            if (contacts.drivers.isEmpty)
-              const Text('No drivers are saved for this compound.'),
+            if (contacts.drivers.isEmpty) const Text('No drivers are saved for this compound.'),
+            for (final facility in facilities)
+              _contact(
+                title: facility.name,
+                subtitle: 'Receiving facility',
+                phone: facility.phone,
+                message: facilityMessage(compoundName),
+              ),
           ],
         );
       },

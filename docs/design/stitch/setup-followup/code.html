@@ -1,0 +1,233 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yoma Care - First-run Setup & Still needs transport?</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Atkinson Hyperlegible Next"', 'system-ui', '-apple-system', 'sans-serif'],
+          },
+          colors: {
+            teal: {
+              brand: '#005F60',
+              brandDark: '#004748',
+              light: '#E6F4F4',
+            },
+            navy: {
+              field: '#0F2744',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Atkinson Hyperlegible Next', system-ui, -apple-system, sans-serif;
+      -webkit-font-smoothing: antialiased;
+      background-color: #0b1320;
+    }
+    .phone-frame {
+      width: 360px;
+      height: 640px;
+      position: relative;
+      overflow: hidden;
+      border-radius: 28px;
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 0 1px rgba(255, 255, 255, 0.08);
+      background-color: #FFFFFF;
+    }
+  </style>
+</head>
+<body class="min-h-screen text-slate-900 py-10 px-4 flex flex-col items-center justify-center">
+
+  <!-- Presentation Header -->
+  <header class="w-full max-w-5xl mb-8 px-4 flex flex-col md:flex-row md:items-end justify-between gap-4">
+    <div>
+      <div class="flex items-center gap-2 mb-1.5">
+        <span class="w-2.5 h-2.5 rounded-full bg-teal-400"></span>
+        <span class="text-xs uppercase tracking-widest font-semibold text-teal-400">Clinical Emergency Workflow • 360×640 dp Form Factor</span>
+      </div>
+      <h1 class="text-3xl font-bold tracking-tight text-white">Yoma Care • Setup & Transport Follow-up</h1>
+    </div>
+    <div class="flex items-center gap-3 text-xs text-slate-300">
+      <span class="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">Android Field Standard</span>
+      <span class="px-2.5 py-1 rounded bg-slate-800/80 border border-slate-700">Harsh Light Contrast</span>
+    </div>
+  </header>
+
+  <!-- Side-by-Side Artboards Container -->
+  <main class="w-full max-w-5xl flex flex-wrap items-center justify-center gap-8 lg:gap-12">
+
+    <!-- ========================================== -->
+    <!-- SCREEN 1: FIRST-RUN SETUP                  -->
+    <!-- ========================================== -->
+    <div class="flex flex-col items-center">
+      <div class="text-xs font-bold tracking-wider uppercase text-slate-400 mb-3">Screen 1 • First-run setup</div>
+
+      <div class="phone-frame flex flex-col bg-white overflow-y-auto">
+        <!-- Status Bar -->
+        <div class="h-6 px-4 pt-1 flex items-center justify-between text-xs text-slate-700 font-semibold select-none shrink-0">
+          <span>09:41</span>
+          <div class="flex items-center gap-1.5">
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 18.25A10.97 10.97 0 0 1 1 12C1 5.92 5.92 1 12 1s11 4.92 11 11c0 2.27-.69 4.38-1.87 6.13l-.62-.62A9.97 9.97 0 0 0 21 12c0-4.97-4.03-9-9-9z"/><path d="M12 6a6 6 0 0 0-6 6c0 1.34.44 2.58 1.18 3.58l.71-.71A4.97 4.97 0 0 1 7 12a5 5 0 0 1 10 0c0 1.05-.33 2.03-.89 2.87l.71.71A5.97 5.97 0 0 0 18 12a6 6 0 0 0-6-6z"/><circle cx="12" cy="12" r="2"/></svg>
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M17 4h-3V2h-4v2H7v18h10V4z"/></svg>
+          </div>
+        </div>
+
+        <div class="p-5 flex-1 flex flex-col">
+          <!-- 1. Header Area -->
+          <div class="mt-2 mb-5">
+            <h2 class="text-3xl font-bold tracking-tight text-slate-900 leading-tight">Yoma Care</h2>
+            <p class="text-sm text-slate-600 mt-1 leading-snug">Enter the phone number registered for your clinic.</p>
+          </div>
+
+          <!-- 2. Phone Input -->
+          <div class="mb-3">
+            <div class="flex items-center w-full h-14 bg-white border-2 border-slate-300 rounded-xl px-3.5 focus-within:border-[#005F60]">
+              <span class="text-lg font-bold text-slate-800 pr-3 border-r border-slate-300 select-none">+233</span>
+              <input
+                type="tel"
+                inputmode="numeric"
+                placeholder="24 123 4567"
+                class="w-full pl-3 text-lg font-medium text-slate-900 bg-transparent outline-none placeholder:text-slate-400"
+                value="24 892 1104"
+                readonly
+              />
+            </div>
+          </div>
+
+          <!-- 3. Continue Button -->
+          <button class="w-full h-13 py-3.5 bg-[#005F60] text-white text-base font-bold rounded-xl active:bg-[#004748] shadow-sm mb-4">
+            Continue
+          </button>
+
+          <!-- Divider label / spacing -->
+          <div class="w-full border-t border-slate-200 my-1"></div>
+
+          <!-- 4. Second Version: Confirmed State -->
+          <div class="my-2.5">
+            <div class="bg-white border-2 border-slate-200 rounded-xl p-3 shadow-sm flex flex-col gap-2.5">
+              <div class="flex items-center gap-2.5">
+                <div class="w-6 h-6 rounded-full bg-[#005F60] flex items-center justify-center text-white shrink-0">
+                  <svg class="w-4 h-4 stroke-current stroke-2 fill-none" viewBox="0 0 24 24">
+                    <polyline points="20 6 9 17 4 12"></polyline>
+                  </svg>
+                </div>
+                <div class="text-base font-bold text-slate-900 leading-tight">Tamale South CHPS</div>
+              </div>
+              <button class="w-full h-11 bg-[#005F60] text-white text-sm font-bold rounded-lg active:bg-[#004748]">
+                Start
+              </button>
+            </div>
+          </div>
+
+          <!-- 5. Third Version: Error Card -->
+          <div class="mt-1">
+            <div class="bg-slate-50 border border-slate-300 rounded-xl p-3">
+              <p class="text-xs font-semibold text-slate-800 leading-relaxed">
+                This number isn't registered. Ask your district coordinator.
+              </p>
+            </div>
+          </div>
+
+          <!-- Android Bottom Navigation Indicator Line -->
+          <div class="mt-auto pt-2 pb-1 flex justify-center">
+            <div class="w-28 h-1 bg-slate-300 rounded-full"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+
+    <!-- ========================================== -->
+    <!-- SCREEN 2: "STILL NEEDS TRANSPORT?"         -->
+    <!-- (Bottom sheet over dimmed Home screen)     -->
+    <!-- ========================================== -->
+    <div class="flex flex-col items-center">
+      <div class="text-xs font-bold tracking-wider uppercase text-slate-400 mb-3">Screen 2 • &quot;Still needs transport?&quot;</div>
+
+      <div class="phone-frame flex flex-col bg-white">
+        <!-- Underneath: Dimmed Home Screen Representation -->
+        <div class="absolute inset-0 bg-[#0F2744] flex flex-col select-none">
+          <!-- Status Bar on dimmed background -->
+          <div class="h-6 px-4 pt-1 flex items-center justify-between text-xs text-white/50 font-semibold">
+            <span>09:41</span>
+            <div class="flex items-center gap-1.5">
+              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 18.25A10.97 10.97 0 0 1 1 12C1 5.92 5.92 1 12 1s11 4.92 11 11c0 2.27-.69 4.38-1.87 6.13l-.62-.62A9.97 9.97 0 0 0 21 12c0-4.97-4.03-9-9-9z"/><path d="M12 6a6 6 0 0 0-6 6c0 1.34.44 2.58 1.18 3.58l.71-.71A4.97 4.97 0 0 1 7 12a5 5 0 0 1 10 0c0 1.05-.33 2.03-.89 2.87l.71.71A5.97 5.97 0 0 0 18 12a6 6 0 0 0-6-6z"/><circle cx="12" cy="12" r="2"/></svg>
+              <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M17 4h-3V2h-4v2H7v18h10V4z"/></svg>
+            </div>
+          </div>
+
+          <!-- Dimmed Home screen content underlay -->
+          <div class="p-5 flex-1 opacity-25">
+            <div class="flex items-center justify-between mb-8">
+              <div class="w-10 h-10 rounded-xl bg-white/20"></div>
+              <div class="w-20 h-7 rounded-full bg-white/20"></div>
+            </div>
+            <div class="w-full h-16 rounded-2xl bg-white/20 mb-4"></div>
+            <div class="w-full h-16 rounded-2xl bg-white/20"></div>
+          </div>
+        </div>
+
+        <!-- Dimming Scrim Overlay -->
+        <div class="absolute inset-0 bg-black/60 z-10"></div>
+
+        <!-- Bottom Sheet (Fixed to Bottom) -->
+        <div class="relative z-20 mt-auto bg-white rounded-t-3xl pt-3 pb-5 px-5 shadow-2xl border-t border-slate-100 flex flex-col">
+          <!-- Handle bar -->
+          <div class="w-10 h-1 bg-slate-300 rounded-full mx-auto mb-4"></div>
+
+          <!-- 1. Title -->
+          <h2 class="text-2xl font-bold tracking-tight text-slate-900 leading-tight">
+            Still needs transport?
+          </h2>
+
+          <!-- 2. One Line Description -->
+          <p class="text-sm text-slate-600 mt-2 mb-6 leading-relaxed">
+            This referral was saved 45 minutes ago and hasn't been sent.
+          </p>
+
+          <!-- 3. Three Stacked Buttons -->
+          <div class="flex flex-col gap-3">
+            <!-- Full-width teal button -->
+            <button class="w-full h-13 py-3.5 bg-[#005F60] text-white text-base font-bold rounded-xl active:bg-[#004748] shadow-sm">
+              Send now
+            </button>
+
+            <!-- Outlined button -->
+            <button class="w-full h-13 py-3.5 bg-white border-2 border-slate-300 text-slate-800 text-base font-bold rounded-xl active:bg-slate-50">
+              Already handled
+            </button>
+
+            <!-- Quiet grey text button -->
+            <button class="w-full py-2.5 text-sm font-semibold text-slate-500 hover:text-slate-700 active:text-slate-900">
+              Cancel referral
+            </button>
+          </div>
+
+          <!-- Android Bottom Navigation Indicator Line -->
+          <div class="pt-3 flex justify-center">
+            <div class="w-28 h-1 bg-slate-300 rounded-full"></div>
+          </div>
+        </div>
+
+      </div>
+    </div>
+
+  </main>
+
+  <!-- Technical Spec Footer Note -->
+  <footer class="mt-8 text-xs text-slate-400 text-center max-w-xl">
+    Clinical Field Optimization • Atkinson Hyperlegible Next • 360×640 dp Standard Android Viewport • WCAG AAA Outdoor Contrast
+  </footer>
+
+</body>
+</html>

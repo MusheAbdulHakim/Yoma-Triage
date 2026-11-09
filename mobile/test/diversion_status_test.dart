@@ -60,17 +60,38 @@ void main() {
     await _nextPoll(tester);
     expect(find.text('Going to: Navrongo War Memorial Hospital'), findsOneWidget);
     expect(
-      find.text('Diverted from Tamale Teaching Hospital by the hospital'),
+      find.text('From Tamale Teaching Hospital, by the hospital'),
       findsOneWidget,
     );
-    expect(find.byType(CircularProgressIndicator), findsOneWidget, reason: 'still live');
+    expect(api.calls, 2, reason: 'still live: it keeps checking after the diversion');
 
     await _nextPoll(tester);
-    expect(find.text('COMPLETED'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsNothing);
+    expect(find.byKey(const Key('dispatch_status_COMPLETED')), findsOneWidget);
     final callsAtEnd = api.calls;
     await _nextPoll(tester);
     expect(api.calls, callsAtEnd, reason: 'COMPLETED is the end; polling stops');
+  });
+
+  testWidgets('Going to sits under the title and follows the diversion; Back to Home is quiet',
+      (tester) async {
+    final api = _Trip([_toFirst, _toSecond]);
+    await _open(tester, api);
+    Finder inAppBar(String text) =>
+        find.descendant(of: find.byType(AppBar), matching: find.text(text));
+    expect(inAppBar('Going to: Tamale Teaching Hospital'), findsOneWidget);
+
+    await _nextPoll(tester);
+    expect(inAppBar('Going to: Navrongo War Memorial Hospital'), findsOneWidget);
+    expect(find.text('Going to: Tamale Teaching Hospital'), findsNothing);
+
+    final back = find.byKey(const Key('dispatch_back_home'));
+    expect(tester.widget(back), isA<TextButton>(), reason: 'a quiet text button');
+    expect(find.widgetWithText(OutlinedButton, 'Back to Home'), findsNothing);
+    // Pinned at the bottom with Cancel referral, out of the scrolling content (round 7).
+    final scroll = tester.getRect(find.byKey(const Key('dispatch_scroll')));
+    expect(tester.getRect(back).top, greaterThanOrEqualTo(scroll.bottom));
+    expect(tester.getRect(find.byKey(const Key('dispatch_cancel'))).top,
+        greaterThanOrEqualTo(scroll.bottom));
   });
 
   testWidgets('a DIVERTED status from an older server is not treated as the end',
@@ -80,12 +101,11 @@ void main() {
       {..._toSecond, 'status': 'COMPLETED'},
     ]);
     await _open(tester, api);
-    expect(find.text('DIVERTED'), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    expect(find.byKey(const Key('dispatch_status_DIVERTED')), findsOneWidget);
 
     await _nextPoll(tester);
     expect(api.calls, 2, reason: 'it polled again after DIVERTED');
-    expect(find.text('COMPLETED'), findsOneWidget);
+    expect(find.byKey(const Key('dispatch_status_COMPLETED')), findsOneWidget);
   });
 
   testWidgets('a server without the new fields still shows the status', (tester) async {
@@ -93,7 +113,7 @@ void main() {
       {'status': 'HOSPITAL_NOTIFIED', 'facility_id': 1},
     ]);
     await _open(tester, api);
-    expect(find.text('HOSPITAL_NOTIFIED'), findsOneWidget);
+    expect(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), findsOneWidget);
     expect(find.byKey(const Key('dispatch_destination')), findsNothing);
     expect(find.byKey(const Key('dispatch_diverted')), findsNothing);
   });

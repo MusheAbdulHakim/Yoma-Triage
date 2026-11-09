@@ -1,0 +1,302 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Yoma Care - Emergency Referral</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:ital,wght@0,400;0,600;0,700;1,400&display=swap" rel="stylesheet">
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['"Atkinson Hyperlegible Next"', 'system-ui', 'sans-serif'],
+          },
+          colors: {
+            brand: {
+              teal: '#005f60',
+              'teal-dark': '#004a4b',
+              'teal-light': '#e6f3f3',
+            },
+            surface: {
+              dim: '#f3f4f6',
+              main: '#ffffff',
+            }
+          }
+        }
+      }
+    }
+  </script>
+  <style>
+    body {
+      font-family: 'Atkinson Hyperlegible Next', system-ui, -apple-system, sans-serif;
+      background-color: #0f172a;
+      margin: 0;
+      padding: 0;
+    }
+    /* Hide scrollbars while allowing scroll */
+    .no-scrollbar::-webkit-scrollbar {
+      display: none;
+    }
+    .no-scrollbar {
+      -ms-overflow-style: none;
+      scrollbar-width: none;
+    }
+  </style>
+</head>
+<body class="min-h-screen p-4 md:p-8 flex flex-col items-center justify-center font-sans antialiased text-slate-900 bg-slate-900">
+
+  <!-- Header Banner -->
+  <div class="w-full max-w-[840px] mb-6 flex flex-col sm:flex-row sm:items-baseline justify-between text-white gap-2">
+    <div>
+      <div class="text-xs uppercase tracking-wider text-teal-400 font-semibold mb-1">Clinical Emergency Workflow • 360×640 dp</div>
+      <h1 class="text-2xl font-bold tracking-tight text-white">Yoma Care • Emergency Referral</h1>
+    </div>
+    <div class="text-xs text-slate-400 font-medium">Standardized Field Viewports</div>
+  </div>
+
+  <!-- Viewports Container (2 variants side by side) -->
+  <div class="w-full max-w-[840px] flex flex-wrap gap-8 items-start justify-center">
+
+    <!-- ========================================= -->
+    <!-- VARIANT 1: With Vitals (Critical) -->
+    <!-- ========================================= -->
+    <div class="flex flex-col items-center">
+      <div class="mb-2 text-xs font-bold uppercase tracking-wider text-slate-300">
+        Variant 01 • With Vitals Recorded
+      </div>
+
+      <!-- Device Canvas (360x640 dp) -->
+      <div class="relative w-[360px] h-[640px] bg-slate-50 border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+
+        <!-- Status Bar -->
+        <div class="h-6 px-6 pt-1 flex justify-between items-center text-[11px] font-bold text-slate-400 bg-white select-none">
+          <span>09:41</span>
+          <div class="flex items-center space-x-1.5">
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 18.25A9.957 9.957 0 0 1 2 12C2 6.48 6.48 2 12 2s10 4.48 10 10c0 2.32-.8 4.45-2.14 6.15l-.62-.64C20.31 16.03 21 14.1 21 12c0-4.97-4.03-9-9-9z"/><path d="M12 6c-3.31 0-6 2.69-6 6 0 1.43.5 2.74 1.34 3.78l.71-.72C7.39 14.24 7 13.17 7 12c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.17-.39 2.24-1.05 3.06l.71.72C17.5 14.74 18 13.43 18 12c0-3.31-2.69-6-6-6z"/><circle cx="12" cy="12" r="2"/></svg>
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M2 22h20V2z"/></svg>
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M17 4h-3V2h-4v2H7v18h10V4z"/></svg>
+          </div>
+        </div>
+
+        <!-- 1. Top Bar -->
+        <header class="bg-white border-b border-slate-100 px-4 py-3 flex items-center shrink-0">
+          <button class="w-10 h-10 flex items-center justify-center -ml-1 text-slate-800 rounded-full active:bg-slate-100" aria-label="Go back">
+            <svg class="w-6 h-6 stroke-current stroke-[2.5]" fill="none" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
+            </svg>
+          </button>
+          <h1 class="ml-2 text-xl font-bold tracking-tight text-slate-900">Emergency referral</h1>
+        </header>
+
+        <!-- Form Body (Scrollable) -->
+        <main class="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-5">
+
+          <!-- 2. Section: Emergency type -->
+          <section>
+            <h2 class="text-sm font-bold text-slate-900 mb-2.5">Emergency type</h2>
+            <!-- 5 large tap chips in a 2-column grid, all unselected -->
+            <div class="grid grid-cols-2 gap-2.5">
+              <!-- Chip 1: Heavy bleeding -->
+              <button class="flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Heavy bleeding
+              </button>
+
+              <!-- Chip 2: Fits (eclampsia) -->
+              <button class="flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Fits (eclampsia)
+              </button>
+
+              <!-- Chip 3: Breathing problem -->
+              <button class="flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Breathing problem
+              </button>
+
+              <!-- Chip 4: Newborn not breathing -->
+              <button class="flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Newborn not breathing
+              </button>
+
+              <!-- Chip 5: Other (spans single column or balanced) -->
+              <button class="col-span-2 sm:col-span-1 flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Other
+              </button>
+            </div>
+          </section>
+
+          <!-- 3. Section: Send to -->
+          <section>
+            <h2 class="text-sm font-bold text-slate-900 mb-2.5">Send to</h2>
+            <div class="bg-white border border-slate-300 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+              <div class="flex items-center space-x-2">
+                <span class="text-[15px] font-bold text-slate-900">District Hospital</span>
+                <svg class="w-4 h-4 text-slate-500 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                </svg>
+              </div>
+              <button class="text-xs font-semibold text-slate-500 hover:text-slate-700 min-h-[44px] min-w-[44px] flex items-center justify-end px-2 -my-2 -mr-2">
+                Change
+              </button>
+            </div>
+          </section>
+
+          <!-- 4. Summary row: Vitals: Critical (Score 7) with small red Critical badge -->
+          <section>
+            <div class="bg-white border border-slate-200 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+              <span class="text-sm font-semibold text-slate-800">Vitals:</span>
+              <div class="inline-flex items-center gap-1.5 bg-red-600 text-white px-2.5 py-1 rounded-full text-xs font-bold tracking-tight">
+                <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24">
+                  <path d="M12 2L1 21h22L12 2zm0 3.99L19.53 19H4.47L12 5.99zM11 10v4h2v-4h-2zm0 6v2h2v-2h-2z"/>
+                </svg>
+                <span>Critical (Score 7)</span>
+              </div>
+            </div>
+          </section>
+
+        </main>
+
+        <!-- 5. Fixed full-width teal button at bottom: "Send referral" -->
+        <footer class="p-4 bg-white border-t border-slate-100 shrink-0">
+          <button class="w-full h-14 bg-[#005f60] active:bg-[#004a4b] text-white font-bold text-base rounded-xl flex items-center justify-center shadow-md tracking-wide transition-colors">
+            Send referral
+          </button>
+        </footer>
+
+        <!-- Android Home Indicator / Navigation Bar spacer -->
+        <div class="h-2 bg-white flex justify-center items-center pb-1">
+          <div class="w-24 h-1 bg-slate-300 rounded-full"></div>
+        </div>
+
+      </div>
+    </div>
+
+
+    <!-- ========================================= -->
+    <!-- VARIANT 2: Without Vitals (Opened from Home) -->
+    <!-- ========================================= -->
+    <div class="flex flex-col items-center">
+      <div class="mb-2 text-xs font-bold uppercase tracking-wider text-slate-300">
+        Variant 02 • Direct from Home (No Vitals)
+      </div>
+
+      <!-- Device Canvas (360x640 dp) -->
+      <div class="relative w-[360px] h-[640px] bg-slate-50 border border-slate-200 rounded-3xl shadow-2xl overflow-hidden flex flex-col">
+
+        <!-- Status Bar -->
+        <div class="h-6 px-6 pt-1 flex justify-between items-center text-[11px] font-bold text-slate-400 bg-white select-none">
+          <span>09:41</span>
+          <div class="flex items-center space-x-1.5">
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M12 3c-4.97 0-9 4.03-9 9 0 2.12.74 4.07 1.97 5.61L4.35 18.25A9.957 9.957 0 0 1 2 12C2 6.48 6.48 2 12 2s10 4.48 10 10c0 2.32-.8 4.45-2.14 6.15l-.62-.64C20.31 16.03 21 14.1 21 12c0-4.97-4.03-9-9-9z"/><path d="M12 6c-3.31 0-6 2.69-6 6 0 1.43.5 2.74 1.34 3.78l.71-.72C7.39 14.24 7 13.17 7 12c0-2.76 2.24-5 5-5s5 2.24 5 5c0 1.17-.39 2.24-1.05 3.06l.71.72C17.5 14.74 18 13.43 18 12c0-3.31-2.69-6-6-6z"/><circle cx="12" cy="12" r="2"/></svg>
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M2 22h20V2z"/></svg>
+            <svg class="w-3.5 h-3.5 fill-current" viewBox="0 0 24 24"><path d="M17 4h-3V2h-4v2H7v18h10V4z"/></svg>
+          </div>
+        </div>
+
+        <!-- 1. Top Bar -->
+        <header class="bg-white border-b border-slate-100 px-4 py-3 flex items-center shrink-0">
+          <button class="w-10 h-10 flex items-center justify-center -ml-1 text-slate-800 rounded-full active:bg-slate-100" aria-label="Go back">
+            <svg class="w-6 h-6 stroke-current stroke-[2.5]" fill="none" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18"/>
+            </svg>
+          </button>
+          <h1 class="ml-2 text-xl font-bold tracking-tight text-slate-900">Emergency referral</h1>
+        </header>
+
+        <!-- Form Body (Scrollable) -->
+        <main class="flex-1 overflow-y-auto no-scrollbar px-4 py-4 space-y-5">
+
+          <!-- 2. Section: Emergency type -->
+          <section>
+            <h2 class="text-sm font-bold text-slate-900 mb-2.5">Emergency type</h2>
+            <!-- 5 large tap chips in a 2-column grid, all unselected -->
+            <div class="grid grid-cols-2 gap-2.5">
+              <!-- Chip 1: Heavy bleeding -->
+              <button class="flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Heavy bleeding
+              </button>
+
+              <!-- Chip 2: Fits (eclampsia) -->
+              <button class="flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Fits (eclampsia)
+              </button>
+
+              <!-- Chip 3: Breathing problem -->
+              <button class="flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Breathing problem
+              </button>
+
+              <!-- Chip 4: Newborn not breathing -->
+              <button class="flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Newborn not breathing
+              </button>
+
+              <!-- Chip 5: Other -->
+              <button class="col-span-2 sm:col-span-1 flex items-center justify-center min-h-[58px] p-2.5 text-center text-[14px] font-semibold text-slate-800 bg-white border border-slate-300 rounded-xl leading-snug active:bg-slate-50 transition-colors shadow-sm">
+                Other
+              </button>
+            </div>
+          </section>
+
+          <!-- 3. Section: Send to -->
+          <section>
+            <h2 class="text-sm font-bold text-slate-900 mb-2.5">Send to</h2>
+            <div class="bg-white border border-slate-300 rounded-xl p-3.5 flex items-center justify-between shadow-sm">
+              <div class="flex items-center space-x-2">
+                <span class="text-[15px] font-bold text-slate-900">District Hospital</span>
+                <svg class="w-4 h-4 text-slate-500 stroke-[2.5]" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path stroke-linecap="round" stroke-linejoin="round" d="M19.5 8.25l-7.5 7.5-7.5-7.5"/>
+                </svg>
+              </div>
+              <button class="text-xs font-semibold text-slate-500 hover:text-slate-700 min-h-[44px] min-w-[44px] flex items-center justify-end px-2 -my-2 -mr-2">
+                Change
+              </button>
+            </div>
+          </section>
+
+          <!-- 4. Summary row replacement: Grey note "Vitals not taken – the hospital will be told" -->
+          <section>
+            <div class="bg-slate-100/90 border border-slate-200 rounded-xl p-3.5 flex items-center shadow-sm">
+              <span class="text-xs font-medium text-slate-600 leading-snug">
+                Vitals not taken – the hospital will be told
+              </span>
+            </div>
+          </section>
+
+        </main>
+
+        <!-- 5. Fixed full-width teal button at bottom: "Send now" -->
+        <footer class="p-4 bg-white border-t border-slate-100 shrink-0">
+          <button class="w-full h-14 bg-[#005f60] active:bg-[#004a4b] text-white font-bold text-base rounded-xl flex items-center justify-center shadow-md tracking-wide transition-colors">
+            Send now
+          </button>
+        </footer>
+
+        <!-- Android Home Indicator / Navigation Bar spacer -->
+        <div class="h-2 bg-white flex justify-center items-center pb-1">
+          <div class="w-24 h-1 bg-slate-300 rounded-full"></div>
+        </div>
+
+      </div>
+    </div>
+
+  </div>
+
+  <!-- Dual-Coded Compliance Footer -->
+  <div class="w-full max-w-[840px] mt-6 bg-slate-800/80 border border-slate-700 rounded-xl p-4 flex flex-col sm:flex-row items-center justify-between text-xs text-slate-400 gap-2">
+    <div class="flex items-center gap-2">
+      <svg class="w-4 h-4 text-teal-400 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+      </svg>
+      <span>Clinical Field Optimization: 58dp touch targets, outdoor contrast, zero unneeded input fields.</span>
+    </div>
+    <div class="flex items-center gap-4 text-slate-500">
+      <span>Display: 360×640 dp</span>
+      <span>Brand Teal: #005F60</span>
+    </div>
+  </div>
+
+</body>
+</html>

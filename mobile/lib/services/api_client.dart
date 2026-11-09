@@ -190,8 +190,8 @@ class ApiClient {
     if (district != null && district.isNotEmpty) {
       params['district'] = district;
     }
-    final uri = Uri.parse('$baseUrl/api/v1/catalog/referral-graph')
-        .replace(queryParameters: params);
+    final uri =
+        Uri.parse('$baseUrl/api/v1/catalog/referral-graph').replace(queryParameters: params);
     final res = await _client.get(uri, headers: _headers());
     if (res.statusCode >= 400) {
       throw ApiException(res.statusCode, res.body);

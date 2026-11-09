@@ -1,6 +1,8 @@
 import 'package:flutter/foundation.dart' show kReleaseMode;
 import 'package:flutter/material.dart';
 
+import 'theme/yoma_theme.dart';
+
 /// A3: a release build fails closed.
 ///
 /// A release must carry production settings and an HTTPS server address, or be marked as
@@ -65,7 +67,7 @@ class MisconfiguredBuildApp extends StatelessWidget {
           child: ListView(
             padding: const EdgeInsets.all(24),
             children: [
-              const Icon(Icons.block, size: 64, color: Color(0xFFC62828)),
+              const Icon(Icons.block, size: 64, color: YomaColors.error),
               const SizedBox(height: 16),
               const Text(
                 'This copy of Yoma Triage was built wrongly and cannot be used.',
@@ -97,7 +99,7 @@ Widget testReleaseBanner(BuildContext context, Widget? child) {
   return Column(
     children: [
       Material(
-        color: const Color(0xFFC62828),
+        color: YomaColors.error,
         child: SafeArea(
           bottom: false,
           child: SizedBox(
@@ -111,7 +113,7 @@ Widget testReleaseBanner(BuildContext context, Widget? child) {
                 style: Theme.of(context)
                     .textTheme
                     .labelLarge
-                    ?.copyWith(color: Colors.white, fontWeight: FontWeight.w700),
+                    ?.copyWith(color: YomaColors.onPrimary, fontWeight: FontWeight.w700),
               ),
             ),
           ),
