@@ -171,6 +171,9 @@ void main() {
     await Host.note('Silence hint with the emulator microphone after 5 s: '
         '${find.byKey(const Key('screening_silence_hint')).evaluate().isNotEmpty}.');
     await tester.shot('b_recording_live');
+    // A moment later: the rings move with the sound.
+    await tester.wait(const Duration(milliseconds: 700));
+    await tester.shot('b_recording_live_2');
     await tester.tapOn(find.byKey(const Key('screening_stop')));
     await tester.waitFor(find.byType(VitalsScreen), timeout: const Duration(seconds: 60));
 

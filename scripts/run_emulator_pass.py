@@ -185,7 +185,14 @@ class Device:
                         "-port",
                         str(self.port),
                         "-no-window",
-                        "-no-audio",
+                        # Opt-in: let the emulator's microphone hear a host source (e.g. a
+                        # PULSE_SOURCE set by the caller), to check the breathing pulse with
+                        # real sound. Otherwise no audio at all.
+                        *(
+                            ["-allow-host-audio"]
+                            if os.environ.get("YOMA_EMULATOR_HOST_AUDIO") == "1"
+                            else ["-no-audio"]
+                        ),
                         "-no-boot-anim",
                         # Cold boot without loading a snapshot. Round 6: "-no-snapshot"
                         # (no load and no save) crashed API 34 during cold boot (exit
