@@ -21,6 +21,7 @@ dependencies:
   tflite_flutter: ^0.11.0
   crypto: ^3.0.7
   url_launcher: ^6.3.3
+  app_settings: ^9.0.1
 
 dev_dependencies:
   flutter_test:

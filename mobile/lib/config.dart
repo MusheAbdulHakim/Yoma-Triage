@@ -52,6 +52,14 @@ abstract final class ScreeningConfig {
     return parsed;
   }
 
+  /// The redesign's Ready step (Start before recording) and breathing-check result step
+  /// (before vitals). Both add a tap to today's flow, so they are off until that is
+  /// decided: `--dart-define=BREATHING_STEPS=true`. See docs/audit/UI_REDESIGN.md, round 2.
+  static bool get breathingSteps {
+    const raw = String.fromEnvironment('BREATHING_STEPS');
+    return raw.toLowerCase() == 'true' || raw == '1';
+  }
+
   /// `yamnet` | `hear_event` | `opera_ce` | `stub`
   /// Pass `--dart-define=SCREENING_MODEL=...`
   static String get model {

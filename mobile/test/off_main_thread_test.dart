@@ -64,6 +64,9 @@ class _SlowStopRecorder implements AudioRecorderService {
 
   @override
   Future<void> dispose() async {}
+
+  @override
+  Stream<double> levels() => const Stream.empty();
 }
 
 class _CountingClassifier implements YamnetClassifier {
@@ -91,6 +94,9 @@ class _FakeRecorder implements AudioRecorderService {
 
   @override
   Future<void> dispose() async {}
+
+  @override
+  Stream<double> levels() => const Stream.empty();
 }
 
 /// Records and analyses for the screen without a microphone. The analysis waits for
@@ -286,7 +292,7 @@ void main() {
         MaterialApp(home: ScreeningScreen(forceWebSimulator: false, service: service)),
       );
       await tester.pump(const Duration(milliseconds: 100));
-      await tester.tap(find.text('Stop & Analyze Early'));
+      await tester.tap(find.byKey(const Key('screening_stop')));
       await tester.pump(const Duration(milliseconds: 100));
       return service;
     }
@@ -295,7 +301,7 @@ void main() {
       final service = await analyse(tester);
       expect(find.byKey(const Key('screening_progress')), findsOneWidget);
       expect(find.byKey(const Key('screening_cancel')), findsOneWidget);
-      expect(find.text('Stop & Analyze Early'), findsNothing);
+      expect(find.byKey(const Key('screening_stop')), findsNothing);
       service.classifier.finish.complete(unavailableResult());
       await tester.pumpAndSettle();
     });

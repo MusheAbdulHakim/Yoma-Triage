@@ -29,6 +29,9 @@ class ScreeningService {
     await _recorder!.start();
   }
 
+  /// The live microphone level for the recording screen; empty when there is no recorder.
+  Stream<double> microphoneLevels() => _recorder?.levels() ?? const Stream.empty();
+
   Future<ScreeningResult> stopAndClassify() async {
     lastDualRunSecondary = null;
     if (kIsWeb) {
