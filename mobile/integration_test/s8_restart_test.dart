@@ -26,6 +26,9 @@ void main() {
     await Host.killBackend();
     await tester.wait(const Duration(seconds: _tierSeconds + 5));
     await tester.shot('s8_2_backend_down');
+    // Unreachable: the banner and contacts come first (round 5), so on a short screen the
+    // timeline is further down.
+    await tester.reveal(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')));
     expect(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), findsOneWidget, reason: 'last known status stays');
     // A4: plain words and a next step, not the network error.
     expect(find.textContaining('Server unreachable'), findsOneWidget);
