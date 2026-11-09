@@ -7,6 +7,7 @@
 import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show rootBundle;
 import 'package:flutter_test/flutter_test.dart';
 import 'package:http/http.dart' as http;
@@ -174,8 +175,8 @@ final Map<String, Widget Function()> _screens = {
   'Dispatch: no driver': () => _dispatchScreen('FAILED'),
   'Dispatch: diverted': () => _dispatchScreen('HOSPITAL_NOTIFIED',
       driver: 'Ibrahim', divertedFrom: 'Navrongo War Memorial Hospital'),
-  'Not sent yet': () => QueuedReferralScreen(
-      clientRequestId: 'req-1', facilityId: 1, launcher: (_) async => true),
+  'Not sent yet': () =>
+      QueuedReferralScreen(clientRequestId: 'req-1', facilityId: 1, launcher: (_) async => true),
   'Result with breathing advisory': () => ResultScreen(
         result: _acoustic('RED'),
         vitals: _vitals(hr: 118),
@@ -215,6 +216,41 @@ double contrast(Color a, Color b) {
   return (math.max(la, lb) + 0.05) / (math.min(la, lb) + 0.05);
 }
 
+/// Every node in the live semantics tree: what TalkBack actually gets.
+List<SemanticsNode> semanticsNodes(WidgetTester tester) {
+  final root = tester.binding.renderViews.first.owner!.semanticsOwner!.rootSemanticsNode!;
+  final out = <SemanticsNode>[];
+  void visit(SemanticsNode node) {
+    out.add(node);
+    node.visitChildren((child) {
+      visit(child);
+      return true;
+    });
+  }
+
+  visit(root);
+  return out;
+}
+
+/// Stronger than Flutter's labeled-tap-target guideline, which skips any node flagged as
+/// a text field (so a toggle merged into a field, or an unnamed field, passes it).
+void expectSeparateNamedControls(WidgetTester tester) {
+  for (final node in semanticsNodes(tester)) {
+    if (node.isInvisible || node.isMergedIntoParent) continue;
+    final flags = node.flagsCollection;
+    final data = node.getSemanticsData();
+    final label = data.label.trim();
+    expect(flags.isTextField && flags.isButton, isFalse,
+        reason: 'a button merged into a text field: $node');
+    expect(flags.isTextField && data.hasAction(SemanticsAction.tap) && label.isEmpty, isFalse,
+        reason: 'an editable field with no name: $node');
+    if (!flags.isTextField && data.hasAction(SemanticsAction.tap)) {
+      expect(label.isNotEmpty || data.tooltip.isNotEmpty, isTrue,
+          reason: 'a tappable control with no name: $node');
+    }
+  }
+}
+
 void main() {
   setUp(() {
     rootBundle.clear();
@@ -229,6 +265,14 @@ void main() {
         await _pump(tester, entry.value());
         await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
         await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+        handle.dispose();
+      });
+
+      testWidgets('every control is its own named node in the semantics tree', (tester) async {
+        _screen(tester, const Size(360, 640));
+        final handle = tester.ensureSemantics();
+        await _pump(tester, entry.value());
+        expectSeparateNamedControls(tester);
         handle.dispose();
       });
 
@@ -313,5 +357,56 @@ void main() {
       expect(ratio, greaterThanOrEqualTo(large ? 3.0 : 4.5),
           reason: '$name: ${ratio.toStringAsFixed(2)}:1');
     }
+  });
+
+  testWidgets('Record vitals: six named editable fields and seven separate toggles',
+      (tester) async {
+    tester.view.physicalSize = const Size(1000, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handle = tester.ensureSemantics();
+    await _pump(tester, VitalsScreen(result: moewsOnlyResult()));
+    final nodes = semanticsNodes(tester).where((n) => !n.isMergedIntoParent).toList();
+    final fields = nodes.where((n) => n.flagsCollection.isTextField).map((n) => n.label).toList();
+    expect(fields.length, 6, reason: '$fields');
+    for (final name in [
+      'Systolic blood pressure',
+      'Diastolic blood pressure',
+      'Heart rate',
+      'Breathing rate',
+      'Temperature',
+      'Oxygen saturation',
+    ]) {
+      expect(fields.where((l) => l.startsWith(name)), hasLength(1), reason: name);
+    }
+    final toggles = nodes
+        .where((n) => n.flagsCollection.isButton && n.label.endsWith('not measured'))
+        .map((n) => n.label)
+        .toList();
+    expect(toggles, hasLength(7), reason: '$toggles');
+    expect(toggles, contains('Heart rate not measured'));
+    expect(toggles, contains('Consciousness not measured'));
+    handle.dispose();
+  });
+
+  testWidgets('Record vitals: a validation message is shown whole, below the field',
+      (tester) async {
+    tester.view.physicalSize = const Size(360, 1400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    await _pump(tester, VitalsScreen(result: moewsOnlyResult()));
+    await tester.tap(find.byKey(const Key('vitals_see_result')));
+    await tester.pump();
+    final error = find.byKey(const Key('vitals_hr_error'));
+    expect(error, findsOneWidget);
+    final field = tester.getRect(find.byKey(const Key('vitals_hr')));
+    final message = tester.getRect(error);
+    expect(message.top, greaterThanOrEqualTo(field.bottom), reason: 'below the field');
+    expect(message.width, greaterThan(field.width * 2), reason: 'full card width');
+    final painter = tester
+        .renderObject<RenderParagraph>(find.descendant(of: error, matching: find.byType(RichText)));
+    expect(painter.didExceedMaxLines, isFalse, reason: 'never cut off');
   });
 }

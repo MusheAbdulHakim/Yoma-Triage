@@ -49,7 +49,11 @@ void main() {
       await tester.tap(find.byKey(const Key('vitals_see_result')));
       await tester.pumpAndSettle();
       expect(find.byType(ResultScreen), findsNothing);
-      expect(find.text('Enter a value or tick Not measured'), findsNWidgets(6));
+      // Each vital shows its own message, whole, below its field.
+      for (final id in _ids) {
+        final shown = tester.widget<Text>(find.byKey(Key('vitals_${id}_error')));
+        expect(shown.data, endsWith('Enter a value or tick Not measured'), reason: id);
+      }
       expect(find.text('Select AVPU or Not measured'), findsOneWidget);
     });
 
@@ -191,7 +195,11 @@ void main() {
       await tester.tap(send);
       await tester.pumpAndSettle();
       expect(find.text('Enter the name, or type Unknown'), findsOneWidget);
-      expect(find.text('Enter a value or tick Not measured'), findsNWidgets(6));
+      // Each vital shows its own message, whole, below its field.
+      for (final id in _ids) {
+        final shown = tester.widget<Text>(find.byKey(Key('referral_${id}_error')));
+        expect(shown.data, endsWith('Enter a value or tick Not measured'), reason: id);
+      }
       expect(find.text('Select AVPU or Not measured'), findsOneWidget);
     });
 

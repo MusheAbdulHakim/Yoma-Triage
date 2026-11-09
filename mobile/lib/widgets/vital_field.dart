@@ -31,8 +31,7 @@ class VitalInput {
 
   int? get intValue => notMeasured ? null : int.tryParse(controller.text.trim());
 
-  double? get doubleValue =>
-      notMeasured ? null : double.tryParse(controller.text.trim());
+  double? get doubleValue => notMeasured ? null : double.tryParse(controller.text.trim());
 
   void setValue(Object value) {
     notMeasured = false;
@@ -79,6 +78,9 @@ class _NotMeasuredToggle extends StatelessWidget {
           decorationColor: YomaColors.grey700,
         );
     return Semantics(
+      // Its own node: without this it merged into the text field beside it, and screen
+      // readers could reach neither.
+      container: true,
       button: true,
       toggled: notMeasured,
       label: notMeasured ? 'Clear: $label marked not measured' : '$label not measured',
@@ -117,7 +119,15 @@ class _VitalTextField extends StatelessWidget {
     required this.unit,
     required this.highlight,
     required this.onChanged,
+    required this.semanticLabel,
+    required this.onError,
   });
+
+  /// What a screen reader calls this field, e.g. "Heart rate".
+  final String semanticLabel;
+
+  /// Reports the validation message, which the card shows below at full width.
+  final ValueChanged<String?> onError;
 
   final String fieldKey;
   final VitalInput input;
@@ -141,15 +151,31 @@ class _VitalTextField extends StatelessWidget {
       style: text.headlineSmall?.copyWith(fontSize: 20, height: 1.2),
       onChanged: (_) => onChanged(),
       decoration: InputDecoration(
-        // The visible label sits beside the field; this one names it for screen readers.
         semanticCounterText: '',
-        hintText: notMeasured ? 'NOT MEASURED' : '—',
-        hintStyle: notMeasured
-            ? text.labelSmall?.copyWith(color: YomaColors.grey700, letterSpacing: 0.6)
-            : text.headlineSmall?.copyWith(fontSize: 20, color: YomaColors.grey500),
+        // The placeholder sits in the label slot (it never floats), so the field's own
+        // semantics node is named, e.g. "Heart rate". A Semantics widget around the field
+        // can't name it: the decorator merges only its own label/hint text into the node.
+        floatingLabelBehavior: FloatingLabelBehavior.never,
+        label: Semantics(
+          label: notMeasured ? '$semanticLabel, not measured' : semanticLabel,
+          excludeSemantics: true,
+          child: SizedBox(
+            width: double.infinity,
+            child: Text(
+              notMeasured ? 'NOT MEASURED' : '—',
+              textAlign: TextAlign.end,
+              style: notMeasured
+                  ? text.labelSmall?.copyWith(color: YomaColors.grey700, letterSpacing: 0.6)
+                  : text.headlineSmall?.copyWith(fontSize: 20, color: YomaColors.grey500),
+            ),
+          ),
+        ),
         suffixText: notMeasured ? null : unit,
         suffixStyle: text.labelSmall?.copyWith(color: YomaColors.grey600),
-        errorMaxLines: 3,
+        // The message is drawn below the row at full card width (never squeezed into this
+        // narrow box); here it only colours the border and stays in the field's semantics.
+        errorStyle: const TextStyle(fontSize: 0, height: 0),
+        errorMaxLines: 1,
         isDense: true,
         contentPadding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
         fillColor: notMeasured
@@ -164,7 +190,37 @@ class _VitalTextField extends StatelessWidget {
               )
             : null,
       ),
-      validator: (value) => _validateVital(input, limits, decimal, value),
+      validator: (value) {
+        final error = _validateVital(input, limits, decimal, value);
+        onError(error);
+        return error;
+      },
+    );
+  }
+}
+
+/// A validation message under a vital's row, at the card's full width. The field itself
+/// carries the message for screen readers, so this copy is not read twice.
+class _VitalError extends StatelessWidget {
+  const _VitalError({required this.text, required this.errorKey});
+
+  final String text;
+  final Key errorKey;
+
+  @override
+  Widget build(BuildContext context) {
+    return ExcludeSemantics(
+      child: Padding(
+        padding: const EdgeInsets.only(bottom: 6),
+        child: Text(
+          text,
+          key: errorKey,
+          style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                color: YomaColors.error,
+                fontWeight: FontWeight.w600,
+              ),
+        ),
+      ),
     );
   }
 }
@@ -204,6 +260,12 @@ class VitalField extends StatefulWidget {
 }
 
 class _VitalFieldState extends State<VitalField> {
+  String? _error;
+
+  void _onError(String? error) {
+    if (error != _error && mounted) setState(() => _error = error);
+  }
+
   void _setNotMeasured(bool value) {
     setState(() {
       widget.input.notMeasured = value;
@@ -216,10 +278,13 @@ class _VitalFieldState extends State<VitalField> {
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
     final notMeasured = widget.input.notMeasured;
-    final label = Text(
-      widget.label,
-      style: text.titleMedium?.copyWith(
-        color: notMeasured ? YomaColors.grey600 : YomaColors.grey800,
+    // The field carries the name for screen readers; this is the visible copy.
+    final label = ExcludeSemantics(
+      child: Text(
+        widget.label,
+        style: text.titleMedium?.copyWith(
+          color: notMeasured ? YomaColors.grey600 : YomaColors.grey800,
+        ),
       ),
     );
     final toggle = _NotMeasuredToggle(
@@ -230,18 +295,17 @@ class _VitalFieldState extends State<VitalField> {
     );
     Widget field(double width) => SizedBox(
           width: width,
-          child: Semantics(
+          child: _VitalTextField(
+            fieldKey: widget.fieldKey,
+            input: widget.input,
+            limits: widget.limits,
+            decimal: widget.decimal,
             label: widget.label,
-            child: _VitalTextField(
-              fieldKey: widget.fieldKey,
-              input: widget.input,
-              limits: widget.limits,
-              decimal: widget.decimal,
-              label: widget.label,
-              unit: widget.unit,
-              highlight: widget.highlight,
-              onChanged: () => widget.onChanged?.call(),
-            ),
+            semanticLabel: widget.label,
+            unit: widget.unit,
+            highlight: widget.highlight,
+            onChanged: () => widget.onChanged?.call(),
+            onError: _onError,
           ),
         );
 
@@ -286,6 +350,8 @@ class _VitalFieldState extends State<VitalField> {
                       Padding(padding: const EdgeInsets.only(top: 6), child: field(120)),
                     ],
                   ),
+                if (_error != null)
+                  _VitalError(text: _error!, errorKey: Key('${widget.fieldKey}_error')),
                 if (widget.helperText != null)
                   Padding(
                     padding: const EdgeInsets.only(bottom: 6),
@@ -328,6 +394,12 @@ class BloodPressureField extends StatefulWidget {
 }
 
 class _BloodPressureFieldState extends State<BloodPressureField> {
+  final _errors = <String, String?>{};
+
+  void _onError(String name, String? error) {
+    if (_errors[name] != error && mounted) setState(() => _errors[name] = error);
+  }
+
   void _toggle(VitalInput input) {
     setState(() {
       input.notMeasured = !input.notMeasured;
@@ -341,20 +413,21 @@ class _BloodPressureFieldState extends State<BloodPressureField> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(name, style: text.bodySmall?.copyWith(color: YomaColors.grey600)),
+        ExcludeSemantics(
+          child: Text(name, style: text.bodySmall?.copyWith(color: YomaColors.grey600)),
+        ),
         const SizedBox(height: 4),
-        Semantics(
-          label: '$name blood pressure',
-          child: _VitalTextField(
-            fieldKey: key,
-            input: input,
-            limits: limits,
-            decimal: false,
-            label: name,
-            unit: 'mmHg',
-            highlight: false,
-            onChanged: () => widget.onChanged?.call(),
-          ),
+        _VitalTextField(
+          fieldKey: key,
+          input: input,
+          limits: limits,
+          decimal: false,
+          label: name,
+          semanticLabel: '$name blood pressure',
+          unit: 'mmHg',
+          highlight: false,
+          onChanged: () => widget.onChanged?.call(),
+          onError: (error) => _onError(name, error),
         ),
         _NotMeasuredToggle(
           toggleKey: Key('${key}_not_measured'),
@@ -385,19 +458,27 @@ class _BloodPressureFieldState extends State<BloodPressureField> {
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Expanded(
-                  child: _half('Systolic', widget.systolic, widget.systolicKey,
-                      VitalLimits.systolicBp),
+                  child: _half(
+                      'Systolic', widget.systolic, widget.systolicKey, VitalLimits.systolicBp),
                 ),
                 Padding(
                   padding: const EdgeInsets.fromLTRB(8, 30, 8, 0),
                   child: Text('/', style: text.titleLarge?.copyWith(color: YomaColors.grey500)),
                 ),
                 Expanded(
-                  child: _half('Diastolic', widget.diastolic, widget.diastolicKey,
-                      VitalLimits.diastolicBp),
+                  child: _half(
+                      'Diastolic', widget.diastolic, widget.diastolicKey, VitalLimits.diastolicBp),
                 ),
               ],
             ),
+            for (final name in const ['Systolic', 'Diastolic'])
+              if (_errors[name] case final error?)
+                _VitalError(
+                  text: '$name: $error',
+                  errorKey: Key(name == 'Systolic'
+                      ? '${widget.systolicKey}_error'
+                      : '${widget.diastolicKey}_error'),
+                ),
           ],
         ),
       ),
@@ -417,8 +498,7 @@ class AvpuField extends StatelessWidget {
   static const notMeasured = 'NOT_MEASURED';
 
   /// The API value for a selection.
-  static String? apiValue(String? selection) =>
-      selection == notMeasured ? null : selection;
+  static String? apiValue(String? selection) => selection == notMeasured ? null : selection;
 
   /// Restores a selection recorded earlier in the session.
   static String? fromVitals(Map<String, Object?>? vitals) {
