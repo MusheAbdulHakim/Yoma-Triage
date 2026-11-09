@@ -48,7 +48,8 @@ void main() {
     await Host.note('USSD accept replied: "$accept"');
     expect(accept, contains('Accepted'));
     await tester.waitFor(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), timeout: const Duration(seconds: 15));
-    await tester.waitFor(find.textContaining('Driver: Ibrahim'));
+    // The driver card, with the vehicle from the API (round 6).
+    await tester.waitFor(find.textContaining('Ibrahim – Motor-King'));
     await tester.shot('s4_5_accepted');
 
     final arrival = await ussdArrival(motorKingDriver);
