@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:uuid/uuid.dart';
 
 import '../config.dart';
+import '../models/emergency_type.dart';
 import '../models/facility_catalog.dart';
 import '../models/referral.dart';
 import '../services/api_client.dart';
@@ -60,13 +61,6 @@ class _ReferralScreenState extends State<ReferralScreen> {
   late final ApiClient _api = widget.api ?? ApiClient();
   final _catalogStore = CatalogStore();
 
-  /// The app's emergency types (API value, label). Not the design's example list.
-  static const _emergencyTypes = [
-    ('respiratory_distress', 'Respiratory distress'),
-    ('pph', 'Postpartum hemorrhage'),
-    ('neonatal_asphyxia', 'Neonatal asphyxia'),
-    ('eclampsia', 'Eclampsia'),
-  ];
 
   static const _notSetUp = 'This phone is not set up as a CHO, so it cannot send a referral. '
       'Call the driver and hospital directly.';
@@ -345,7 +339,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
                         runSpacing: gap,
                         children: [
                           // The app's current list of types, unchanged.
-                          for (final (value, label) in _emergencyTypes)
+                          for (final (value, label) in emergencyTypes)
                             SizedBox(
                               width: width,
                               child: YomaChoiceChip(
