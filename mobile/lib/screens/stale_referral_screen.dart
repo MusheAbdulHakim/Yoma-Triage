@@ -1,12 +1,11 @@
 import 'package:flutter/material.dart';
 
 import '../models/emergency_type.dart';
-import '../services/friendly_time.dart';
-
 import '../parameters.dart';
-
 import '../services/api_client.dart';
+import '../services/catalog_store.dart';
 import '../services/cho_store.dart';
+import '../services/friendly_time.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/manual_contacts_panel.dart';
@@ -14,46 +13,111 @@ import 'dispatch_status_screen.dart';
 
 /// The server stored these referrals but told nobody, because they waited too long on the
 /// phone. A driver could otherwise rush to a patient who left hours ago.
-class StaleReferralScreen extends StatefulWidget {
-  const StaleReferralScreen({
+///
+/// Round 7: a bottom sheet over the current screen (the Stitch design), one referral at a
+/// time ("1 of 3"), three one-tap answers, and no way to dismiss it without one. The answers
+/// and what they do are unchanged from the old page.
+Future<void> showStaleReferralSheet(
+  BuildContext context, {
+  required OfflineQueue queue,
+  ApiClient? api,
+  ContactLauncher launcher = launchWithPhone,
+}) async {
+  final client = api ?? ApiClient();
+  final outcome = await showModalBottomSheet<_SentToDrivers>(
+    context: context,
+    isDismissible: false,
+    enableDrag: false,
+    isScrollControlled: true,
+    useSafeArea: true,
+    backgroundColor: YomaColors.surface,
+    barrierColor: YomaColors.neutral.withValues(alpha: 0.6),
+    shape: const RoundedRectangleBorder(
+      borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
+    ),
+    builder: (_) => StaleReferralSheet(queue: queue, api: client, launcher: launcher),
+  );
+  if (outcome == null || !context.mounted) return;
+  // Send now went out: follow it on the status screen, as before.
+  await Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (_) => DispatchStatusScreen(
+        dispatchId: outcome.dispatchId,
+        clientRequestId: outcome.clientRequestId,
+        facilityId: outcome.facilityId,
+        api: client,
+        queue: queue,
+        launcher: launcher,
+      ),
+    ),
+  );
+}
+
+/// Which referral went to drivers, for the status screen after the sheet closes.
+class _SentToDrivers {
+  const _SentToDrivers(this.dispatchId, this.clientRequestId, this.facilityId);
+
+  final int dispatchId;
+  final String clientRequestId;
+  final int? facilityId;
+}
+
+enum _Answer {
+  sendNow('send_now', 'Send now'),
+  alreadyHandled('already_handled', 'Already handled'),
+  cancel('cancel', 'Cancel referral');
+
+  const _Answer(this.action, this.label);
+
+  /// The API's action name: send_now, already_handled or cancel.
+  final String action;
+  final String label;
+}
+
+/// The sheet's content. Public for tests; open it with [showStaleReferralSheet].
+class StaleReferralSheet extends StatefulWidget {
+  const StaleReferralSheet({
     super.key,
     required this.queue,
-    this.api,
+    required this.api,
     this.launcher = launchWithPhone,
   });
 
   final OfflineQueue queue;
-  final ApiClient? api;
+  final ApiClient api;
   final ContactLauncher launcher;
 
   @override
-  State<StaleReferralScreen> createState() => _StaleReferralScreenState();
+  State<StaleReferralSheet> createState() => _StaleReferralSheetState();
 }
 
-enum _Answer {
-  sendNow('send_now', 'Send now', 'Alert drivers now'),
-  alreadyHandled('already_handled', 'Already handled', 'Transport was arranged another way'),
-  cancel('cancel', 'Cancel', 'This referral is no longer needed');
-
-  const _Answer(this.action, this.label, this.hint);
-
-  final String action;
-  final String label;
-  final String hint;
-}
-
-class _StaleReferralScreenState extends State<StaleReferralScreen> {
-  late final ApiClient _api = widget.api ?? ApiClient();
+class _StaleReferralSheetState extends State<StaleReferralSheet> {
   List<QueuedReferral> _items = const [];
-  final Map<String, _Answer> _chosen = {};
-  final Set<String> _sending = {};
-  final Map<String, String> _problems = {};
+  Map<int, String> _facilityNames = const {};
   bool _loaded = false;
+
+  /// Answered in this sheet so far, for "2 of 3".
+  int _answered = 0;
+  _Answer? _sending;
+  String? _problem;
+
+  QueuedReferral? get _current => _items.isEmpty ? null : _items.first;
 
   @override
   void initState() {
     super.initState();
+    _loadNames();
     _load();
+  }
+
+  Future<void> _loadNames() async {
+    try {
+      final graph = await CatalogStore().load();
+      if (!mounted) return;
+      setState(() => _facilityNames = {for (final f in graph.facilities) f.id: f.name});
+    } catch (_) {
+      // Without the catalog the sheet still shows the emergency type and age.
+    }
   }
 
   Future<void> _load() async {
@@ -62,29 +126,24 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
     setState(() {
       _items = items;
       _loaded = true;
-      for (final item in items) {
-        if (item.manualContactMade) {
-          _chosen.putIfAbsent(item.clientRequestId, () => _Answer.alreadyHandled);
-        }
-      }
     });
+    if (items.isEmpty) Navigator.of(context).pop();
   }
 
-  Future<void> _submit(QueuedReferral item) async {
+  Future<void> _answer(QueuedReferral item, _Answer answer) async {
     final id = item.clientRequestId;
-    final answer = _chosen[id];
     final referralId = item.serverReferralId;
-    if (answer == null || referralId == null) return;
+    if (referralId == null || _sending != null) return;
     setState(() {
-      _sending.add(id);
-      _problems.remove(id);
+      _sending = answer;
+      _problem = null;
     });
     String? problem;
     int? dispatchId;
     try {
       final identity = await ChoStore().load();
       final choPhone = identity?.phone ?? item.payload['cho_phone'] as String;
-      final response = await _api.resolveReferral(
+      final response = await widget.api.resolveReferral(
         referralId: referralId,
         action: answer.action,
         choPhone: choPhone,
@@ -108,33 +167,21 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
             e.code == null ? 'Could not save your answer. Try again, or call directly.' : e.reason;
       }
     } catch (_) {
-      problem = 'No connection, so your answer was not saved. '
-          'Try again, or call directly.';
+      problem = 'No connection, so your answer was not saved. Try again, or call directly.';
     }
     if (!mounted) return;
     setState(() {
-      _sending.remove(id);
-      if (problem != null) _problems[id] = problem;
+      _sending = null;
+      _problem = problem;
+      if (problem == null) _answered++;
     });
     if (problem != null) return;
-    await _load();
-    if (!mounted) return;
     if (dispatchId != null) {
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => DispatchStatusScreen(
-            dispatchId: dispatchId,
-            clientRequestId: id,
-            facilityId: item.payload['facility_id'] as int?,
-            api: _api,
-            queue: widget.queue,
-            launcher: widget.launcher,
-          ),
-        ),
-      );
-    } else if (_items.isEmpty) {
-      await Navigator.of(context).maybePop();
+      Navigator.of(context)
+          .pop(_SentToDrivers(dispatchId, id, item.payload['facility_id'] as int?));
+      return;
     }
+    await _load(); // the next one, or close when none is left
   }
 
   Future<void> _explainExpired(String reason) => showDialog<void>(
@@ -161,95 +208,163 @@ class _StaleReferralScreenState extends State<StaleReferralScreen> {
         ),
       );
 
-  Widget _option(QueuedReferral item, _Answer answer) {
-    final id = item.clientRequestId;
-    final selected = _chosen[id] == answer;
-    return ListTile(
-      key: Key('stale_${answer.action}_$id'),
-      selected: selected,
-      contentPadding: EdgeInsets.zero,
-      leading: Icon(
-        selected ? Icons.radio_button_checked : Icons.radio_button_unchecked,
-      ),
-      title: Text(answer.label, style: const TextStyle(fontWeight: FontWeight.w700)),
-      subtitle: Text(answer.hint),
-      onTap: () => setState(() => _chosen[id] = answer),
-    );
-  }
-
-  Widget _card(QueuedReferral item) {
-    final id = item.clientRequestId;
-    final problem = _problems[id];
-    final minutes = item.ageSeconds ~/ 60;
-    return Card(
-      child: Padding(
-        padding: const EdgeInsets.all(16),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
-          children: [
-            Text(
-              emergencyTypeLabel(item.payload['emergency_type']?.toString()),
-              style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-            ),
-            Text('Waited ${countOf(minutes < 1 ? 1 : minutes, 'minute')} on this phone. '
-                'Drivers have not been told.'),
-            if (item.manualContactMade)
-              Text(
-                'You used Call or SMS for this referral.',
-                key: Key('stale_contact_note_$id'),
-                style: const TextStyle(fontWeight: FontWeight.w600),
+  /// The old page's "Reach them yourself" list. Using Call or SMS there marks this
+  /// referral, which makes "Already handled" the main answer.
+  Future<void> _openContacts(QueuedReferral item) async {
+    final facility = item.payload['facility_id'];
+    await Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (_) => Scaffold(
+          appBar: AppBar(title: const Text('Call or SMS a driver')),
+          body: ListView(
+            padding: const EdgeInsets.all(YomaSpacing.lg),
+            children: [
+              ManualContactsPanel(
+                key: const Key('stale_contacts'),
+                facilityIds: {if (facility is int) facility},
+                launcher: widget.launcher,
+                onContactUsed: () => widget.queue.markManualContact(item.clientRequestId),
               ),
-            const SizedBox(height: 8),
-            for (final answer in _Answer.values) _option(item, answer),
-            if (problem != null) ...[
-              Text(
-                problem,
-                key: Key('stale_problem_$id'),
-                style: const TextStyle(color: YomaColors.danger),
-              ),
-              const SizedBox(height: 8),
             ],
-            FilledButton(
-              key: Key('stale_confirm_$id'),
-              style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(48)),
-              onPressed: _chosen[id] == null || _sending.contains(id) ? null : () => _submit(item),
-              child: Text(_sending.contains(id) ? 'Saving…' : 'Confirm'),
-            ),
-          ],
+          ),
         ),
       ),
     );
+    await _load();
   }
 
   @override
   Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Still needs transport?')),
-      body: ListView(
-        padding: const EdgeInsets.all(16),
+    final item = _current;
+    return PopScope(
+      // The CHO must choose: Android back does not close it either.
+      canPop: false,
+      child: Padding(
+        padding: const EdgeInsets.fromLTRB(20, 12, 20, 16),
+        child: !_loaded || item == null
+            ? const SizedBox(height: 120, child: Center(child: CircularProgressIndicator()))
+            : _content(context, item),
+      ),
+    );
+  }
+
+  Widget _content(BuildContext context, QueuedReferral item) {
+    final text = Theme.of(context).textTheme;
+    final id = item.clientRequestId;
+    final type = emergencyTypeLabel(item.payload['emergency_type']?.toString());
+    final facility = _facilityNames[item.payload['facility_id']];
+    final total = _answered + _items.length;
+    // Call or SMS already used: Already handled leads (it replaces the old preselected radio).
+    final contacted = item.manualContactMade;
+    final primary = contacted ? _Answer.alreadyHandled : _Answer.sendNow;
+    final secondary = contacted ? _Answer.sendNow : _Answer.alreadyHandled;
+
+    Widget label(_Answer answer) => Text(_sending == answer ? 'Saving…' : answer.label);
+    VoidCallback? tap(_Answer answer) => _sending != null ? null : () => _answer(item, answer);
+
+    return SingleChildScrollView(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          if (_loaded && _items.isEmpty) const Text('Nothing is waiting for your answer.'),
-          for (final item in _items) _card(item),
-          const SizedBox(height: 16),
-          if (_loaded)
-            ManualContactsPanel(
-              key: ValueKey(_items.length),
-              facilityIds: {
-                for (final item in _items)
-                  if (item.payload['facility_id'] is int) item.payload['facility_id'] as int,
-              },
-              launcher: widget.launcher,
-              onContactUsed: () {
-                for (final item in _items) {
-                  widget.queue.markManualContact(item.clientRequestId);
-                  _chosen.putIfAbsent(
-                    item.clientRequestId,
-                    () => _Answer.alreadyHandled,
-                  );
-                }
-                setState(() {});
-              },
+          // The design's handle. The sheet can't be dragged away; it only shows the shape.
+          ExcludeSemantics(
+            child: Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: 16),
+                decoration: BoxDecoration(
+                  color: YomaColors.grey300,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
             ),
+          ),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Expanded(
+                child: Semantics(
+                  header: true,
+                  child: Text(
+                    'Still needs transport?',
+                    style: text.headlineSmall?.copyWith(color: YomaColors.grey900),
+                  ),
+                ),
+              ),
+              if (total > 1)
+                Padding(
+                  padding: const EdgeInsets.only(left: 8, top: 6),
+                  child: Text(
+                    '${_answered + 1} of $total',
+                    key: const Key('stale_position'),
+                    style: text.labelMedium?.copyWith(color: YomaColors.grey700),
+                  ),
+                ),
+            ],
+          ),
+          const SizedBox(height: 8),
+          Text(
+            facility == null ? type : '$type → $facility',
+            key: Key('stale_what_$id'),
+            style: text.titleMedium?.copyWith(color: YomaColors.grey900),
+          ),
+          const SizedBox(height: 2),
+          Text(
+            'Saved ${ago(Duration(seconds: item.ageSeconds))}',
+            key: Key('stale_age_$id'),
+            style: text.bodyMedium?.copyWith(color: YomaColors.grey700),
+          ),
+          if (contacted) ...[
+            const SizedBox(height: 8),
+            Text(
+              'You called or texted a driver for this referral.',
+              key: Key('stale_contact_note_$id'),
+              style: text.bodyMedium?.copyWith(
+                color: YomaColors.grey900,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ],
+          const SizedBox(height: 20),
+          FilledButton(
+            key: Key('stale_${primary.action}_$id'),
+            style: FilledButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+            onPressed: tap(primary),
+            child: label(primary),
+          ),
+          const SizedBox(height: 12),
+          OutlinedButton(
+            key: Key('stale_${secondary.action}_$id'),
+            style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+            onPressed: tap(secondary),
+            child: label(secondary),
+          ),
+          const SizedBox(height: 4),
+          TextButton(
+            key: Key('stale_cancel_$id'),
+            style: TextButton.styleFrom(foregroundColor: YomaColors.grey700),
+            onPressed: tap(_Answer.cancel),
+            child: label(_Answer.cancel),
+          ),
+          if (_problem != null)
+            Padding(
+              padding: const EdgeInsets.only(top: 8),
+              child: Text(
+                _problem!,
+                key: Key('stale_problem_$id'),
+                textAlign: TextAlign.center,
+                style: text.bodyMedium?.copyWith(color: YomaColors.error),
+              ),
+            ),
+          Center(
+            child: TextButton(
+              key: Key('stale_call_or_sms_$id'),
+              onPressed: _sending != null ? null : () => _openContacts(item),
+              child: const Text('Call or SMS a driver'),
+            ),
+          ),
         ],
       ),
     );

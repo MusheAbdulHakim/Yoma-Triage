@@ -45,9 +45,10 @@ void main() {
       reason: 'the stale prompt to open after reconnecting',
     );
     await Host.metric('reconnect_to_prompt_ms', stopwatch.elapsedMilliseconds);
-    await tester.waitFor(_keyStarting('stale_confirm_'));
+    await tester.waitFor(_keyStarting('stale_cancel_'));
     await tester.wait(const Duration(seconds: 3));
     await tester.shot('s7_2_prompt');
+    expect(find.text('1 of $answers'), findsOneWidget, reason: 'one at a time');
 
     var stored = await Host.rows('referrals');
     expect(stored, hasLength(answers), reason: 'all three reached the server');
@@ -62,9 +63,9 @@ void main() {
       final id = (tester.widget(option).key! as ValueKey<String>)
           .value
           .substring('stale_${action}_'.length);
+      // One tap answers: the sheet then shows the next one, or closes.
       await tester.tapOn(find.byKey(Key('stale_${action}_$id')));
-      await tester.tapOn(find.byKey(Key('stale_confirm_$id')));
-      await tester.waitUntilGone(find.byKey(Key('stale_confirm_$id')));
+      await tester.waitUntilGone(find.byKey(Key('stale_cancel_$id')));
     }
 
     await answer('already_handled');

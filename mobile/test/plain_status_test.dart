@@ -134,7 +134,7 @@ void main() {
       await tester.runAsync(() => queue.flush(server));
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 200)));
       await _pumpFor(tester, const Duration(milliseconds: 500));
-      expect(find.byType(StaleReferralScreen), findsOneWidget);
+      expect(find.byType(StaleReferralSheet), findsOneWidget);
     });
 
     testWidgets('still no signal: it stays, and says nothing new', (tester) async {

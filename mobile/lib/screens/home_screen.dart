@@ -115,12 +115,9 @@ class _HomeScreenState extends State<HomeScreen> {
     }
   }
 
+  /// "Still needs transport?" as a sheet over Home; it closes only with an answer.
   void _openStalePrompt() {
-    Navigator.of(context).push(
-      MaterialPageRoute(
-        builder: (_) => StaleReferralScreen(queue: _queue, api: widget.api),
-      ),
-    );
+    showStaleReferralSheet(context, queue: _queue, api: widget.api);
   }
 
   Future<void> _loadCompoundName() async {

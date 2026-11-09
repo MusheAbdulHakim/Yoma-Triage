@@ -12,6 +12,7 @@ import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/screens/stale_referral_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
+import 'package:yoma_triage/widgets/manual_contacts_panel.dart';
 
 import 'helpers/cho_helper.dart';
 
@@ -227,44 +228,89 @@ void main() {
     });
   });
 
-  group('the prompt', () {
+  /// Home stand-in: one button that opens the sheet, as Home does.
+  Future<void> openSheet(WidgetTester tester, ApiClient api,
+      {ContactLauncher launcher = launchWithPhone}) async {
+    await tester.pumpWidget(MaterialApp(
+      home: Builder(
+        builder: (context) => Scaffold(
+          body: Center(
+            child: TextButton(
+              key: const Key('open_sheet'),
+              onPressed: () =>
+                  showStaleReferralSheet(context, queue: queue, api: api, launcher: launcher),
+              child: const Text('open'),
+            ),
+          ),
+        ),
+      ),
+    ));
+    await tester.tap(find.byKey(const Key('open_sheet')));
+    await pumpUntil(tester, find.byType(StaleReferralSheet));
+    await pumpUntil(tester, find.byKey(const Key('stale_cancel_$_id')));
+    // Let the sheet finish sliding in, or a tap lands below it.
+    await tester.pump(const Duration(seconds: 1));
+  }
+
+  Future<void> choose(WidgetTester tester, String action, {String id = _id}) async {
+    // One tap acts at once: there is no Confirm.
+    await tester.tap(find.byKey(Key('stale_${action}_$id')));
+  }
+
+  /// The filled (main) and outlined buttons' keys, in that order.
+  (String, String) buttonOrder(WidgetTester tester) {
+    String keyOf(Finder f) => (tester.widget(f).key! as ValueKey<String>).value;
+    return (
+      keyOf(find.descendant(
+          of: find.byType(StaleReferralSheet), matching: find.byType(FilledButton))),
+      keyOf(find.descendant(
+          of: find.byType(StaleReferralSheet), matching: find.byType(OutlinedButton))),
+    );
+  }
+
+  group('the sheet', () {
     Future<_Server> pumpPrompt(WidgetTester tester, {_Server? server}) async {
       useTallScreen(tester);
       final api = server ?? _Server();
       await tester.runAsync(() async {
-        await enqueueAged(const Duration(minutes: 30));
+        await enqueueAged(const Duration(minutes: 45));
         await queue.flush(api);
       });
-      await tester.pumpWidget(
-        MaterialApp(home: StaleReferralScreen(queue: queue, api: api)),
-      );
-      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+      await openSheet(tester, api);
       return api;
     }
 
-    Future<void> choose(WidgetTester tester, String action) async {
-      await tester.tap(find.byKey(Key('stale_${action}_$_id')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('stale_confirm_$_id')));
-    }
-
-    testWidgets('asks the question and offers the three answers', (tester) async {
+    testWidgets('asks the question, says what and when, and offers three one-tap answers',
+        (tester) async {
       await pumpPrompt(tester);
       expect(find.text('Still needs transport?'), findsOneWidget);
+      expect(find.byKey(const Key('stale_what_$_id')), findsOneWidget);
+      expect(find.text('Saved 45 minutes ago'), findsOneWidget);
       expect(find.text('Send now'), findsOneWidget);
       expect(find.text('Already handled'), findsOneWidget);
-      expect(find.text('Cancel'), findsOneWidget);
+      expect(find.text('Cancel referral'), findsOneWidget);
+      expect(find.text('Confirm'), findsNothing, reason: 'no separate Confirm');
+      expect(find.byType(Radio<Object>), findsNothing);
+      expect(find.byKey(const Key('stale_position')), findsNothing, reason: 'only one');
     });
 
-    testWidgets('nothing is preselected unless the CHO called someone', (tester) async {
+    testWidgets('the emergency type in words, never the code', (tester) async {
       await pumpPrompt(tester);
-      final confirm = tester.widget<FilledButton>(
-        find.byKey(const Key('stale_confirm_$_id')),
-      );
-      expect(confirm.onPressed, isNull);
+      final what = tester.widget<Text>(find.byKey(const Key('stale_what_$_id'))).data!;
+      expect(what, startsWith('Heavy bleeding'));
+      expect(what, isNot(contains('pph')));
     });
 
-    testWidgets('a Call or SMS tap preselects Already handled', (tester) async {
+    testWidgets('default order: Send now filled, Already handled outlined, Cancel quiet',
+        (tester) async {
+      await pumpPrompt(tester);
+      expect(buttonOrder(tester), ('stale_send_now_$_id', 'stale_already_handled_$_id'));
+      expect(tester.widget(find.byKey(const Key('stale_cancel_$_id'))), isA<TextButton>());
+      expect(find.byKey(const Key('stale_contact_note_$_id')), findsNothing);
+    });
+
+    testWidgets('after Call or SMS: the note, and Already handled becomes the main button',
+        (tester) async {
       useTallScreen(tester);
       final api = _Server();
       await tester.runAsync(() async {
@@ -272,17 +318,11 @@ void main() {
         await queue.markManualContact(_id);
         await queue.flush(api);
       });
-      await tester.pumpWidget(
-        MaterialApp(home: StaleReferralScreen(queue: queue, api: api)),
-      );
-      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+      await openSheet(tester, api);
 
-      final tile = tester.widget<ListTile>(
-        find.byKey(const Key('stale_already_handled_$_id')),
-      );
-      expect(tile.selected, isTrue);
-      expect(find.byKey(const Key('stale_contact_note_$_id')), findsOneWidget);
-      await tester.tap(find.byKey(const Key('stale_confirm_$_id')));
+      expect(find.text('You called or texted a driver for this referral.'), findsOneWidget);
+      expect(buttonOrder(tester), ('stale_already_handled_$_id', 'stale_send_now_$_id'));
+      await choose(tester, 'already_handled');
       await settle(tester);
       expect(api.resolves.single['action'], 'already_handled');
     });
@@ -293,6 +333,8 @@ void main() {
       await pumpUntil(tester, find.byType(DispatchStatusScreen));
 
       expect(api.resolves.single, {'id': 42, 'action': 'send_now', 'cho': testChoPhone});
+      await tester.pump(const Duration(seconds: 1)); // the sheet slides away
+      expect(find.byType(StaleReferralSheet), findsNothing);
       await tester.runAsync(() async {
         expect(await queue.needsConfirmation(), isEmpty);
         expect(await queue.lookupDispatchId(_id), 7);
@@ -300,27 +342,20 @@ void main() {
       await tester.pumpWidget(const SizedBox());
     });
 
-    testWidgets('Already handled is recorded and removes it', (tester) async {
-      final api = await pumpPrompt(tester);
-      await choose(tester, 'already_handled');
-      await settle(tester);
+    for (final action in ['already_handled', 'cancel']) {
+      testWidgets('$action is recorded at once, removes it, and closes the sheet', (tester) async {
+        final api = await pumpPrompt(tester);
+        await choose(tester, action);
+        await settle(tester);
 
-      expect(api.resolves.single['action'], 'already_handled');
-      await tester.runAsync(() async {
-        expect(await queue.needsConfirmation(), isEmpty);
+        expect(api.resolves.single['action'], action);
+        await tester.pump(const Duration(seconds: 1)); // the sheet slides away
+      expect(find.byType(StaleReferralSheet), findsNothing);
+        await tester.runAsync(() async {
+          expect(await queue.needsConfirmation(), isEmpty);
+        });
       });
-    });
-
-    testWidgets('Cancel is recorded and removes it', (tester) async {
-      final api = await pumpPrompt(tester);
-      await choose(tester, 'cancel');
-      await settle(tester);
-
-      expect(api.resolves.single['action'], 'cancel');
-      await tester.runAsync(() async {
-        expect(await queue.needsConfirmation(), isEmpty);
-      });
-    });
+    }
 
     testWidgets('no connection keeps the question and says the answer was not saved',
         (tester) async {
@@ -330,13 +365,13 @@ void main() {
       await pumpUntil(tester, find.byKey(const Key('stale_problem_$_id')));
 
       expect(find.textContaining('your answer was not saved'), findsOneWidget);
+      expect(find.byType(StaleReferralSheet), findsOneWidget);
       await tester.runAsync(() async {
         expect(await queue.needsConfirmation(), hasLength(1));
       });
     });
 
-    testWidgets('if someone already answered, it is removed rather than stuck',
-        (tester) async {
+    testWidgets('if someone already answered, it is removed rather than stuck', (tester) async {
       final server = _Server()
         ..resolveError = ApiException(
           409,
@@ -348,6 +383,73 @@ void main() {
       await tester.runAsync(() async {
         expect(await queue.needsConfirmation(), isEmpty);
       });
+    });
+
+    testWidgets("can't be dismissed without a choice: not by tapping outside, nor by back",
+        (tester) async {
+      await pumpPrompt(tester);
+      await tester.tapAt(const Offset(20, 20)); // the dimmed area above the sheet
+      await settle(tester);
+      expect(find.byType(StaleReferralSheet), findsOneWidget, reason: 'tap outside');
+      await tester.binding.handlePopRoute(); // Android back
+      await settle(tester);
+      expect(find.byType(StaleReferralSheet), findsOneWidget, reason: 'back');
+      await tester.drag(find.text('Still needs transport?'), const Offset(0, 500));
+      await settle(tester);
+      expect(find.byType(StaleReferralSheet), findsOneWidget, reason: 'drag down');
+    });
+
+    testWidgets('several waiting: one at a time, "1 of 3", then "2 of 3"', (tester) async {
+      useTallScreen(tester);
+      final api = _Server();
+      await tester.runAsync(() async {
+        for (final id in ['req-1', 'req-2', 'req-3']) {
+          await enqueueAged(const Duration(minutes: 45), id: id);
+        }
+        await queue.flush(api);
+      });
+      await openSheet(tester, api);
+
+      expect(find.text('1 of 3'), findsOneWidget);
+      expect(find.byType(FilledButton), findsOneWidget, reason: 'one referral shown');
+      final first = (tester
+              .widget(find.descendant(
+                  of: find.byType(StaleReferralSheet), matching: find.byType(FilledButton)))
+              .key! as ValueKey<String>)
+          .value
+          .substring('stale_send_now_'.length);
+      await choose(tester, 'cancel', id: first);
+      await pumpUntil(tester, find.text('2 of 3'));
+      expect(find.byKey(Key('stale_cancel_$first')), findsNothing, reason: 'the next one');
+      expect(api.resolves, hasLength(1));
+    });
+
+    testWidgets('"Call or SMS a driver" opens the contact list; a call there switches the order',
+        (tester) async {
+      useTallScreen(tester);
+      SharedPreferences.setMockInitialValues({
+        ...registeredChoPrefs(),
+        'manual_contacts':
+            '{"compound_id":1,"drivers":[{"name":"I","phone":"+233240000001","is_motor_king":true}],"facilities":[]}',
+        'manual_contacts_updated_at': DateTime.utc(2026, 11, 5).toIso8601String(),
+      });
+      final api = _Server();
+      await tester.runAsync(() async {
+        await enqueueAged(const Duration(minutes: 45));
+        await queue.flush(api);
+      });
+      await openSheet(tester, api, launcher: (_) async => true);
+      expect(buttonOrder(tester).$1, 'stale_send_now_$_id');
+
+      await tester.tap(find.byKey(const Key('stale_call_or_sms_$_id')));
+      await pumpUntil(tester, find.byKey(const Key('call_+233240000001')));
+      await tester.pump(const Duration(seconds: 1)); // the page slides in
+      await tester.tap(find.byKey(const Key('call_+233240000001')));
+      await settle(tester);
+      await tester.pageBack();
+      await tester.pump(const Duration(seconds: 1));
+      await pumpUntil(tester, find.byKey(const Key('stale_contact_note_$_id')));
+      expect(buttonOrder(tester).$1, 'stale_already_handled_$_id');
     });
   });
 
@@ -364,16 +466,7 @@ void main() {
         await queue.flush(api);
       });
       api.resolveError = ApiException(409, expired);
-      await tester.pumpWidget(
-        MaterialApp(home: StaleReferralScreen(queue: queue, api: api)),
-      );
-      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
-    }
-
-    Future<void> choose(WidgetTester tester, String action) async {
-      await tester.tap(find.byKey(Key('stale_${action}_$_id')));
-      await tester.pump();
-      await tester.tap(find.byKey(const Key('stale_confirm_$_id')));
+      await openSheet(tester, api);
     }
 
     testWidgets('Send now says drivers were not told, and waits to be read', (tester) async {
@@ -410,7 +503,7 @@ void main() {
     }
   });
 
-  group('how the prompt is reached', () {
+  group('how the sheet is reached', () {
     testWidgets('Home opens it when a stale referral arrives', (tester) async {
       useTallScreen(tester);
       final api = _Server();
@@ -422,12 +515,13 @@ void main() {
         await enqueueAged(const Duration(minutes: 30));
         await queue.flush(api);
       });
-      await pumpUntil(tester, find.byType(StaleReferralScreen));
-      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+      await pumpUntil(tester, find.byType(StaleReferralSheet));
+      await pumpUntil(tester, find.byKey(const Key('stale_send_now_$_id')));
+      // Over Home, not instead of it.
+      expect(find.byType(HomeScreen, skipOffstage: false), findsOneWidget);
     });
 
-    testWidgets('Home shows a card for one left waiting from an earlier session',
-        (tester) async {
+    testWidgets('Home shows a card for one left waiting from an earlier session', (tester) async {
       useTallScreen(tester);
       final api = _Server();
       await tester.runAsync(() async {
@@ -443,7 +537,7 @@ void main() {
       await tester.tap(find.byKey(const Key('home_warnings_summary')));
       await pumpUntil(tester, find.byKey(const Key('home_stale_referrals')));
       await tester.tap(find.byKey(const Key('home_stale_referrals')));
-      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+      await pumpUntil(tester, find.byKey(const Key('stale_send_now_$_id')));
     });
 
     testWidgets('Retry sync on the queued screen goes straight to it', (tester) async {
@@ -456,7 +550,7 @@ void main() {
         ),
       );
       await tester.tap(find.text('Retry sync'));
-      await pumpUntil(tester, find.byType(StaleReferralScreen));
+      await pumpUntil(tester, find.byType(StaleReferralSheet));
     });
 
     testWidgets('a Call tap on the queued screen is remembered', (tester) async {
@@ -487,7 +581,7 @@ void main() {
     });
 
     // B2: a Call or SMS means transport may already be coming, whatever the age.
-    testWidgets('after a Call tap, a fresh referral asks first, with Already handled chosen',
+    testWidgets('after a Call tap, a fresh referral asks first, with Already handled leading',
         (tester) async {
       useTallScreen(tester);
       SharedPreferences.setMockInitialValues({
@@ -513,13 +607,12 @@ void main() {
       await settle(tester);
 
       await tester.tap(find.text('Retry sync'));
-      await pumpUntil(tester, find.byType(StaleReferralScreen));
-      await pumpUntil(tester, find.byKey(const Key('stale_confirm_$_id')));
+      await pumpUntil(tester, find.byType(StaleReferralSheet));
+      await pumpUntil(tester, find.byKey(const Key('stale_already_handled_$_id')));
 
       expect(api.manualContacts, [true]);
       expect(api.ages.single, lessThan(_Server.staleAbove), reason: 'fresh, yet asked');
-      final tile = tester.widget<ListTile>(find.byKey(const Key('stale_already_handled_$_id')));
-      expect(tile.selected, isTrue);
+      expect(buttonOrder(tester).$1, 'stale_already_handled_$_id');
     });
 
     testWidgets('without a Call or SMS, a fresh referral is sent straight on', (tester) async {

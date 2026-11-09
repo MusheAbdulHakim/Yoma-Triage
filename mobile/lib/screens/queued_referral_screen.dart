@@ -102,15 +102,9 @@ class _QueuedReferralScreenState extends State<QueuedReferralScreen> {
     if (!mounted || _leaving) return;
     if (stale) {
       _leaving = true;
-      await Navigator.of(context).pushReplacement(
-        MaterialPageRoute(
-          builder: (_) => StaleReferralScreen(
-            queue: _queue,
-            api: _api,
-            launcher: widget.launcher,
-          ),
-        ),
-      );
+      // Ask over this screen; once answered there is nothing left to wait for here.
+      await showStaleReferralSheet(context, queue: _queue, api: _api, launcher: widget.launcher);
+      if (mounted) await Navigator.of(context).maybePop();
       return;
     }
     final dispatchId = await _queue.lookupDispatchId(widget.clientRequestId);
