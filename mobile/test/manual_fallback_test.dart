@@ -402,7 +402,7 @@ void main() {
       );
       await pumpUntil(tester, find.byKey(const Key('call_$_chosenHospital')));
 
-      expect(find.text('FAILED'), findsOneWidget);
+      expect(find.byKey(const Key('dispatch_status_FAILED')), findsOneWidget);
       await tester.tap(find.byKey(const Key('call_$_driver')));
       await tester.pump();
       expect(launched.single.toString(), 'tel:$_driver');

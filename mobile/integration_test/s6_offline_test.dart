@@ -30,7 +30,7 @@ void main() {
     final confirm = find.byKey(const Key('referral_send'));
     await tester.tapOn(confirm);
 
-    await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));
+    await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
     expect(find.textContaining('Drivers have not been notified'), findsOneWidget);
     await tester.shot('s6_1_queued');
 
@@ -95,7 +95,7 @@ void main() {
         .substring('stale_send_now_'.length);
     await tester.tapOn(sendNow);
     await tester.tapOn(find.byKey(Key('stale_confirm_$id')));
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 20));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 20));
     expect(await Host.rows('dispatches'), hasLength(1));
     await tester.shot('s6_7_send_now_dispatched');
 
@@ -107,10 +107,10 @@ void main() {
     await tester.wait(const Duration(seconds: 2));
     await tester.openReferralForm();
     await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
-    await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));
+    await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
     await Host.airplane(false);
     await tester.waitFor(
-      find.text('TIER1_NOTIFIED'),
+      find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')),
       timeout: const Duration(seconds: 60),
       reason: 'the screen to show drivers notified after the automatic send',
     );

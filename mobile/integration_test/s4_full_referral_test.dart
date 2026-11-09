@@ -38,7 +38,7 @@ void main() {
     await tester.wait(const Duration(milliseconds: 300));
     final stopwatch = Stopwatch()..start();
     await tester.tap(confirm);
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 30));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 30));
     await Host.metric('confirm_to_notified_ms_debug', stopwatch.elapsedMilliseconds);
     await tester.shot('s4_4_tier1');
 
@@ -48,14 +48,14 @@ void main() {
     final accept = await ussdAccept(motorKingDriver, dispatchId);
     await Host.note('USSD accept replied: "$accept"');
     expect(accept, contains('Accepted'));
-    await tester.waitFor(find.text('HOSPITAL_NOTIFIED'), timeout: const Duration(seconds: 15));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), timeout: const Duration(seconds: 15));
     await tester.waitFor(find.textContaining('Driver: Ibrahim'));
     await tester.shot('s4_5_accepted');
 
     final arrival = await ussdArrival(motorKingDriver);
     await Host.note('USSD arrival replied: "$arrival"');
     expect(arrival, contains('Arrival confirmed'));
-    await tester.waitFor(find.text('COMPLETED'), timeout: const Duration(seconds: 15));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_COMPLETED')), timeout: const Duration(seconds: 15));
     await tester.shot('s4_6_completed');
 
     // Let the sender reach everything, then check who was told what.

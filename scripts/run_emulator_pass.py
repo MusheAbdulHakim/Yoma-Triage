@@ -845,7 +845,7 @@ def release_setup(device: Device) -> None:
     device.shell("input keyevent KEYCODE_BACK")
     time.sleep(1)
     tap_text(device, "Continue")
-    wait_screen(device, "Community Health Officer", 45)
+    wait_screen(device, "Emergency referral", 45)
 
 
 def tap_permission(device: Device, allow: bool) -> str:
@@ -1066,7 +1066,7 @@ def cold_start(device: Device, runs: int = 5) -> None:
         match = re.search(r"TotalTime:\s*(\d+)", output)
         if match:
             first_frame.append(int(match.group(1)))
-        wait_screen(device, "Community Health Officer", 60)
+        wait_screen(device, "Emergency referral", 60)
         to_home.append(round((time.monotonic() - started) * 1000))
     RESULTS[device.avd].setdefault("timings", {}).update(
         {
@@ -1151,7 +1151,7 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
             raise RuntimeError(f"No Send referral. Screen: {screen_text(device.dump())[:500]}")
         started = time.monotonic()
         tap_node(device, confirm)
-        wait_screen(device, "TIER1_NOTIFIED", 45)
+        wait_screen(device, "Waiting for a driver to accept", 45)
         samples.append(round((time.monotonic() - started) * 1000))
         if run_number == 0:
             device.screenshot("timing_release_tier1")

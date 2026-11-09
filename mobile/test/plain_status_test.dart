@@ -125,7 +125,7 @@ void main() {
 
       expect(find.byType(DispatchStatusScreen), findsOneWidget);
       expect(find.textContaining('Drivers have not been notified'), findsNothing);
-      expect(find.text('TIER1_NOTIFIED'), findsOneWidget);
+      expect(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), findsOneWidget);
     });
 
     testWidgets('a stale reply opens the question', (tester) async {
@@ -189,7 +189,7 @@ void main() {
       await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 100)));
       await tester.pump();
 
-      expect(find.text('TIER1_NOTIFIED'), findsOneWidget);
+      expect(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), findsOneWidget);
       expect(find.text(dispatchUnreachableMessage), findsNothing);
       expect(find.byType(ManualContactsPanel), findsNothing);
     });

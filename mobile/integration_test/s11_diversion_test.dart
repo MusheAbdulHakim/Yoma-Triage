@@ -19,13 +19,13 @@ void main() {
 
     await tester.openReferralForm();
     await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 30));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 30));
     final dispatchId = tester.dispatchIdOnScreen();
     await Host.note('Dispatch #$dispatchId');
 
     final accept = await ussdAccept(motorKingDriver, dispatchId);
     expect(accept, contains('Accepted'));
-    await tester.waitFor(find.text('HOSPITAL_NOTIFIED'), timeout: const Duration(seconds: 15));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), timeout: const Duration(seconds: 15));
     await tester.waitFor(find.text('Going to: $facilityName'));
     await tester.shot('s11_1_accepted');
 
@@ -37,7 +37,7 @@ void main() {
     expect(refused['status'], 'NOT_YOUR_DISPATCH');
 
     expect((await hospitalReply(facilityPhone, 'CONFIRM $code'))['status'], 'CONFIRMED');
-    await tester.waitFor(find.text('HOSPITAL_CONFIRMED'), timeout: const Duration(seconds: 15));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_HOSPITAL_CONFIRMED')), timeout: const Duration(seconds: 15));
 
     final diverted = await hospitalReply(facilityPhone, 'DIVERT $code $secondFacilityId');
     expect(diverted['status'], 'DIVERTED');
@@ -45,8 +45,8 @@ void main() {
       find.text('Going to: $_secondFacility'),
       timeout: const Duration(seconds: 15),
     );
-    expect(find.text('Diverted from $facilityName by the hospital'), findsOneWidget);
-    expect(find.text('HOSPITAL_NOTIFIED'), findsOneWidget);
+    expect(find.text('From $facilityName, by the hospital'), findsOneWidget);
+    expect(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget, reason: 'still polling');
     await tester.shot('s11_2_diverted');
 
@@ -56,11 +56,11 @@ void main() {
       (await hospitalReply(_secondFacilityPhone, 'CONFIRM $newCode'))['status'],
       'CONFIRMED',
     );
-    await tester.waitFor(find.text('HOSPITAL_CONFIRMED'), timeout: const Duration(seconds: 15));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_HOSPITAL_CONFIRMED')), timeout: const Duration(seconds: 15));
 
     final arrival = await ussdArrival(motorKingDriver);
     expect(arrival, contains('Arrival confirmed'));
-    await tester.waitFor(find.text('COMPLETED'), timeout: const Duration(seconds: 15));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_COMPLETED')), timeout: const Duration(seconds: 15));
     expect(find.text('Going to: $_secondFacility'), findsOneWidget);
     await tester.shot('s11_3_completed');
 

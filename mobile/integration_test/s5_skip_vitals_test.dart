@@ -16,12 +16,12 @@ void main() {
     await tester.openReferralForm();
     await tester.shot('s5_1_form');
     await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 30));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 30));
     await tester.shot('s5_2_tier1');
 
     final accept = await ussdAccept(motorKingDriver, tester.dispatchIdOnScreen());
     expect(accept, contains('Accepted'));
-    await tester.waitFor(find.text('HOSPITAL_NOTIFIED'), timeout: const Duration(seconds: 15));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), timeout: const Duration(seconds: 15));
     await tester.shot('s5_3_accepted');
 
     final messages = await Host.rows('outbox');

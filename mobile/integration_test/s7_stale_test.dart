@@ -28,7 +28,7 @@ void main() {
     for (var i = 0; i < answers; i++) {
       await tester.openReferralForm();
       await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
-      await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));
+      await tester.waitFor(find.byKey(const Key('queued_referral')), timeout: const Duration(seconds: 45));
       await tester.tapOn(find.text('Back to Home'));
       await tester.waitFor(find.byKey(const Key('home_emergency_referral')));
     }
@@ -71,7 +71,7 @@ void main() {
     await answer('cancel');
     await tester.shot('s7_3_two_answered');
     await answer('send_now');
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 20));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 20));
     await tester.shot('s7_4_send_now_dispatched');
 
     stored = await Host.rows('referrals');

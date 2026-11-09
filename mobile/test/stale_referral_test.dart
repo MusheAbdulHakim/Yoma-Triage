@@ -565,7 +565,7 @@ void main() {
     testWidgets('asks first, then cancels', (tester) async {
       final api = await pumpStatus(tester);
       await tapCancel(tester);
-      await pumpUntil(tester, find.text('CANCELLED'));
+      await pumpUntil(tester, find.byKey(const Key('dispatch_status_CANCELLED')));
 
       expect(api.cancels.single, {'id': 7, 'cho': testChoPhone});
       expect(find.byKey(const Key('dispatch_cancel')), findsNothing);

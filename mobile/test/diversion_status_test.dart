@@ -60,13 +60,13 @@ void main() {
     await _nextPoll(tester);
     expect(find.text('Going to: Navrongo War Memorial Hospital'), findsOneWidget);
     expect(
-      find.text('Diverted from Tamale Teaching Hospital by the hospital'),
+      find.text('From Tamale Teaching Hospital, by the hospital'),
       findsOneWidget,
     );
     expect(find.byType(CircularProgressIndicator), findsOneWidget, reason: 'still live');
 
     await _nextPoll(tester);
-    expect(find.text('COMPLETED'), findsOneWidget);
+    expect(find.byKey(const Key('dispatch_status_COMPLETED')), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsNothing);
     final callsAtEnd = api.calls;
     await _nextPoll(tester);
@@ -80,12 +80,12 @@ void main() {
       {..._toSecond, 'status': 'COMPLETED'},
     ]);
     await _open(tester, api);
-    expect(find.text('DIVERTED'), findsOneWidget);
+    expect(find.byKey(const Key('dispatch_status_DIVERTED')), findsOneWidget);
     expect(find.byType(CircularProgressIndicator), findsOneWidget);
 
     await _nextPoll(tester);
     expect(api.calls, 2, reason: 'it polled again after DIVERTED');
-    expect(find.text('COMPLETED'), findsOneWidget);
+    expect(find.byKey(const Key('dispatch_status_COMPLETED')), findsOneWidget);
   });
 
   testWidgets('a server without the new fields still shows the status', (tester) async {
@@ -93,7 +93,7 @@ void main() {
       {'status': 'HOSPITAL_NOTIFIED', 'facility_id': 1},
     ]);
     await _open(tester, api);
-    expect(find.text('HOSPITAL_NOTIFIED'), findsOneWidget);
+    expect(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), findsOneWidget);
     expect(find.byKey(const Key('dispatch_destination')), findsNothing);
     expect(find.byKey(const Key('dispatch_diverted')), findsNothing);
   });

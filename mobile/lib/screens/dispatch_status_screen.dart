@@ -1,11 +1,14 @@
 import 'dart:async';
 
 import 'package:flutter/material.dart';
+import 'package:flutter/semantics.dart';
 
 import '../services/api_client.dart';
 import '../services/cho_store.dart';
 import '../services/offline_queue.dart';
 import '../theme/yoma_theme.dart';
+import '../services/dispatch_timeline.dart';
+import '../widgets/dispatch_timeline_view.dart';
 import '../widgets/manual_contacts_panel.dart';
 
 /// Shown instead of the network error itself, which means nothing to a CHO.
@@ -43,9 +46,19 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   Timer? _timer;
   int? _dispatchId;
   String _status = 'PENDING';
-  String _detail = 'Waiting for dispatch…';
   String? _driverName;
-  int? _etaMinutes;
+
+  /// The driver-facing Ref (the referral id), as on the drivers' offers. Never the
+  /// hospital's reply code, which the API does not send to the CHO anyway.
+  int? _referralId;
+
+  /// Seen by this screen, for the timeline's wording only.
+  bool _sawFailed = false;
+  bool _sawConfirmed = false;
+
+  /// The CHO tapped "Call a driver instead" while drivers were being alerted.
+  bool _showContacts = false;
+  String? _announcedStep;
 
   /// Where the patient is going now, and where a hospital diverted them from.
   String? _facilityName;
@@ -84,7 +97,6 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
         setState(() {
           _dispatchId = stored;
           _status = 'PENDING';
-          _detail = 'Dispatch synced — tracking live status…';
         });
       }
     }
@@ -94,8 +106,6 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       if (mounted && !_disposed) {
         setState(() {
           _status = 'QUEUED';
-          _detail =
-              'Referral saved offline (${widget.clientRequestId}). Will retry when online.';
         });
       }
       _timer = Timer.periodic(const Duration(seconds: 5), (_) {
@@ -124,10 +134,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
         final wasQueued = _dispatchId == null;
         setState(() {
           _dispatchId = dispatchId;
-          if (wasQueued) {
-            _status = 'PENDING';
-            _detail = 'Dispatch synced — tracking live status…';
-          }
+          if (wasQueued) _status = 'PENDING';
         });
         if (wasQueued) {
           _timer?.cancel();
@@ -148,28 +155,17 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       final facilityId = data['facility_id'];
       final facilityName = data['facility_name'] as String?;
       final divertedFrom = data['diverted_from'] as String?;
-      final etaRaw = data['eta_minutes'];
-      final eta = etaRaw is int
-          ? etaRaw
-          : etaRaw is num
-              ? etaRaw.toInt()
-              : null;
+      final referralId = data['referral_id'];
       setState(() {
         _unreachable = false;
         _status = status;
+        if (status.toUpperCase() == 'FAILED') _sawFailed = true;
+        if (status.toUpperCase() == 'HOSPITAL_CONFIRMED') _sawConfirmed = true;
+        if (referralId is int) _referralId = referralId;
         if (facilityId is int) _facilityId = facilityId;
         _facilityName = facilityName;
         _divertedFrom = divertedFrom;
         _driverName = driverName;
-        _etaMinutes = eta;
-        final parts = <String>[
-          'Dispatch #$id',
-          'tier ${data['current_tier'] ?? '-'}',
-          if (driverName != null && driverName.isNotEmpty)
-            'Driver: $driverName',
-          if (eta != null) 'ETA: ${eta}m',
-        ];
-        _detail = parts.join(' · ');
         _pollSeconds = 2;
         if (_terminalStates.contains(status.toUpperCase())) {
           _terminal = true;
@@ -181,7 +177,6 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       if (!mounted || _disposed) return;
       setState(() {
         _unreachable = true;
-        _detail = dispatchUnreachableMessage;
         _pollSeconds = (_pollSeconds * 2).clamp(2, 10);
       });
       if (!_terminal && mounted && !_disposed) _schedulePoll();
@@ -231,8 +226,6 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
           _status = (data['status'] as String?) ?? 'CANCELLED';
           _terminal = true;
           _driverName = null;
-          _etaMinutes = null;
-          _detail = 'Drivers will not be alerted any more.';
         });
       }
     } on ApiException catch (e) {
@@ -257,74 +250,131 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
     super.dispose();
   }
 
+  DispatchTimeline get _timeline => _status == 'QUEUED'
+      ? queuedTimeline()
+      : dispatchTimeline(
+          status: _status,
+          driverName: _driverName,
+          facilityName: _facilityName,
+          divertedFrom: _divertedFrom,
+          sawConfirmed: _sawConfirmed,
+          acceptedLate: _sawFailed,
+        );
+
+  /// Says the current step aloud when it changes (after the first build).
+  void _announceStep(TimelineStep? step) {
+    final label = step?.label;
+    if (label == null || label == _announcedStep) return;
+    final first = _announcedStep == null;
+    _announcedStep = label;
+    if (first) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      SemanticsService.sendAnnouncement(View.of(context), label, TextDirection.ltr);
+    });
+  }
+
   @override
   Widget build(BuildContext context) {
+    final text = Theme.of(context).textTheme;
+    final timeline = _timeline;
+    _announceStep(timeline.current);
+    final help = switch (timeline.help) {
+      DispatchHelp.noDriver => 'No driver has accepted. Call one now.',
+      DispatchHelp.notSentYet => 'Urgent? Call a driver now',
+      DispatchHelp.none => null,
+    };
+    final showContacts = _needsManualHelp || _showContacts;
+
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Dispatch Status'),
-      ),
-      body: ListView(
-        padding: const EdgeInsets.all(24),
-        children: [
-          const SizedBox(height: 32),
-          Text(
-            _status,
-            textAlign: TextAlign.center,
-            style: const TextStyle(
-              fontSize: 32,
-              fontWeight: FontWeight.bold,
-              color: YomaColors.brand,
-            ),
-          ),
-          const SizedBox(height: 16),
-          Text(
-            _detail,
-            textAlign: TextAlign.center,
-            style: TextStyle(color: Colors.grey.shade800),
-          ),
-          if (_driverName != null || _etaMinutes != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              [
-                if (_driverName != null) 'Driver: $_driverName',
-                if (_etaMinutes != null) 'ETA: ${_etaMinutes}m',
-              ].join('  ·  '),
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: YomaColors.brand,
+        title: const Text('Referral status'),
+        actions: [
+          if (_referralId != null)
+            Padding(
+              padding: const EdgeInsets.only(right: 16),
+              child: Center(
+                child: Text(
+                  'Ref $_referralId',
+                  key: const Key('dispatch_ref'),
+                  style: text.labelMedium?.copyWith(color: YomaColors.grey700),
+                ),
               ),
             ),
-          ],
-          if (_facilityName != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              'Going to: $_facilityName',
-              key: const Key('dispatch_destination'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+        ],
+      ),
+      body: ListView(
+        key: const Key('dispatch_scroll'),
+        padding: const EdgeInsets.fromLTRB(20, 20, 20, 24),
+        children: [
+          if (_unreachable) ...[
+            Container(
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: YomaColors.grey100,
+                borderRadius: BorderRadius.circular(YomaRadii.md),
+                border: Border.all(color: YomaColors.grey200),
+              ),
+              child: Text(
+                dispatchUnreachableMessage,
+                style: text.bodyMedium?.copyWith(color: YomaColors.grey800),
+              ),
             ),
+            const SizedBox(height: 16),
           ],
-          if (_divertedFrom != null) ...[
-            const SizedBox(height: 4),
-            Text(
-              'Diverted from $_divertedFrom by the hospital',
-              key: const Key('dispatch_diverted'),
-              textAlign: TextAlign.center,
-              style: const TextStyle(color: YomaColors.danger),
-            ),
-          ],
-          const SizedBox(height: 8),
-          Text(
-            'Request: ${widget.clientRequestId}',
-            textAlign: TextAlign.center,
-            style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+          // Lets tests and tools see which status this screen is showing.
+          KeyedSubtree(
+            key: Key('dispatch_status_${_status.toUpperCase()}'),
+            child: DispatchTimelineView(steps: timeline.steps),
           ),
-          const SizedBox(height: 24),
+          if (_facilityName != null)
+            // The destination, for screen readers and the diversion tests; the timeline
+            // already says it where it matters.
+            ExcludeSemantics(
+              child: Padding(
+                padding: const EdgeInsets.only(top: 16),
+                child: Text(
+                  'Going to: $_facilityName',
+                  key: const Key('dispatch_destination'),
+                  style: text.bodySmall?.copyWith(color: YomaColors.grey700),
+                ),
+              ),
+            ),
+          if (_divertedFrom != null)
+            const SizedBox.shrink(key: Key('dispatch_diverted')),
           if (!_terminal && _dispatchId != null)
-            const Center(child: CircularProgressIndicator()),
-          if (_needsManualHelp) ...[
+            Padding(
+              padding: const EdgeInsets.only(top: 16),
+              child: Row(
+                children: [
+                  const SizedBox.square(
+                    dimension: 16,
+                    child: CircularProgressIndicator(strokeWidth: 2),
+                  ),
+                  const SizedBox(width: 10),
+                  Flexible(
+                    child: Text(
+                      'Checking for updates…',
+                      style: text.bodySmall?.copyWith(color: YomaColors.grey700),
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          if (timeline.waitingForDriver && !_showContacts && !_needsManualHelp)
+            Align(
+              alignment: Alignment.centerLeft,
+              child: TextButton(
+                key: const Key('dispatch_call_instead'),
+                onPressed: () => setState(() => _showContacts = true),
+                child: const Text('Call a driver instead'),
+              ),
+            ),
+          if (help != null) ...[
+            const SizedBox(height: 20),
+            NavyHelpCard(key: const Key('dispatch_help'), text: help),
+          ],
+          if (showContacts) ...[
             const SizedBox(height: 16),
             ManualContactsPanel(
               key: ValueKey(_facilityId),
@@ -332,19 +382,30 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
               launcher: widget.launcher,
             ),
           ],
-          if (_canCancel) ...[
-            const SizedBox(height: 24),
-            TextButton(
-              key: const Key('dispatch_cancel'),
-              style: TextButton.styleFrom(foregroundColor: YomaColors.danger),
-              onPressed: _cancelling ? null : _confirmCancel,
-              child: Text(_cancelling ? 'Cancelling…' : 'Cancel this dispatch'),
-            ),
-          ],
           const SizedBox(height: 24),
           OutlinedButton(
             onPressed: () => Navigator.of(context).popUntil((r) => r.isFirst),
             child: const Text('Back to Home'),
+          ),
+          if (_canCancel) ...[
+            const SizedBox(height: 8),
+            Center(
+              child: TextButton(
+                key: const Key('dispatch_cancel'),
+                style: TextButton.styleFrom(
+                  foregroundColor: YomaColors.grey700,
+                  minimumSize: const Size(160, YomaSizes.minTap),
+                ),
+                onPressed: _cancelling ? null : _confirmCancel,
+                child: Text(_cancelling ? 'Cancelling…' : 'Cancel referral'),
+              ),
+            ),
+          ],
+          const SizedBox(height: 8),
+          Text(
+            'Request: ${widget.clientRequestId}',
+            textAlign: TextAlign.center,
+            style: text.bodySmall?.copyWith(color: YomaColors.grey600),
           ),
         ],
       ),

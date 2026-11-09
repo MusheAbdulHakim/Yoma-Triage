@@ -18,7 +18,7 @@ void main() {
 
     await tester.openReferralForm();
     await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
-    await tester.waitFor(find.text('TIER1_NOTIFIED'), timeout: const Duration(seconds: 30));
+    await tester.waitFor(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), timeout: const Duration(seconds: 30));
     await tester.shot('s8_1_tier1');
     final before = await Host.rows('dispatches');
     expect(before.single['status'], 'TIER1_NOTIFIED');
@@ -26,7 +26,7 @@ void main() {
     await Host.killBackend();
     await tester.wait(const Duration(seconds: _tierSeconds + 5));
     await tester.shot('s8_2_backend_down');
-    expect(find.text('TIER1_NOTIFIED'), findsOneWidget, reason: 'last known status stays');
+    expect(find.byKey(const Key('dispatch_status_TIER1_NOTIFIED')), findsOneWidget, reason: 'last known status stays');
     // A4: plain words and a next step, not the network error.
     expect(find.textContaining('Server unreachable'), findsOneWidget);
     for (final raw in ['SocketException', 'ClientException', 'Polling']) {
@@ -36,7 +36,7 @@ void main() {
     final restarted = Stopwatch()..start();
     await Host.startBackend();
     await tester.waitFor(
-      find.text('TIER2_NOTIFIED'),
+      find.byKey(const Key('dispatch_status_TIER2_NOTIFIED')),
       timeout: const Duration(seconds: 30),
       reason: 'the overdue tier to fire after the restart',
     );
@@ -44,7 +44,7 @@ void main() {
     await tester.shot('s8_3_tier2_after_restart');
 
     await tester.waitFor(
-      find.text('FAILED'),
+      find.byKey(const Key('dispatch_status_FAILED')),
       timeout: const Duration(seconds: _tierSeconds + 30),
       reason: 'the cascade to keep going to the end',
     );
