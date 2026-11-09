@@ -365,7 +365,10 @@ class Device:
         time.sleep(2)
         read = []
         for node in self.dump():
-            words = (node.get("content-desc") or node.get("text") or "").strip()
+            # An edit box's name is its hint (Flutter puts the field's label there).
+            words = (
+                node.get("content-desc") or node.get("text") or node.get("hint") or ""
+            ).strip()
             if not words or node.get("package") != PACKAGE:
                 continue
             kind = []
@@ -1260,6 +1263,16 @@ def main() -> int:
     )
     args = parser.parse_args()
     KEEP_RUNNING[0] = args.keep_running
+
+    # The project's gradle.properties asks for an 8 GB build heap. With an emulator, R8 and
+    # the Kotlin daemon alongside, a release build used enough memory on a 13 GB host for
+    # the kernel to kill processes (round 6). Cap the builds this script starts; a command
+    # line -D overrides gradle.properties, and the project file is left alone.
+    os.environ.setdefault(
+        "GRADLE_OPTS",
+        "-Dorg.gradle.jvmargs=-Xmx3g -XX:MaxMetaspaceSize=1g "
+        "-Dkotlin.daemon.jvm.options=-Xmx1g",
+    )
 
     for tool in (FLUTTER, ADB, EMULATOR, PYTHON):
         if not Path(tool).exists():
