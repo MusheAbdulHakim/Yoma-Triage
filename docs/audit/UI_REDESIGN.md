@@ -1346,3 +1346,24 @@ Flow changes are listed in `docs/audit/UI_REDESIGN_PR.md`.
 4. Live-sound check of the breathing pulse.
 5. Cancel for a never-sent referral.
 6. The pre-existing `test_durable_cascade_pg` failure.
+
+## Pre-merge fixes
+
+One commit each:
+
+| Commit | Fix |
+|---|---|
+| `bc2c5e8` | "Request: <id>" only in test builds: not-sent-yet screen and failed-referrals list |
+| `6a90303` | Not sent yet: Urgent card and Call/SMS rows straight under the timeline; first Call row on screen at 360×640 (tested) |
+| `f9434b1` | "Enter a value or tap Not measured" (and "Enter both values…", "Choose a level…") |
+| `73364ef` | Visible back arrow on Record vitals, Result, the form and every breathing-check stage. It is Android back's path: leaving while recording stops the recorder, leaving while analysing cancels the analysis (tested) |
+| `bcb1f9b` | `EMULATOR_PASS.md`: 42 embedded images of removed screenshots replaced by their names and a git recovery command |
+
+Checks:
+
+- `flutter analyze`: no issues.
+- `flutter test`: 568 passed (default), 569 passed (`MOEWS_ONLY=false`).
+- New device screenshots from `ui360` and `breathing360` on API 34 (both pass). The full pass
+  was not rerun.
+- Updated side-by-sides: `05_record_vitals.png`, `06_result.png`, `07_referral_form.png`,
+  `08_dispatch_status.png`, `10_breathing_check.png`.

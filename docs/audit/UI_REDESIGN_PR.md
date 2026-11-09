@@ -52,6 +52,17 @@ The flow changes, the backend additions and the deploy order are listed below. R
 - No overflow at 320 dp with 130% text.
 - The keyboard never hides the focused field or the main button.
 
+**Pre-merge fixes:**
+
+- No raw "Request: <id>" line outside test builds: removed from the not-sent-yet screen and
+  the failed-referrals list.
+- Not sent yet: the "Urgent? Call a driver now" card and the Call/SMS rows sit right under
+  the timeline, so the first Call row is on screen at 360×640 without scrolling.
+- "Enter a value or tap Not measured": "tap", not "tick".
+- A visible back arrow in the top bar of Record vitals, Result, the referral form and every
+  breathing-check stage. It behaves as Android back does: leaving while recording stops the
+  recorder, and leaving while analysing cancels the analysis.
+
 ## Flow changes (reviewers: please check these)
 
 1. **Referral form: one bottom button.**
@@ -132,7 +143,7 @@ No configuration changes. `LATE_CLAIM_WINDOW_MINUTES` keeps its default (45).
 ## How it was tested
 
 - `flutter analyze`: no issues.
-- `flutter test`: 560 passed (default build), 561 passed (`MOEWS_ONLY=false`); 0 failed.
+- `flutter test`: 568 passed (default build), 569 passed (`MOEWS_ONLY=false`); 0 failed.
 - Backend: full `pytest`, run with `AT_WEBHOOK_SECRET=`: 712 passed, 5 failed, 4 skipped.
   - The 4 `test_startup_config` failures come from the local `.env` (development settings)
     and also happen on `main`.
