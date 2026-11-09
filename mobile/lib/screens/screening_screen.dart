@@ -14,10 +14,9 @@ import '../widgets/breathing_pulse.dart';
 import 'vitals_screen.dart';
 
 /// What to tell the CHO when the microphone won't start, instead of the exception.
-String plainMicrophoneError(Object error) =>
-    error.toString().toLowerCase().contains('permission')
-        ? 'Microphone permission is off.'
-        : 'The microphone could not start.';
+String plainMicrophoneError(Object error) => error.toString().toLowerCase().contains('permission')
+    ? 'Microphone permission is off.'
+    : 'The microphone could not start.';
 
 /// Below this level the microphone counts as hearing nothing (about -50 dBFS).
 const silentLevel = 0.1;
@@ -63,8 +62,7 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
   String? _error;
   bool _permissionError = false;
   ScreeningResult? _result;
-  late final ScreeningService _screening =
-      widget.service ?? ScreeningService();
+  late final ScreeningService _screening = widget.service ?? ScreeningService();
 
   // Microphone level, for the pulse and the silence hint only.
   final ValueNotifier<double> _level = ValueNotifier(0);
@@ -268,8 +266,13 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     } else {
       body = _buildRecording();
     }
+    final recording =
+        !_isWebSimulator && _result == null && !_ready && !_analyzing && _error == null;
     return Scaffold(
-      appBar: AppBar(title: Text(_permissionError || _error == null ? _title : 'Check breathing')),
+      // The recording frames have no title bar; system back still leaves (and stops).
+      appBar: recording
+          ? null
+          : AppBar(title: Text(_permissionError || _error == null ? _title : 'Check breathing')),
       body: SafeArea(child: body),
     );
   }
@@ -361,87 +364,107 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
     );
   }
 
+  /// As in the pulse frames: the LISTENING pill at the top, the pulse and two lines in
+  /// the middle, the outlined Stop at the bottom. No title bar while recording.
   Widget _buildRecording() {
     final text = Theme.of(context).textTheme;
     final starting = !_recording;
-    return _layout(
-      content: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-            decoration: BoxDecoration(
-              color: YomaColors.brandTint,
-              borderRadius: BorderRadius.circular(YomaRadii.pill),
-              border: Border.all(color: YomaColors.brand.withValues(alpha: 0.2)),
-            ),
-            child: Text(
-              starting ? 'STARTING' : 'LISTENING',
-              style: text.labelSmall?.copyWith(color: YomaColors.brand, letterSpacing: 1.4),
-            ),
-          ),
-          const SizedBox(height: 16),
-          Semantics(
-            label: '$_remaining seconds remaining',
-            excludeSemantics: true,
-            child: SizedBox(
-              height: 232,
-              child: RecordingPulse(remaining: _remaining, total: _total, level: _level),
-            ),
-          ),
-          const SizedBox(height: 20),
-          Text(
-            starting ? 'Starting microphone…' : 'Listening… keep the phone still',
-            textAlign: TextAlign.center,
-            style: text.titleMedium?.copyWith(color: YomaColors.navy, fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 4),
-          Text(
-            'Do not speak or move until complete',
-            textAlign: TextAlign.center,
-            style: text.bodySmall?.copyWith(color: YomaColors.grey600),
-          ),
-          if (_silent) ...[
-            const SizedBox(height: 12),
-            Semantics(
-              liveRegion: true,
-              child: Container(
-                key: const Key('screening_silence_hint'),
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: YomaColors.grey100,
-                  borderRadius: BorderRadius.circular(YomaRadii.md),
-                  border: Border.all(color: YomaColors.grey200),
-                ),
-                child: Row(
-                  mainAxisSize: MainAxisSize.min,
-                  children: [
-                    const Icon(Icons.hearing_disabled_outlined, size: 18, color: YomaColors.grey700),
-                    const SizedBox(width: 8),
-                    Flexible(
-                      child: Text(
-                        silenceHintText,
-                        style: text.bodyMedium?.copyWith(
-                          color: YomaColors.grey800,
-                          fontWeight: FontWeight.w600,
-                        ),
+    final pill = Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+      decoration: BoxDecoration(
+        color: YomaColors.containerLow,
+        borderRadius: BorderRadius.circular(YomaRadii.pill),
+        border: Border.all(color: YomaColors.primary.withValues(alpha: 0.2)),
+      ),
+      child: Text(
+        starting ? 'STARTING' : 'LISTENING',
+        style: text.labelSmall?.copyWith(color: YomaColors.primary, letterSpacing: 1.8),
+      ),
+    );
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Padding(
+          padding: const EdgeInsets.fromLTRB(24, 12, 24, 8),
+          child: Center(child: pill),
+        ),
+        Expanded(
+          child: _layout(
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Semantics(
+                  label: '$_remaining seconds remaining',
+                  excludeSemantics: true,
+                  child: SizedBox(
+                    height: RecordingPulse.box,
+                    child: Center(
+                      child: RecordingPulse(
+                        remaining: _remaining,
+                        total: _total,
+                        level: _level,
                       ),
                     ),
-                  ],
+                  ),
                 ),
-              ),
+                const SizedBox(height: 24),
+                Text(
+                  starting ? 'Starting microphone…' : 'Listening… keep the phone still',
+                  textAlign: TextAlign.center,
+                  style: text.titleMedium?.copyWith(
+                    color: YomaColors.primary,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  'Do not speak or move until complete',
+                  textAlign: TextAlign.center,
+                  style: text.bodySmall?.copyWith(color: YomaColors.grey600),
+                ),
+                if (_silent) ...[
+                  const SizedBox(height: 12),
+                  Semantics(
+                    liveRegion: true,
+                    child: Container(
+                      key: const Key('screening_silence_hint'),
+                      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                      decoration: BoxDecoration(
+                        color: YomaColors.grey100,
+                        borderRadius: BorderRadius.circular(YomaRadii.md),
+                        border: Border.all(color: YomaColors.grey200),
+                      ),
+                      child: Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          const Icon(Icons.hearing_disabled_outlined,
+                              size: 18, color: YomaColors.grey700),
+                          const SizedBox(width: 8),
+                          Flexible(
+                            child: Text(
+                              silenceHintText,
+                              style: text.bodyMedium?.copyWith(
+                                color: YomaColors.grey800,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                ],
+              ],
             ),
-          ],
-          const SizedBox(height: 12),
-        ],
-      ),
-      actions: [
-        OutlinedButton(
-          key: const Key('screening_stop'),
-          style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
-          onPressed: () => _finish(forceRed: false),
-          child: const Text('Stop'),
+            actions: [
+              OutlinedButton(
+                key: const Key('screening_stop'),
+                style: OutlinedButton.styleFrom(minimumSize: const Size.fromHeight(52)),
+                onPressed: () => _finish(forceRed: false),
+                child: const Text('Stop'),
+              ),
+            ],
+          ),
         ),
       ],
     );
@@ -511,7 +534,8 @@ class _ScreeningScreenState extends State<ScreeningScreen> {
               _permissionError ? 'Microphone not allowed' : 'The microphone could not start',
               key: const Key('screening_mic_blocked'),
               textAlign: TextAlign.center,
-              style: text.titleMedium?.copyWith(color: YomaColors.navy, fontWeight: FontWeight.w700),
+              style:
+                  text.titleMedium?.copyWith(color: YomaColors.navy, fontWeight: FontWeight.w700),
             ),
           ),
           const SizedBox(height: 8),

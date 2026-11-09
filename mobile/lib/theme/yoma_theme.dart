@@ -20,6 +20,7 @@ abstract final class YomaColors {
   // Tonal scale (design system).
   static const primaryPressed = Color(0xFF001229); // tonal "primary"
   static const primaryContainer = Color(0xFFE7EEFF); // "surface-container"
+  static const containerLow = Color(0xFFF0F3FF); // "surface-container-low"
   static const tertiaryTint = Color(0xFF9CCBFD); // "tertiary-fixed-dim": pulse rings
   static const onDark = Color(0xFFEBF1FF); // "inverse-on-surface": muted text on neutral
   static const outline = Color(0xFF74777E);
@@ -218,9 +219,8 @@ ThemeData buildYomaTheme() {
         foregroundColor: WidgetStateProperty.resolveWith((states) =>
             states.contains(WidgetState.disabled) ? YomaColors.grey600 : YomaColors.secondary),
         side: WidgetStateProperty.resolveWith((states) => BorderSide(
-              color: states.contains(WidgetState.disabled)
-                  ? YomaColors.grey200
-                  : YomaColors.secondary,
+              color:
+                  states.contains(WidgetState.disabled) ? YomaColors.grey200 : YomaColors.secondary,
               width: 2,
             )),
       ),
@@ -270,8 +270,8 @@ ThemeData buildYomaTheme() {
       selectionHandleColor: YomaColors.brand,
     ),
     checkboxTheme: CheckboxThemeData(
-      fillColor: WidgetStateProperty.resolveWith((states) =>
-          states.contains(WidgetState.selected) ? YomaColors.brand : null),
+      fillColor: WidgetStateProperty.resolveWith(
+          (states) => states.contains(WidgetState.selected) ? YomaColors.brand : null),
     ),
     progressIndicatorTheme: const ProgressIndicatorThemeData(color: YomaColors.brand),
     dividerTheme: const DividerThemeData(color: YomaColors.grey200, space: 24),

@@ -143,9 +143,10 @@ class BreathingResultCard extends StatelessWidget {
   }
 }
 
-/// The recording circle: solid teal centre with the countdown, a thin ring showing time
-/// elapsed, and soft rings around it that pulse outward. Their reach follows the live
-/// microphone [level]. With animations off (reduced motion) the rings are one static ring.
+/// The recording circle, as in the pulse frames: a solid primary circle (138 dp) with the
+/// countdown and "REMAINING", a 4 dp arc just outside it showing the time remaining, and
+/// thin rings expanding and fading outward. The rings' reach follows the live microphone
+/// [level]. With animations off (reduced motion) the rings are one static ring.
 ///
 /// Only the ring painter repaints each frame (its own repaint boundary); no widget
 /// rebuilds per frame.
@@ -155,7 +156,6 @@ class RecordingPulse extends StatefulWidget {
     required this.remaining,
     required this.total,
     required this.level,
-    this.maxDiameter = 232,
   });
 
   final int remaining;
@@ -163,7 +163,11 @@ class RecordingPulse extends StatefulWidget {
 
   /// 0 (silent) to 1 (loud), already smoothed.
   final ValueNotifier<double> level;
-  final double maxDiameter;
+
+  /// The frames' sizes, at their 224 dp box.
+  static const box = 224.0;
+  static const circle = 138.0;
+  static const arcRadius = 74.0;
 
   @override
   State<RecordingPulse> createState() => _RecordingPulseState();
@@ -172,7 +176,7 @@ class RecordingPulse extends StatefulWidget {
 class _RecordingPulseState extends State<RecordingPulse> with SingleTickerProviderStateMixin {
   late final AnimationController _phase = AnimationController(
     vsync: this,
-    duration: const Duration(milliseconds: 1800),
+    duration: const Duration(milliseconds: 2000),
   );
   bool _reduceMotion = false;
 
@@ -196,18 +200,19 @@ class _RecordingPulseState extends State<RecordingPulse> with SingleTickerProvid
   @override
   Widget build(BuildContext context) {
     final text = Theme.of(context).textTheme;
-    final elapsed =
-        widget.total <= 0 ? 0.0 : (1 - widget.remaining / widget.total).clamp(0.0, 1.0);
+    final remaining = widget.total <= 0 ? 0.0 : (widget.remaining / widget.total).clamp(0.0, 1.0);
     return LayoutBuilder(
       builder: (context, constraints) {
-        // As large as the design (≈ 224 dp) where it fits, smaller on a short screen.
+        // The frames' 224 dp where it fits; scaled down as a whole on a short screen.
         final d = math.min(
-          widget.maxDiameter,
-          math.min(constraints.maxWidth, constraints.maxHeight.isFinite
-              ? constraints.maxHeight
-              : widget.maxDiameter),
+          RecordingPulse.box,
+          math.min(
+            constraints.maxWidth,
+            constraints.maxHeight.isFinite ? constraints.maxHeight : RecordingPulse.box,
+          ),
         );
-        final centre = d * 0.6;
+        final scale = d / RecordingPulse.box;
+        final circle = RecordingPulse.circle * scale;
         return SizedBox(
           key: const Key('breathing_pulse'),
           width: d,
@@ -223,16 +228,16 @@ class _RecordingPulseState extends State<RecordingPulse> with SingleTickerProvid
                     phase: _phase,
                     level: widget.level,
                     animate: !_reduceMotion,
-                    centreRadius: centre / 2,
-                    elapsed: elapsed,
+                    scale: scale,
+                    remaining: remaining,
                   ),
                 ),
               ),
               Container(
-                width: centre,
-                height: centre,
+                width: circle,
+                height: circle,
                 decoration: const BoxDecoration(
-                  color: YomaColors.brand,
+                  color: YomaColors.primary,
                   shape: BoxShape.circle,
                   boxShadow: YomaShadows.md,
                 ),
@@ -250,6 +255,7 @@ class _RecordingPulseState extends State<RecordingPulse> with SingleTickerProvid
                             style: text.headlineMedium?.copyWith(
                               color: YomaColors.onPrimary,
                               fontSize: 30,
+                              fontWeight: FontWeight.w800,
                               height: 1.0,
                             ),
                           ),
@@ -257,9 +263,9 @@ class _RecordingPulseState extends State<RecordingPulse> with SingleTickerProvid
                           Text(
                             'REMAINING',
                             style: text.labelSmall?.copyWith(
-                              color: YomaColors.onPrimary,
-                              letterSpacing: 1.2,
-                              fontSize: 11,
+                              color: YomaColors.onPrimary.withValues(alpha: 0.85),
+                              letterSpacing: 1.5,
+                              fontSize: 10,
                             ),
                           ),
                         ],
@@ -281,58 +287,59 @@ class _PulsePainter extends CustomPainter {
     required this.phase,
     required this.level,
     required this.animate,
-    required this.centreRadius,
-    required this.elapsed,
+    required this.scale,
+    required this.remaining,
   }) : super(repaint: animate ? Listenable.merge([phase, level]) : level);
 
   final Animation<double> phase;
   final ValueNotifier<double> level;
   final bool animate;
-  final double centreRadius;
-  final double elapsed;
+  final double scale;
+  final double remaining;
 
+  /// As in the frames: three thin rings, at most two or three visible at once.
   static const _rings = 3;
 
   @override
   void paint(Canvas canvas, Size size) {
     final c = size.center(Offset.zero);
-    final progressR = centreRadius + 9;
-    final firstRing = progressR + 8;
-    final outer = size.width / 2 - 2;
+    final arcR = RecordingPulse.arcRadius * scale;
+    final firstRing = 84 * scale; // the frames' innermost ring (168 dp)
+    final outer = size.width / 2 - 1; // the frames' outermost (224 dp)
     final ring = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 2;
 
     if (animate) {
-      // Quiet room: the rings stay close. Louder: they travel further out.
-      final reach = (outer - firstRing) * (0.3 + 0.7 * level.value.clamp(0.0, 1.0));
+      // Quiet: the rings stay close. Louder: they travel out to the edge.
+      final reach = (outer - firstRing) * (0.35 + 0.65 * level.value.clamp(0.0, 1.0));
       for (var i = 0; i < _rings; i++) {
         final t = (phase.value + i / _rings) % 1.0;
-        final r = firstRing + reach * t;
-        ring.color = YomaColors.tertiary.withValues(alpha: 0.45 * (1 - t));
-        canvas.drawCircle(c, r, ring);
+        // 40% opacity at the circle, fading to 8% at the edge, as in the frames.
+        ring.color = YomaColors.tertiary.withValues(alpha: 0.40 - 0.32 * t);
+        canvas.drawCircle(c, firstRing + reach * t, ring);
       }
     } else {
-      ring.color = YomaColors.tertiary.withValues(alpha: 0.35);
-      canvas.drawCircle(c, firstRing + (outer - firstRing) * 0.4, ring);
+      ring.color = YomaColors.tertiary.withValues(alpha: 0.30);
+      canvas.drawCircle(c, firstRing + (outer - firstRing) * 0.35, ring);
     }
 
-    // Time elapsed, just outside the solid circle.
+    // Time remaining, just outside the solid circle (the frames' arc, from the top).
     final track = Paint()
       ..style = PaintingStyle.stroke
       ..strokeWidth = 4
-      ..color = YomaColors.grey200;
-    canvas.drawCircle(c, progressR, track);
-    if (elapsed > 0) {
+      ..color = YomaColors.line;
+    canvas.drawCircle(c, arcR, track);
+    if (remaining > 0) {
       final arc = Paint()
         ..style = PaintingStyle.stroke
         ..strokeWidth = 4
         ..strokeCap = StrokeCap.round
-        ..color = YomaColors.brand;
+        ..color = YomaColors.primary;
       canvas.drawArc(
-        Rect.fromCircle(center: c, radius: progressR),
+        Rect.fromCircle(center: c, radius: arcR),
         -math.pi / 2,
-        2 * math.pi * elapsed,
+        2 * math.pi * remaining,
         false,
         arc,
       );
@@ -341,9 +348,9 @@ class _PulsePainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_PulsePainter old) =>
-      old.elapsed != elapsed ||
+      old.remaining != remaining ||
       old.animate != animate ||
-      old.centreRadius != centreRadius ||
+      old.scale != scale ||
       old.level != level;
 }
 
@@ -400,7 +407,8 @@ class _ChestPhonePainter extends CustomPainter {
       stroke,
     );
     canvas.drawCircle(const Offset(9, 7), 3, stroke);
-    final phone = RRect.fromRectAndRadius(const Rect.fromLTWH(14, 9, 7, 11), const Radius.circular(1.5));
+    final phone =
+        RRect.fromRectAndRadius(const Rect.fromLTWH(14, 9, 7, 11), const Radius.circular(1.5));
     canvas.drawRRect(phone, Paint()..color = YomaColors.onPrimary);
     canvas.drawRRect(phone, stroke);
     canvas.drawLine(const Offset(17.5, 12), const Offset(17.5, 15), stroke);
