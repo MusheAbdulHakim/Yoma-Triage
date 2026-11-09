@@ -108,6 +108,8 @@ SCENARIOS: dict[str, dict] = {
     "breathing": {"file": "s13_breathing_test.dart", "defines": {"MOEWS_ONLY": "false"}},
     # The same test at the device's own size. It can fail there too: that's a finding.
     "banners_native": {"file": "s9_home_banners_test.dart"},
+    # Round 6: what TalkBack can read on each main screen, with TalkBack really on.
+    "talkback": {"file": "s14_talkback_test.dart"},
 }
 SMALL_SCREEN_SCENARIOS = ["3", "4", "5", "6", "7", "banners", "ui"]
 
@@ -332,6 +334,52 @@ class Device:
                 return [dict(n.attrib) for n in root.iter("node")]
             time.sleep(1)
         return []
+
+    TALKBACK = "com.google.android.marvin.talkback/com.google.android.marvin.talkback.TalkBackService"
+
+    def talkback(self, on: bool) -> dict:
+        """TalkBack on or off, through Settings, as a CHO would."""
+        if on:
+            # Its first-run notification prompt would sit over the app.
+            self.shell(
+                "pm grant com.google.android.marvin.talkback android.permission.POST_NOTIFICATIONS"
+            )
+            self.shell(f"settings put secure enabled_accessibility_services {self.TALKBACK}")
+            self.shell("settings put secure accessibility_enabled 1")
+            time.sleep(4)
+            for label in ("Allow", "ALLOW", "Got it", "OK"):
+                node = find_node(self.dump(), label, exact=True)
+                if node and node.get("package") != PACKAGE:
+                    tap_node(self, node)
+                    time.sleep(1)
+        else:
+            self.shell("settings delete secure enabled_accessibility_services")
+            self.shell("settings put secure accessibility_enabled 0")
+        time.sleep(4)
+        enabled = self.shell("settings get secure enabled_accessibility_services").strip()
+        return {"enabled": enabled}
+
+    def talkback_read(self, name: str) -> dict:
+        """What TalkBack can read on this screen, in its reading order (the accessibility
+        tree, top to bottom), saved next to a screenshot taken with TalkBack running."""
+        time.sleep(2)
+        read = []
+        for node in self.dump():
+            words = (node.get("content-desc") or node.get("text") or "").strip()
+            if not words or node.get("package") != PACKAGE:
+                continue
+            kind = []
+            if node.get("clickable") == "true":
+                kind.append("button")
+            if node.get("class", "").endswith("EditText"):
+                kind.append("edit box")
+            if node.get("checked") == "true" or node.get("selected") == "true":
+                kind.append("selected")
+            read.append(words.replace("\n", " ") + (f" ({', '.join(kind)})" if kind else ""))
+        (self.out / f"talkback_{name}.txt").write_text("\n".join(read) + "\n")
+        self.screenshot(f"talkback_{name}")
+        record("talkback", {name: read})
+        return {"read": read}
 
     def install(self, apk: Path) -> None:
         """Replaces whatever is there. An install can hang on the small emulator, so retry."""
@@ -616,6 +664,10 @@ class Handler(BaseHTTPRequestHandler):
             # The system text size, as a CHO would set it in Settings.
             device.shell(f"settings put system font_scale {float(query['scale'])}")
             return {}
+        if path == "/talkback":
+            return device.talkback(query["on"] == "1")
+        if path == "/talkback-read":
+            return device.talkback_read(query["name"])
         if path == "/metric":
             record("metrics", {query["name"]: float(query["value"])})
             return {}
