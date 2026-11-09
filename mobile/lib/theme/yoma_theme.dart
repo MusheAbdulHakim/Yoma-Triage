@@ -48,7 +48,7 @@ abstract final class TriageColors {
 
   // Incomplete: grey card with a dashed border.
   static const incompleteFill = YomaColors.grey100;
-  static const incompleteBorder = YomaColors.grey400;
+  static const incompleteBorder = YomaColors.grey500; // 4.76:1 on white
   static const onIncomplete = YomaColors.grey900;
 }
 

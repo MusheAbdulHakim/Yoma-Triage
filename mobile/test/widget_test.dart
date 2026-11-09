@@ -42,7 +42,7 @@ void main() {
     await tester.tap(find.text('Record vitals'));
     await tester.pumpAndSettle();
     expect(find.byKey(const Key('vitals_see_result')), findsOneWidget);
-    expect(find.text('Stop & Analyze Early'), findsNothing);
+    expect(find.byKey(const Key('screening_stop')), findsNothing);
   });
 
   testWidgets('Emergency Referral bypasses screening', (tester) async {

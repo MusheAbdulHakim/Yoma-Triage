@@ -134,9 +134,11 @@ void main() {
         ),
       );
       await tester.pump(const Duration(milliseconds: 100));
-      expect(find.textContaining('Mic unavailable'), findsOneWidget);
+      // Not a permission problem, so no Open settings; Skip to vitals is the way on.
+      expect(find.text('The microphone could not start'), findsOneWidget);
+      expect(find.byKey(const Key('screening_open_settings')), findsNothing);
 
-      await tester.tap(find.text('Stop & Analyze Early'));
+      await tester.tap(find.byKey(const Key('screening_skip_to_vitals')));
       await tester.pump(const Duration(milliseconds: 100));
       await tester.pumpAndSettle();
 
@@ -163,7 +165,7 @@ void main() {
           ),
         ),
       );
-      expect(find.textContaining('Acoustic (advisory)'), findsNothing);
+      expect(find.text('Breathing check (advisory)'), findsNothing);
       expect(find.text('Refer with clinical judgment'), findsOneWidget);
     });
   });

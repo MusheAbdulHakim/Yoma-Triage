@@ -36,11 +36,11 @@ void main() {
     );
     await tester.tap(find.text('Check breathing'));
     // Screening starts recording + breath pulse (infinite animation).
-    await pumpUntilFound(tester, find.text('Stop & Analyze Early'));
-    expect(find.text('Stop & Analyze Early'), findsOneWidget);
+    await pumpUntilFound(tester, find.byKey(const Key('screening_stop')));
+    expect(find.byKey(const Key('screening_stop')), findsOneWidget);
     expect(find.byKey(const Key('breathing_pulse')), findsOneWidget);
 
-    await tester.tap(find.text('Stop & Analyze Early'));
+    await tester.tap(find.byKey(const Key('screening_stop')));
     await tester.pump();
     expect(find.byKey(const Key('breathing_pulse')), findsOneWidget);
     await pumpUntilFound(tester, find.byKey(const Key('vitals_see_result')));
