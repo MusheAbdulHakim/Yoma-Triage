@@ -202,10 +202,11 @@ class _SetupScreenState extends State<SetupScreen> {
           autofillHints: const [AutofillHints.telephoneNumberNational],
           style: text.titleLarge,
           decoration: InputDecoration(
-            // Names the field for screen readers; never floats over the prefix.
-            labelText: 'Phone number, after +233',
-            floatingLabelBehavior: FloatingLabelBehavior.never,
-            labelStyle: text.titleLarge?.copyWith(color: YomaColors.grey500),
+            // A neutral placeholder that floats up once digits are typed, so the field keeps
+            // its name for screen readers (a never-floating label leaves it nameless).
+            labelText: 'Phone number',
+            labelStyle: text.titleMedium?.copyWith(color: YomaColors.grey600),
+            floatingLabelStyle: text.bodyMedium?.copyWith(color: YomaColors.primary),
             prefixIcon: Container(
               margin: const EdgeInsets.only(left: 14, right: 12),
               padding: const EdgeInsets.only(right: 12),

@@ -22,6 +22,8 @@ import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/screens/result_screen.dart';
+import 'package:yoma_triage/screens/stale_referral_screen.dart';
+import 'package:yoma_triage/screens/setup_screen.dart';
 import 'package:yoma_triage/screens/screening_screen.dart';
 import 'package:yoma_triage/screens/vitals_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
@@ -134,6 +136,66 @@ class _Analysing extends ScreeningService {
   @override
   Future<void> dispose() async {}
 }
+
+/// Stale referrals waiting for an answer, for the "Still needs transport?" sheet.
+class _Waiting extends OfflineQueue {
+  _Waiting({this.count = 1, this.contacted = false});
+
+  final int count;
+  final bool contacted;
+
+  @override
+  Future<List<QueuedReferral>> needsConfirmation() async => [
+        for (var i = 0; i < count; i++)
+          QueuedReferral(
+            clientRequestId: 'req-$i',
+            status: 'needs_confirmation',
+            createdAt: DateTime.now().subtract(const Duration(minutes: 45)),
+            payload: {
+              'emergency_type': 'pph',
+              'facility_id': 1,
+              'cho_phone': '+233240000777',
+              'local_server_referral_id': 42 + i,
+              if (contacted) 'local_manual_contact_made': true,
+            },
+          ),
+      ];
+}
+
+/// Setup's lookup, answering with a clinic or a refusal.
+class _Lookup extends ApiClient {
+  _Lookup({this.error});
+
+  final Object? error;
+
+  @override
+  Future<Map<String, dynamic>> lookupCho(String phone) async {
+    if (error != null) throw error!;
+    return {
+      'name': 'Abena Mensah',
+      'phone': phone,
+      'compound_id': 7,
+      'compound_name': 'Tamale South CHPS',
+    };
+  }
+
+  @override
+  Future<Map<String, dynamic>> getCompoundContacts(int compoundId) async =>
+      {'compound_id': compoundId, 'drivers': [], 'facilities': []};
+}
+
+/// Opens the sheet over a plain page, as Home does.
+Widget _sheetHost(OfflineQueue queue) => Builder(
+      builder: (context) => Scaffold(
+        body: Center(
+          child: TextButton(
+            key: const Key('open_sheet'),
+            onPressed: () => showStaleReferralSheet(context, queue: queue, api: _offline()),
+            child: const Text('Open the question'),
+          ),
+        ),
+      ),
+    );
 
 /// A dispatch whose answer the test changes between polls.
 class _Changing extends ApiClient {
@@ -409,6 +471,100 @@ void main() {
     }
   });
 
+  // Round 7: first-run setup in each state, and the "Still needs transport?" sheet.
+  group('round 7', () {
+    Future<void> pumpReal(WidgetTester tester) async {
+      for (var i = 0; i < 10; i++) {
+        await tester.runAsync(() => Future<void>.delayed(const Duration(milliseconds: 20)));
+        await tester.pump(const Duration(milliseconds: 100));
+      }
+    }
+
+    Future<void> checks(WidgetTester tester) async {
+      expectSeparateNamedControls(tester);
+      await expectLater(tester, meetsGuideline(androidTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(labeledTapTargetGuideline));
+      await expectLater(tester, meetsGuideline(textContrastGuideline));
+    }
+
+    Future<void> setupReaches(WidgetTester tester, String state, {Object? error}) async {
+      await _pump(tester, SetupScreen(api: _Lookup(error: error), onComplete: (_) {}));
+      if (state == 'enter') return;
+      await tester.enterText(find.byKey(const Key('setup_phone')), '240000777');
+      await tester.pump();
+      await tester.tap(find.byKey(const Key('setup_continue')));
+      await pumpReal(tester);
+    }
+
+    for (final (state, error) in <(String, Object?)>[
+      ('enter', null),
+      ('confirmed', null),
+      ('not registered', ApiException(404, '{"detail":"x","code":"CHO_NOT_REGISTERED"}')),
+      ('network error', Exception('no route')),
+    ]) {
+      for (final size in const [Size(360, 640), Size(320, 568)]) {
+        testWidgets('Setup ($state) at ${size.width.toInt()} dp: semantics, targets, contrast',
+            (tester) async {
+          _screen(tester, size);
+          final handle = tester.ensureSemantics();
+          await setupReaches(tester, state, error: error);
+          expect(tester.takeException(), isNull);
+          await checks(tester);
+          handle.dispose();
+        });
+      }
+      testWidgets('Setup ($state) at 320 dp and 130% text: no overflow', (tester) async {
+        _screen(tester, const Size(320, 568));
+        await _pump(tester, SetupScreen(api: _Lookup(error: error), onComplete: (_) {}),
+            textScale: 1.3);
+        if (state != 'enter') {
+          await tester.enterText(find.byKey(const Key('setup_phone')), '240000777');
+          await tester.pump();
+          await tester.ensureVisible(find.byKey(const Key('setup_continue')));
+          await tester.tap(find.byKey(const Key('setup_continue')));
+          await pumpReal(tester);
+        }
+        expect(tester.takeException(), isNull);
+      });
+    }
+
+    for (final (name, queue) in [
+      ('default order', _Waiting()),
+      ('after Call or SMS', _Waiting(contacted: true)),
+      ('1 of 3', _Waiting(count: 3)),
+    ]) {
+      for (final (size, scale) in const [
+        (Size(360, 640), 1.0),
+        (Size(320, 568), 1.0),
+        (Size(320, 568), 1.3),
+      ]) {
+        testWidgets('Sheet ($name) at ${size.width.toInt()} dp, ${scale}x text', (tester) async {
+          _screen(tester, size);
+          final handle = tester.ensureSemantics();
+          await _pump(tester, _sheetHost(queue), textScale: scale);
+          await tester.tap(find.byKey(const Key('open_sheet')));
+          await pumpReal(tester);
+          await tester.pump(const Duration(seconds: 1));
+          expect(find.text('Still needs transport?'), findsOneWidget);
+          expect(tester.takeException(), isNull);
+          // Every answer reachable, whole, inside the screen.
+          for (final key in [
+            'stale_send_now_req-0',
+            'stale_already_handled_req-0',
+            'stale_cancel_req-0',
+            'stale_call_or_sms_req-0'
+          ]) {
+            await tester.ensureVisible(find.byKey(Key(key)));
+            await tester.pump();
+            expect(find.byKey(Key(key)).hitTestable(), findsOneWidget, reason: key);
+          }
+          if (scale == 1.0) await checks(tester);
+          handle.dispose();
+        });
+      }
+    }
+  });
+
   // Round 5: states reached by interaction get the same checks as the screens above.
   Future<void> checkAll(WidgetTester tester) async {
     expectSeparateNamedControls(tester);
@@ -540,6 +696,30 @@ void main() {
     expect(toggles, contains('Blood pressure not measured'), reason: 'one toggle for both');
     expect(toggles, contains('Heart rate not measured'));
     expect(toggles, contains('Consciousness not measured'));
+    handle.dispose();
+  });
+
+  testWidgets('Record vitals: filled fields keep their names', (tester) async {
+    tester.view.physicalSize = const Size(1000, 2600);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final handle = tester.ensureSemantics();
+    await _pump(tester, VitalsScreen(result: moewsOnlyResult()));
+    for (final (key, value) in [
+      ('vitals_sbp', '120'),
+      ('vitals_hr', '80'),
+      ('vitals_temp', '37')
+    ]) {
+      await tester.enterText(find.byKey(Key(key)), value);
+    }
+    await tester.pump();
+    expectSeparateNamedControls(tester);
+    final fields = semanticsNodes(tester)
+        .where((n) => !n.isMergedIntoParent && n.flagsCollection.isTextField)
+        .map((n) => n.label)
+        .toList();
+    expect(fields.where((l) => l.trim().isEmpty), isEmpty, reason: '$fields');
     handle.dispose();
   });
 
