@@ -64,10 +64,15 @@ abstract final class YomaColors {
 /// emergency or destructive actions only.
 abstract final class TriageColors {
   static const red = Color(0xFFC5221F); // white text 5.80:1
-  static const amber = Color(0xFFB45309); // white text 5.02:1
+  /// Dark amber for small marks (dots, borders, helper text): 5.02:1 on white.
+  static const amber = Color(0xFFB45309);
+
+  /// The Elevated card and badge, as in the design: amber with dark navy text (8.0:1).
+  /// Lighter than [red] in every colour-vision simulation (see color_tokens_test).
+  static const amberFill = Color(0xFFF59E0B);
   static const green = Color(0xFF15803D); // white text 5.02:1
   static const onRed = YomaColors.onPrimary;
-  static const onAmber = YomaColors.onPrimary;
+  static const onAmber = YomaColors.neutral;
   static const onGreen = YomaColors.onPrimary;
 
   // Incomplete: grey card with a dashed border.

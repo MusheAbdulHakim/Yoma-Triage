@@ -388,7 +388,7 @@ void main() {
       ('error on white', YomaColors.error, YomaColors.surface, false),
       ('warning on canvas', YomaColors.warning, YomaColors.canvas, false),
       ('white on RED', TriageColors.onRed, TriageColors.red, false),
-      ('grey900 on AMBER', TriageColors.onAmber, TriageColors.amber, false),
+      ('navy on the amber card', TriageColors.onAmber, TriageColors.amberFill, false),
       ('white on GREEN', TriageColors.onGreen, TriageColors.green, false),
       ('grey900 on incomplete grey', TriageColors.onIncomplete, TriageColors.incompleteFill, false),
     ];

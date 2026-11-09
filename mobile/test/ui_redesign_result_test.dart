@@ -149,7 +149,7 @@ void main() {
       // No score or confidence.
       expect(find.textContaining('80%'), findsNothing);
       expect(find.textContaining('Confidence'), findsNothing);
-      final triage = [TriageColors.red, TriageColors.amber, TriageColors.green];
+      final triage = [TriageColors.red, TriageColors.amber, TriageColors.amberFill, TriageColors.green];
       for (final text
           in tester.widgetList<Text>(find.descendant(of: row, matching: find.byType(Text)))) {
         expect(triage.contains(text.style?.color), isFalse, reason: text.data);

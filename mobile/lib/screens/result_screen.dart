@@ -103,7 +103,8 @@ class ResultScreen extends StatelessWidget {
     final why = explainMoews(m, vitals ?? const {});
     final missing = m.missingVitals;
     final onlySpo2Missing = missing.length == 1 && missing.first == 'spo2';
-    final dot = level.colour;
+    // Dots are small marks on white: the dark amber, not the card's light fill.
+    final dot = level == TriageLevel.amber ? TriageColors.amber : level.colour;
 
     return [
       if (why.isNotEmpty) ...[

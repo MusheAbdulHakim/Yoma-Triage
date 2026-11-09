@@ -6,7 +6,7 @@ import '../theme/yoma_theme.dart';
 /// has its own word and icon, and the word is what a screen reader announces.
 enum TriageLevel {
   red('Critical', 'MOEWS RED', TriageColors.red, TriageColors.onRed, Icons.warning_amber_rounded),
-  amber('Elevated', 'MOEWS YELLOW', TriageColors.amber, TriageColors.onAmber, Icons.schedule),
+  amber('Elevated', 'MOEWS YELLOW', TriageColors.amberFill, TriageColors.onAmber, Icons.schedule),
   green('Stable', 'MOEWS GREEN', TriageColors.green, TriageColors.onGreen, Icons.check_rounded),
   incomplete('Incomplete', 'MOEWS INCOMPLETE', TriageColors.incompleteFill,
       TriageColors.onIncomplete, Icons.question_mark_rounded);
