@@ -1,3 +1,6 @@
+import 'dart:async';
+
+import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:flutter/material.dart';
 
 import '../config.dart';
@@ -25,7 +28,10 @@ class HomeScreen extends StatefulWidget {
   final ApiClient? api;
   final OfflineQueue? queue;
 
-  const HomeScreen({super.key, this.acousticEnabled, this.api, this.queue});
+  /// Test seam: whether the phone has a network, instead of connectivity_plus.
+  final Stream<bool>? online;
+
+  const HomeScreen({super.key, this.acousticEnabled, this.api, this.queue, this.online});
 
   @override
   State<HomeScreen> createState() => _HomeScreenState();
@@ -41,12 +47,17 @@ class _HomeScreenState extends State<HomeScreen> {
   bool _warningsOpen = false;
   String? _compoundName;
 
-  bool get _acousticEnabled =>
-      widget.acousticEnabled ?? !ScreeningConfig.moewsOnly;
+  /// No network on this phone (no Wi-Fi, no mobile data). Unknown counts as online, so
+  /// the pill never shows by mistake.
+  bool _offline = false;
+  StreamSubscription<bool>? _onlineSub;
+
+  bool get _acousticEnabled => widget.acousticEnabled ?? !ScreeningConfig.moewsOnly;
 
   @override
   void initState() {
     super.initState();
+    _watchConnectivity();
     _loadCompoundName();
     _refreshCatalogStatus();
     _syncCatalog();
@@ -60,8 +71,34 @@ class _HomeScreenState extends State<HomeScreen> {
 
   @override
   void dispose() {
+    unawaited(_onlineSub?.cancel());
     _queue.needsConfirmationCount.removeListener(_onStaleCountChanged);
     super.dispose();
+  }
+
+  /// The same rule as the queue's sync: offline only when every connection is none.
+  void _watchConnectivity() {
+    Stream<bool> online;
+    if (widget.online != null) {
+      online = widget.online!;
+    } else {
+      final connectivity = Connectivity();
+      bool isOnline(List<ConnectivityResult> r) => r.any((c) => c != ConnectivityResult.none);
+      online = (() async* {
+        try {
+          yield isOnline(await connectivity.checkConnectivity());
+          yield* connectivity.onConnectivityChanged.map(isOnline);
+        } catch (_) {
+          // No connectivity plugin (tests, web): say nothing rather than guess.
+        }
+      })();
+    }
+    _onlineSub = online.listen(
+      (value) {
+        if (mounted && _offline == value) setState(() => _offline = !value);
+      },
+      onError: (_) {},
+    );
   }
 
   /// Asks as soon as a stale referral arrives, unless the CHO is busy on another screen.
@@ -262,22 +299,30 @@ class _HomeScreenState extends State<HomeScreen> {
     return Padding(
       padding: const EdgeInsets.fromLTRB(
           YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.md),
-      child: Column(
+      child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Semantics(
-            header: true,
-            child: Text(
-              'Yoma Care',
-              style: text.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Semantics(
+                  header: true,
+                  child: Text(
+                    'Yoma Care',
+                    style: text.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+                  ),
+                ),
+                if (_compoundName case final name?)
+                  Text(
+                    name,
+                    key: const Key('home_clinic_name'),
+                    style: text.bodyMedium?.copyWith(color: YomaColors.grey700),
+                  ),
+              ],
             ),
           ),
-          if (_compoundName case final name?)
-            Text(
-              name,
-              key: const Key('home_clinic_name'),
-              style: text.bodyMedium?.copyWith(color: YomaColors.grey700),
-            ),
+          if (_offline) const _OfflinePill(),
         ],
       ),
     );
@@ -311,8 +356,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     key: const Key('home_scroll'),
                     slivers: [
                       SliverPadding(
-                        padding: const EdgeInsets.fromLTRB(YomaSpacing.gutter,
-                            YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.lg),
+                        padding: const EdgeInsets.fromLTRB(
+                            YomaSpacing.gutter, YomaSpacing.md, YomaSpacing.gutter, YomaSpacing.lg),
                         sliver: SliverFillRemaining(
                           hasScrollBody: false,
                           child: Column(
@@ -513,4 +558,40 @@ class _Warning {
   final bool urgent;
   final String title;
   final Widget item;
+}
+
+/// "Offline" when the phone has no network. Referrals still save and send later.
+class _OfflinePill extends StatelessWidget {
+  const _OfflinePill();
+
+  @override
+  Widget build(BuildContext context) {
+    return Semantics(
+      key: const Key('home_offline'),
+      container: true,
+      liveRegion: true,
+      label: 'Offline. Referrals are saved and sent when there is signal.',
+      excludeSemantics: true,
+      child: Container(
+        margin: const EdgeInsets.only(left: 8, top: 2),
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: YomaColors.grey200,
+          borderRadius: BorderRadius.circular(YomaRadii.pill),
+          border: Border.all(color: YomaColors.grey300),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(Icons.cloud_off_outlined, size: 14, color: YomaColors.grey700),
+            const SizedBox(width: 6),
+            Text(
+              'Offline',
+              style: Theme.of(context).textTheme.labelSmall?.copyWith(color: YomaColors.grey800),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }

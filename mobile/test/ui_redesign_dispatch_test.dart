@@ -10,6 +10,7 @@ import 'package:yoma_triage/screens/queued_referral_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/contacts_store.dart';
 import 'package:yoma_triage/services/dispatch_timeline.dart';
+import 'package:yoma_triage/services/friendly_time.dart';
 import 'package:yoma_triage/theme/yoma_theme.dart';
 
 import 'helpers/cho_helper.dart';
@@ -48,6 +49,15 @@ Map<String, dynamic> _dispatch(
       'current_tier': 1,
       // Never shown to the CHO, even if a server ever sent it.
       'hospital_code': '7391',
+      'step_times': {
+        'sent': '2026-11-09T09:12:00+00:00',
+        'drivers_notified': '2026-11-09T09:13:00+00:00',
+        'driver_accepted': driver == null ? null : '2026-11-09T09:17:00+00:00',
+        'hospital_notified': null,
+        'hospital_confirmed': null,
+        'diverted': null,
+        'completed': null,
+      },
     };
 
 Map<String, Object> _contactsPrefs({int drivers = 2}) => {
@@ -335,6 +345,25 @@ void main() {
     final handle = tester.ensureSemantics();
     expect(find.bySemanticsLabel('Call Driver 8'), findsOneWidget);
     expect(find.bySemanticsLabel('SMS Driver 8'), findsOneWidget);
+    handle.dispose();
+  });
+
+  testWidgets('done steps show their time from the API, in the phone\'s local time',
+      (tester) async {
+    final handle = tester.ensureSemantics();
+    await _open(tester, [_dispatch('HOSPITAL_NOTIFIED', driver: 'Ibrahim')]);
+    final ctx = tester.element(find.byType(DispatchStatusScreen));
+    final accepted = DateTime.parse('2026-11-09T09:17:00+00:00');
+    final shown = shortWhen(ctx, accepted);
+    expect(find.text(shown), findsOneWidget);
+    expect(find.byKey(const Key('timeline_driver_time')), findsOneWidget);
+    // The current and future steps have no time.
+    expect(find.byKey(const Key('timeline_hospital_time')), findsNothing);
+    expect(find.byKey(const Key('timeline_trip_time')), findsNothing);
+    // Read as one sentence with its time.
+    expect(find.bySemanticsLabel('Done: Driver accepted at $shown, Ibrahim'), findsOneWidget);
+    // Never a raw timestamp.
+    expect(find.textContaining('2026-11-09T'), findsNothing);
     handle.dispose();
   });
 }

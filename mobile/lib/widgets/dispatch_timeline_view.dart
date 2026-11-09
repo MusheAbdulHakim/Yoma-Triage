@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../services/dispatch_timeline.dart';
+import '../services/friendly_time.dart';
 import '../theme/yoma_theme.dart';
 
 /// The vertical dispatch timeline. Done: filled teal circle with a check. Current: teal
@@ -15,8 +16,7 @@ class DispatchTimelineView extends StatelessWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final (i, step) in steps.indexed)
-          _StepRow(step: step, isLast: i == steps.length - 1),
+        for (final (i, step) in steps.indexed) _StepRow(step: step, isLast: i == steps.length - 1),
       ],
     );
   }
@@ -36,11 +36,12 @@ class _StepRow extends StatelessWidget {
       TimelineState.current => YomaColors.brand,
       TimelineState.future => YomaColors.grey600,
     };
+    final time = step.at == null ? null : shortWhen(context, step.at!);
     return Semantics(
       key: Key('timeline_${step.id}_${step.state.name}'),
       container: true,
       liveRegion: step.state == TimelineState.current,
-      label: step.spoken,
+      label: step.spokenWith(time),
       excludeSemantics: true,
       child: IntrinsicHeight(
         child: Row(
@@ -72,12 +73,28 @@ class _StepRow extends StatelessWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    Text(
-                      step.label,
-                      style: text.titleMedium?.copyWith(
-                        color: labelColour,
-                        fontWeight: FontWeight.w700,
-                      ),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: Text(
+                            step.label,
+                            style: text.titleMedium?.copyWith(
+                              color: labelColour,
+                              fontWeight: FontWeight.w700,
+                            ),
+                          ),
+                        ),
+                        if (time != null)
+                          Padding(
+                            padding: const EdgeInsets.only(left: 8, top: 2),
+                            child: Text(
+                              time,
+                              key: Key('timeline_${step.id}_time'),
+                              style: text.bodySmall?.copyWith(color: YomaColors.grey700),
+                            ),
+                          ),
+                      ],
                     ),
                     if (step.detail != null)
                       Padding(

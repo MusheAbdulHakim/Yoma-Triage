@@ -14,9 +14,13 @@ class TimelineStep {
     required this.state,
     this.detail,
     this.note,
+    this.at,
   });
 
   final String id;
+
+  /// When it happened (from the dispatch's step times); only for done steps.
+  final DateTime? at;
 
   /// Present tense / in progress while current, past tense only once it has happened.
   final String label;
@@ -28,7 +32,31 @@ class TimelineStep {
   /// A light teal note under the step (the diversion's new destination).
   final String? note;
 
-  /// What a screen reader says for the whole row.
+  TimelineStep withTime(DateTime? time) => TimelineStep(
+        id: id,
+        label: label,
+        state: state,
+        detail: detail,
+        note: note,
+        at: state == TimelineState.done ? time : null,
+      );
+
+  /// What a screen reader says for the whole row; [time] is [at] already formatted.
+  String spokenWith(String? time) {
+    final parts = [
+      time == null ? label : '$label at $time',
+      if (detail != null) detail!,
+      if (note != null) note!,
+    ];
+    final prefix = switch (state) {
+      TimelineState.done => 'Done',
+      TimelineState.current => 'Now',
+      TimelineState.future => 'Not yet',
+    };
+    return '$prefix: ${parts.join(', ')}';
+  }
+
+  /// What a screen reader says for the whole row (without the time).
   String get spoken {
     final parts = [
       label,
@@ -101,6 +129,7 @@ DispatchTimeline dispatchTimeline({
   String? divertedFrom,
   bool sawConfirmed = false,
   bool acceptedLate = false,
+  Map<String, DateTime?> times = const {},
 }) {
   final s = status.toUpperCase();
   final destination = facilityName ?? 'the hospital';
@@ -123,10 +152,10 @@ DispatchTimeline dispatchTimeline({
   final assigned = _driverAssigned.contains(s);
 
   final drivers = switch (s) {
-    'PENDING' => const TimelineStep(
-        id: 'drivers', label: 'Notifying drivers', state: TimelineState.current),
-    _ when _waitingForDriver.contains(s) || s == 'FAILED' || assigned => const TimelineStep(
-        id: 'drivers', label: 'Drivers notified', state: TimelineState.done),
+    'PENDING' =>
+      const TimelineStep(id: 'drivers', label: 'Notifying drivers', state: TimelineState.current),
+    _ when _waitingForDriver.contains(s) || s == 'FAILED' || assigned =>
+      const TimelineStep(id: 'drivers', label: 'Drivers notified', state: TimelineState.done),
     _ => const TimelineStep(id: 'drivers', label: 'Checking status…', state: TimelineState.current),
   };
 
@@ -150,19 +179,20 @@ DispatchTimeline dispatchTimeline({
   final hospital = switch (s) {
     'ACCEPTED' || 'HOSPITAL_NOTIFIED' || 'DIVERTED' => const TimelineStep(
         id: 'hospital', label: 'Waiting for hospital to confirm', state: TimelineState.current),
-    'HOSPITAL_CONFIRMED' => const TimelineStep(
-        id: 'hospital', label: 'Hospital confirmed', state: TimelineState.done),
+    'HOSPITAL_CONFIRMED' =>
+      const TimelineStep(id: 'hospital', label: 'Hospital confirmed', state: TimelineState.done),
     'COMPLETED' => TimelineStep(
         id: 'hospital',
         label: sawConfirmed ? 'Hospital confirmed' : 'Hospital notified',
         state: TimelineState.done,
       ),
-    _ => const TimelineStep(id: 'hospital', label: 'Hospital confirms', state: TimelineState.future),
+    _ =>
+      const TimelineStep(id: 'hospital', label: 'Hospital confirms', state: TimelineState.future),
   };
 
   final trip = switch (s) {
-    'HOSPITAL_CONFIRMED' => TimelineStep(
-        id: 'trip', label: 'On the way to $destination', state: TimelineState.current),
+    'HOSPITAL_CONFIRMED' =>
+      TimelineStep(id: 'trip', label: 'On the way to $destination', state: TimelineState.current),
     'COMPLETED' => const TimelineStep(id: 'trip', label: 'Arrived', state: TimelineState.done),
     _ => const TimelineStep(id: 'trip', label: 'Arrives at hospital', state: TimelineState.future),
   };
@@ -177,17 +207,22 @@ DispatchTimeline dispatchTimeline({
           state: TimelineState.done,
         );
 
+  // Which recorded time belongs to which step (the API's step_times).
+  final hospitalTime = hospital.label == 'Hospital notified'
+      ? times['hospital_notified']
+      : times['hospital_confirmed'];
   return DispatchTimeline(
     help: s == 'FAILED' ? DispatchHelp.noDriver : DispatchHelp.none,
     steps: [
-      const TimelineStep(id: 'sent', label: 'Referral sent', state: TimelineState.done),
-      drivers,
-      driver,
+      const TimelineStep(id: 'sent', label: 'Referral sent', state: TimelineState.done)
+          .withTime(times['sent']),
+      drivers.withTime(times['drivers_notified']),
+      driver.withTime(times['driver_accepted']),
       // A diversion re-notifies a new hospital, so the hospital step after it is about
       // the new destination.
-      if (diverted != null) diverted,
-      hospital,
-      trip,
+      if (diverted != null) diverted.withTime(times['diverted']),
+      hospital.withTime(hospitalTime),
+      trip.withTime(times['completed']),
     ],
   );
 }

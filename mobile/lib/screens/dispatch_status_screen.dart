@@ -52,6 +52,9 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   /// hospital's reply code, which the API does not send to the CHO anyway.
   int? _referralId;
 
+  /// When each step happened, from the API's step_times.
+  Map<String, DateTime?> _times = const {};
+
   /// Seen by this screen, for the timeline's wording only.
   bool _sawFailed = false;
   bool _sawConfirmed = false;
@@ -71,17 +74,14 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   /// The last status check couldn't reach the server.
   bool _unreachable = false;
 
-  bool get _needsManualHelp =>
-      _status == 'FAILED' || _status == 'QUEUED' || _unreachable;
-
+  bool get _needsManualHelp => _status == 'FAILED' || _status == 'QUEUED' || _unreachable;
 
   bool _cancelling = false;
 
   /// A diversion only changes the destination, so the screen keeps following the trip.
   static const _terminalStates = {'COMPLETED', 'FAILED', 'CANCELLED'};
 
-  bool get _canCancel =>
-      _dispatchId != null && _status != 'COMPLETED' && _status != 'CANCELLED';
+  bool get _canCancel => _dispatchId != null && _status != 'COMPLETED' && _status != 'CANCELLED';
 
   @override
   void initState() {
@@ -128,8 +128,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
   Future<void> _retryFlush() async {
     try {
       await _queue.flush(_api);
-      final dispatchId =
-          _dispatchId ?? await _queue.lookupDispatchId(widget.clientRequestId);
+      final dispatchId = _dispatchId ?? await _queue.lookupDispatchId(widget.clientRequestId);
       if (dispatchId != null && mounted && !_disposed) {
         final wasQueued = _dispatchId == null;
         setState(() {
@@ -156,12 +155,19 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
       final facilityName = data['facility_name'] as String?;
       final divertedFrom = data['diverted_from'] as String?;
       final referralId = data['referral_id'];
+      final rawTimes = data['step_times'];
       setState(() {
         _unreachable = false;
         _status = status;
         if (status.toUpperCase() == 'FAILED') _sawFailed = true;
         if (status.toUpperCase() == 'HOSPITAL_CONFIRMED') _sawConfirmed = true;
         if (referralId is int) _referralId = referralId;
+        if (rawTimes is Map) {
+          _times = {
+            for (final MapEntry(:key, :value) in rawTimes.entries)
+              '$key': value is String ? DateTime.tryParse(value) : null,
+          };
+        }
         if (facilityId is int) _facilityId = facilityId;
         _facilityName = facilityName;
         _divertedFrom = divertedFrom;
@@ -229,12 +235,10 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
         });
       }
     } on ApiException catch (e) {
-      problem = e.code == null
-          ? 'Could not cancel. Call the driver and hospital directly.'
-          : e.reason;
-    } catch (_) {
       problem =
-          'Could not cancel: no connection. Call the driver and hospital directly.';
+          e.code == null ? 'Could not cancel. Call the driver and hospital directly.' : e.reason;
+    } catch (_) {
+      problem = 'Could not cancel: no connection. Call the driver and hospital directly.';
     }
     if (!mounted || _disposed) return;
     setState(() => _cancelling = false);
@@ -259,6 +263,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
           divertedFrom: _divertedFrom,
           sawConfirmed: _sawConfirmed,
           acceptedLate: _sawFailed,
+          times: _times,
         );
 
   /// Says the current step aloud when it changes (after the first build).
@@ -340,8 +345,7 @@ class _DispatchStatusScreenState extends State<DispatchStatusScreen> {
                 ),
               ),
             ),
-          if (_divertedFrom != null)
-            const SizedBox.shrink(key: Key('dispatch_diverted')),
+          if (_divertedFrom != null) const SizedBox.shrink(key: Key('dispatch_diverted')),
           if (!_terminal && _dispatchId != null)
             Padding(
               padding: const EdgeInsets.only(top: 16),

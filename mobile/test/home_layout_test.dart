@@ -1,3 +1,5 @@
+import 'dart:async';
+
 // A2: Emergency Referral is always reachable. It is pinned at the top of Home, the
 // warnings share one summary banner that opens on tap, and the rest of Home scrolls.
 import 'package:flutter/material.dart';
@@ -217,7 +219,8 @@ void main() {
     final checkBreathing = find.byKey(const Key('home_check_breathing'));
     final recordVitals = find.byKey(const Key('home_record_vitals'));
 
-    testWidgets('acoustic mode: Emergency referral first, then Check breathing, '
+    testWidgets(
+        'acoustic mode: Emergency referral first, then Check breathing, '
         'directly under the top bar', (tester) async {
       _screen(tester, const Size(360, 640));
       await _openHome(tester, _Queue(), acoustic: true);
@@ -252,7 +255,8 @@ void main() {
 
     for (final acoustic in const [false, true]) {
       final mode = acoustic ? 'acoustic' : 'MOEWS-only';
-      testWidgets('$mode: at 320 dp and 130% text, with every warning showing and open, '
+      testWidgets(
+          '$mode: at 320 dp and 130% text, with every warning showing and open, '
           'Emergency referral is fully visible and tappable', (tester) async {
         const size = Size(320, 568);
         _screen(tester, size);
@@ -273,16 +277,14 @@ void main() {
       });
     }
 
-    testWidgets('the strip is navy for a failure and light while only waiting',
-        (tester) async {
+    testWidgets('the strip is navy for a failure and light while only waiting', (tester) async {
       _screen(tester, const Size(360, 640));
       SharedPreferences.setMockInitialValues({
         ...registeredChoPrefs(),
         'catalog_synced_at': DateTime.now().toIso8601String(),
       });
       await _openHome(tester, _Queue(failedN: 1));
-      Material strip() =>
-          tester.widget<Material>(find.byKey(const Key('home_warnings_summary')));
+      Material strip() => tester.widget<Material>(find.byKey(const Key('home_warnings_summary')));
       expect(strip().color, YomaColors.navy);
 
       await tester.pumpWidget(const SizedBox()); // a fresh Home, with a fresh queue
@@ -296,5 +298,32 @@ void main() {
       expect(find.text('Yoma Care'), findsOneWidget);
       expect(find.byKey(const Key('home_clinic_name')), findsOneWidget);
     });
+  });
+
+  testWidgets('Offline pill shows only while the phone has no network', (tester) async {
+    _screen(tester, const Size(360, 640));
+    final online = StreamController<bool>();
+    addTearDown(online.close);
+    final handle = tester.ensureSemantics();
+    await tester.pumpWidget(MaterialApp(
+      theme: buildYomaTheme(),
+      home: HomeScreen(
+          api: _offline(), queue: _Queue(), acousticEnabled: false, online: online.stream),
+    ));
+    online.add(true);
+    await tester.pump();
+    expect(find.text('Offline'), findsNothing);
+
+    online.add(false);
+    await tester.pump();
+    expect(find.text('Offline'), findsOneWidget);
+    expect(find.bySemanticsLabel(RegExp('^Offline\\. Referrals are saved')), findsOneWidget);
+    // Emergency referral stays first and whole.
+    _expectFullyVisible(tester, const Size(360, 640));
+
+    online.add(true);
+    await tester.pump();
+    expect(find.text('Offline'), findsNothing);
+    handle.dispose();
   });
 }
