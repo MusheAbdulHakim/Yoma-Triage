@@ -435,7 +435,11 @@ class _ReferralScreenState extends State<ReferralScreen> {
               Padding(
                 padding: const EdgeInsets.only(top: 12),
                 child: Text(
-                  'Breathing check (advisory): ${label.toUpperCase() == 'RED' ? 'Possible breathing problem' : "Couldn't tell"}',
+                  switch (label.toUpperCase()) {
+                    notScreenedLabel => 'No breathing check – the hospital will be told',
+                    'RED' => 'Breathing check (advisory): Possible breathing problem',
+                    _ => "Breathing check (advisory): Couldn't tell",
+                  },
                   key: const Key('referral_breathing_note'),
                   style: Theme.of(context).textTheme.bodySmall?.copyWith(color: YomaColors.grey700),
                 ),

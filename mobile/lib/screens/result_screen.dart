@@ -21,7 +21,8 @@ class ResultScreen extends StatelessWidget {
     this.vitals,
   });
 
-  bool get _acousticDisabled => result.source == 'moews_only';
+  /// No breathing check to show: switched off, or skipped (vitals straight from Home).
+  bool get _acousticDisabled => result.source == 'moews_only' || result.source == 'not_screened';
 
   bool get _isDemoSource => result.source == 'stub' || result.source == 'simulator';
 

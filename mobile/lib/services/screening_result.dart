@@ -85,6 +85,19 @@ ScreeningResult moewsOnlyResult() => ScreeningResult(
       modelVersion: 'moews-only-v0',
     );
 
+/// What a referral carries when no breathing check was done (acoustic builds only). The
+/// hospital notice says "Breathing check: not screened".
+const notScreenedLabel = 'NOT_SCREENED';
+
+/// Vitals recorded straight from Home in an acoustic build, with no breathing check.
+ScreeningResult notScreenedResult() => ScreeningResult(
+      label: notScreenedLabel,
+      confidence: 0.0,
+      reason: 'No breathing check — vitals only',
+      source: 'not_screened',
+      modelVersion: 'not-screened',
+    );
+
 /// `SCREENING_MODEL=stub`: labelled demo output, and still never reassuring.
 ScreeningResult stubClassify() => ScreeningResult(
       label: 'INCONCLUSIVE',

@@ -284,7 +284,13 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openReferral() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => const ReferralScreen()),
+      // In an acoustic build a referral made without a breathing check says so.
+      MaterialPageRoute(
+        builder: (_) => ReferralScreen(
+          aiScreenResult: _acousticEnabled ? notScreenedLabel : null,
+          aiModelVersion: _acousticEnabled ? notScreenedResult().modelVersion : null,
+        ),
+      ),
     );
   }
 
@@ -296,7 +302,11 @@ class _HomeScreenState extends State<HomeScreen> {
 
   void _openVitals() {
     Navigator.of(context).push(
-      MaterialPageRoute(builder: (_) => VitalsScreen(result: moewsOnlyResult())),
+      MaterialPageRoute(
+        builder: (_) => VitalsScreen(
+          result: _acousticEnabled ? notScreenedResult() : moewsOnlyResult(),
+        ),
+      ),
     );
   }
 
@@ -372,6 +382,7 @@ class _HomeScreenState extends State<HomeScreen> {
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
+                              // Acoustic builds: Check breathing, then Record vitals.
                               if (_acousticEnabled) ...[
                                 _HomeActionButton(
                                   buttonKey: const Key('home_check_breathing'),
@@ -380,13 +391,14 @@ class _HomeScreenState extends State<HomeScreen> {
                                   tag: 'Advisory',
                                   onPressed: _openBreathCheck,
                                 ),
-                              ] else
-                                _HomeActionButton(
-                                  buttonKey: const Key('home_record_vitals'),
-                                  icon: const HeartPulseIcon(size: 22),
-                                  label: 'Record vitals',
-                                  onPressed: _openVitals,
-                                ),
+                                const SizedBox(height: YomaSpacing.md),
+                              ],
+                              _HomeActionButton(
+                                buttonKey: const Key('home_record_vitals'),
+                                icon: const HeartPulseIcon(size: 22),
+                                label: 'Record vitals',
+                                onPressed: _openVitals,
+                              ),
                               const Spacer(),
                               if (warnings.isNotEmpty) ...[
                                 const SizedBox(height: YomaSpacing.lg),

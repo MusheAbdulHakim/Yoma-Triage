@@ -9,6 +9,8 @@ import 'package:http/testing.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
+import 'package:yoma_triage/screens/vitals_screen.dart';
+import 'package:yoma_triage/services/screening_result.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
 import 'package:yoma_triage/theme/yoma_theme.dart';
@@ -236,6 +238,48 @@ void main() {
       // Still the largest action.
       expect(emergency.height, greaterThan(breathing.height));
       expect(find.text('Advisory'), findsOneWidget);
+    });
+
+    testWidgets('acoustic mode: all three actions, in order: Emergency referral, '
+        'Check breathing, Record vitals', (tester) async {
+      _screen(tester, const Size(360, 640));
+      await _openHome(tester, _Queue(), acoustic: true);
+
+      final emergency = tester.getRect(_button);
+      final breathing = tester.getRect(checkBreathing);
+      final vitals = tester.getRect(recordVitals);
+      expect(emergency.bottom, lessThanOrEqualTo(breathing.top));
+      expect(breathing.bottom, lessThanOrEqualTo(vitals.top));
+      expect(vitals.top - breathing.bottom, lessThanOrEqualTo(16), reason: 'no gap');
+      expect(recordVitals.hitTestable(), findsOneWidget, reason: 'on screen at 360x640');
+    });
+
+    testWidgets('acoustic mode: a referral or vitals without a breathing check is Not screened',
+        (tester) async {
+      _screen(tester, const Size(360, 640));
+      await _openHome(tester, _Queue(), acoustic: true);
+
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      final form = tester.widget<ReferralScreen>(find.byType(ReferralScreen));
+      expect(form.aiScreenResult, notScreenedLabel);
+      expect(find.text('No breathing check – the hospital will be told'), findsOneWidget);
+      await tester.pageBack();
+      await tester.pumpAndSettle();
+
+      await tester.tap(recordVitals);
+      await tester.pumpAndSettle();
+      final vitals = tester.widget<VitalsScreen>(find.byType(VitalsScreen));
+      expect(vitals.result.label, notScreenedLabel);
+    });
+
+    testWidgets('MOEWS-only mode: no breathing check exists, so nothing says Not screened',
+        (tester) async {
+      _screen(tester, const Size(360, 640));
+      await _openHome(tester, _Queue(), acoustic: false);
+      await tester.tap(_button);
+      await tester.pumpAndSettle();
+      expect(tester.widget<ReferralScreen>(find.byType(ReferralScreen)).aiScreenResult, isNull);
     });
 
     testWidgets('MOEWS-only mode: no Check breathing, and no gap where it would be',

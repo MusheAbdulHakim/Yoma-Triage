@@ -60,6 +60,10 @@ def facility_codes_line(options: list[Facility]) -> str:
     return ", ".join(f"{f.id} {f.name[:DIVERT_NAME_CHARS].strip()}" for f in options)
 
 
+#: What the app sends as ai_screen_result when no breathing check was done.
+NOT_SCREENED = "NOT_SCREENED"
+
+
 class HospitalNotifier:
     async def notify_pre_arrival(
         self,
@@ -81,6 +85,12 @@ class HospitalNotifier:
         else:
             not_measured = f"Not measured: {', '.join(missing)}\n" if missing else ""
         diverted = f"DIVERTED here from {diverted_from}\n" if diverted_from else ""
+        # Acoustic builds send NOT_SCREENED when the CHO referred without a breathing check.
+        screened = (
+            "Breathing check: not screened\n"
+            if (referral.ai_screen_result or "").upper() == NOT_SCREENED
+            else ""
+        )
         options = facility_codes_line(await divert_options(session, facility))
         message = (
             "YOMA TRIAGE EMERGENCY REFERRAL\n"
@@ -90,6 +100,7 @@ class HospitalNotifier:
             f"Condition: {referral.emergency_type}\n"
             f"Severity: {referral.risk_level}\n"
             f"{not_measured}"
+            f"{screened}"
             f"Driver: {driver.name}\n"
             f"Driver phone: {driver.phone}\n"
             f"Code: {code}\n"
