@@ -12,6 +12,8 @@ import pytest
 from src import parameters
 from src.config import settings
 
+REPO = Path(__file__).resolve().parents[1]
+
 
 def test_default_tier_wait_matches_spec():
     assert parameters.CASCADE_TIER_SECONDS == 90
@@ -269,3 +271,37 @@ def test_seed_refuses_without_a_database_url():
     )
     assert result.returncode == 1
     assert "DATABASE_URL must be set" in result.stderr
+
+
+def test_suite_never_reads_a_developers_dotenv(tmp_path):
+    """A .env can't change what the tests check: YOMA_SKIP_DOTENV=1 (set by conftest, and
+    inherited by every server and script a test starts) stops it loading. Without the
+    switch, the same .env is read, as in normal use."""
+    (tmp_path / ".env").write_text("ENVIRONMENT=production\nAT_API_KEY=from-dotenv\n")
+    code = (
+        f"import json, sys; sys.path.insert(0, {str(REPO)!r}); "
+        "from src.config import settings; "
+        "print(json.dumps([settings.ENVIRONMENT, settings.AT_API_KEY]))"
+    )
+    base = {k: v for k, v in os.environ.items() if k not in {"ENVIRONMENT", "AT_API_KEY"}}
+
+    skipped = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, cwd=tmp_path,
+        env=base | {"YOMA_SKIP_DOTENV": "1"}, timeout=60, check=True,
+    )
+    assert json.loads(skipped.stdout.strip().splitlines()[-1]) == ["production", ""], (
+        "nothing from .env: the defaults"
+    )
+    assert "from-dotenv" not in skipped.stdout
+
+    read = subprocess.run(
+        [sys.executable, "-c", code], capture_output=True, text=True, cwd=tmp_path,
+        env={k: v for k, v in base.items() if k != "YOMA_SKIP_DOTENV"}, timeout=60, check=True,
+    )
+    assert json.loads(read.stdout.strip().splitlines()[-1]) == ["production", "from-dotenv"]
+
+
+def test_conftest_starts_the_suite_from_a_known_environment():
+    assert os.environ["YOMA_SKIP_DOTENV"] == "1"
+    assert os.environ["ENVIRONMENT"] == "development"
+    assert settings.AT_API_KEY == "" and not settings.at_configured, "no real SMS credentials"
