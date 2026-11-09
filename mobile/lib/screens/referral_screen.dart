@@ -385,6 +385,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
                     label: _facilityConfirmed
                         ? 'Send to $facilityLabel, confirmed. Tap to change.'
                         : 'Send to $facilityLabel. Tap to confirm facility.',
+                    onTap: _openPicker,
                     excludeSemantics: true,
                     child: Material(
                       color: YomaColors.surface,
@@ -605,6 +606,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
     return Semantics(
       button: true,
       label: spoken,
+      onTap: _editVitals,
       excludeSemantics: true,
       child: Material(
         color: YomaColors.surface,

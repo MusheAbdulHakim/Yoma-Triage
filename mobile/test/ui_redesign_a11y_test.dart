@@ -8,6 +8,8 @@ import 'dart:async';
 // - The risk level is announced in words.
 import 'dart:math' as math;
 
+import 'dart:ui' show Tristate;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart' show rootBundle;
@@ -287,6 +289,14 @@ void expectSeparateNamedControls(WidgetTester tester) {
     if (!flags.isTextField && data.hasAction(SemanticsAction.tap)) {
       expect(label.isNotEmpty || data.tooltip.isNotEmpty, isTrue,
           reason: 'a tappable control with no name: $node');
+    }
+    // Round 6 (TalkBack on the emulator): a button wrapper with excludeSemantics drops its
+    // control's tap, so TalkBack announces it but double-tap does nothing. An enabled
+    // button must carry the tap itself. The guidelines above skip nodes without a tap,
+    // which is why this went unnoticed.
+    if (flags.isButton && flags.isEnabled != Tristate.isFalse) {
+      expect(data.hasAction(SemanticsAction.tap), isTrue,
+          reason: 'a button TalkBack cannot activate: "$label" $node');
     }
   }
 }

@@ -95,6 +95,8 @@ class _NotMeasuredToggle extends StatelessWidget {
       button: true,
       toggled: notMeasured,
       label: notMeasured ? 'Clear: $label marked not measured' : '$label not measured',
+      // excludeSemantics drops the InkWell's own tap, so TalkBack's double-tap needs this.
+      onTap: onTap,
       excludeSemantics: true,
       child: InkWell(
         key: toggleKey,

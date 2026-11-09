@@ -72,9 +72,14 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
     required String message,
   }) {
     final text = Theme.of(context).textTheme;
+    void callNow() => _open(Uri(scheme: 'tel', path: phone), phone);
+    // Encoded by hand: queryParameters would turn spaces into "+".
+    void smsNow() => _open(Uri.parse('sms:$phone?body=${Uri.encodeComponent(message)}'), phone);
+    // excludeSemantics drops each button's own tap, so the node carries it (TalkBack).
     final call = Semantics(
       button: true,
       label: 'Call $title',
+      onTap: callNow,
       excludeSemantics: true,
       child: FilledButton(
         key: Key('call_$phone'),
@@ -83,13 +88,14 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
           padding: const EdgeInsets.symmetric(horizontal: 16),
           textStyle: text.labelMedium,
         ),
-        onPressed: () => _open(Uri(scheme: 'tel', path: phone), phone),
+        onPressed: callNow,
         child: const Text('Call'),
       ),
     );
     final sms = Semantics(
       button: true,
       label: 'SMS $title',
+      onTap: smsNow,
       excludeSemantics: true,
       child: OutlinedButton(
         key: Key('sms_$phone'),
@@ -99,11 +105,7 @@ class _ManualContactsPanelState extends State<ManualContactsPanel> {
           side: const BorderSide(color: YomaColors.border, width: 1),
           foregroundColor: YomaColors.grey900,
         ),
-        onPressed: () => _open(
-          // Encoded by hand: queryParameters would turn spaces into "+".
-          Uri.parse('sms:$phone?body=${Uri.encodeComponent(message)}'),
-          phone,
-        ),
+        onPressed: smsNow,
         child: const Text('SMS'),
       ),
     );

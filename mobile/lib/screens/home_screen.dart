@@ -444,6 +444,7 @@ class _EmergencyReferralButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: 'Emergency referral',
+      onTap: onPressed,
       excludeSemantics: true,
       child: DecoratedBox(
         decoration: BoxDecoration(
@@ -517,6 +518,7 @@ class _HomeActionButton extends StatelessWidget {
     return Semantics(
       button: true,
       label: tag == null ? label : '$label, $tag',
+      onTap: onPressed,
       excludeSemantics: true,
       child: Material(
         color: YomaColors.surface,
