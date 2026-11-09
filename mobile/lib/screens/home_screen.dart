@@ -14,6 +14,7 @@ import '../services/friendly_time.dart';
 import '../services/screening_result.dart';
 import '../theme/yoma_theme.dart';
 import '../widgets/ambulance_icon.dart';
+import '../widgets/heart_pulse_icon.dart';
 import '../widgets/yoma_components.dart';
 import 'failed_referrals_screen.dart';
 import 'referral_screen.dart';
@@ -374,7 +375,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               if (_acousticEnabled) ...[
                                 _HomeActionButton(
                                   buttonKey: const Key('home_check_breathing'),
-                                  icon: Icons.graphic_eq,
+                                  icon: const Icon(Icons.graphic_eq),
                                   label: 'Check breathing',
                                   tag: 'Advisory',
                                   onPressed: _openBreathCheck,
@@ -382,7 +383,7 @@ class _HomeScreenState extends State<HomeScreen> {
                               ] else
                                 _HomeActionButton(
                                   buttonKey: const Key('home_record_vitals'),
-                                  icon: Icons.monitor_heart_outlined,
+                                  icon: const HeartPulseIcon(size: 22),
                                   label: 'Record vitals',
                                   onPressed: _openVitals,
                                 ),
@@ -493,7 +494,7 @@ class _HomeActionButton extends StatelessWidget {
   });
 
   final Key buttonKey;
-  final IconData icon;
+  final Widget icon;
   final String label;
   final String? tag;
   final VoidCallback onPressed;
@@ -527,7 +528,10 @@ class _HomeActionButton extends StatelessWidget {
                       mainAxisAlignment:
                           tag == null ? MainAxisAlignment.center : MainAxisAlignment.start,
                       children: [
-                        Icon(icon, color: YomaColors.primary, size: 20),
+                        IconTheme(
+                          data: const IconThemeData(color: YomaColors.primary, size: 20),
+                          child: icon,
+                        ),
                         const SizedBox(width: 12),
                         Flexible(
                           child: Text(
