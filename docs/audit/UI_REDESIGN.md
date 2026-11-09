@@ -813,3 +813,234 @@ Same branch. Flutter skills used: `dart-flutter:flutter-build-responsive-layout`
 4. "Call a driver instead" during the cascade: confirm step or hide?
 5. Risk words Critical / Elevated / Stable: confirm with clinical leads.
 6. Recording arc: time remaining (built) or time elapsed?
+
+## Round 5: round-4 screens fixed, decisions, fidelity on the remaining screens
+
+Same branch, with every commit pushed. Flutter skills used:
+
+- `dart-flutter:flutter-build-responsive-layout`
+- `flutter-fix-layout-issues`
+- `dart-use-pattern-matching`
+- `flutter-add-widget-test`
+- `dart-run-static-analysis`
+- `flutter-apply-architecture-best-practices`
+
+Commits, in order:
+
+| Step | Commit | What |
+|---|---|---|
+| 0 | `88f4688` | Record vitals: compact cards, count of required vitals, first-gap jump |
+| 0 | `36d903a` | Referral form: one bottom button, one-line Send to, vitals row link |
+| 0 | `be3afa1` | Home: heart-pulse icon |
+| 0 | `e1b2cc7` | Recording: rings reach the edge with breathing; test shot tool |
+| 1.1 | `665c763` | Acoustic Home: three actions; Not screened |
+| 1.2 | `94b4756` | Keep checking after FAILED until the late-claim window ends |
+| 1.3 | `8a1f9d9` | "Did a driver agree to come?" |
+| 1.4 | `6676785` | Sign-off sheet: risk words |
+| 2 | `c242e43`, `f169428`, `59b00d1` | Result, dispatch status and breathing fidelity; accessibility suite |
+| 3 | this commit | Side-by-sides, report |
+
+### Step 0: typography (no theme change, and why)
+
+The brief said the type scale was far larger than the designs. Measured at the same dp scale,
+it is not. The theme's sizes already equal the Clinical Field Resilience scale and the Stitch
+code:
+
+| Element | Stitch code | App theme |
+|---|---|---|
+| App bar title | `text-xl` 20 / bold | 20 / bold |
+| Card label (vitals, sections) | `text-base` 16 / semibold | 16 / w600 |
+| Buttons | `label-lg` 16 / bold | 16 / bold |
+| Chips | `text-[14px]` / semibold | 14 / w600 |
+| Small links ("Not measured") | `text-xs` 12 | 12 |
+
+The impression came from round 4's side-by-sides. That composer scaled both images to the same
+**pixel height**. The Record vitals reference is 360×1400 px, so it was drawn at about 44% of
+the app's scale and every app text looked twice as big.
+
+Every side-by-side in this round puts the Stitch phone at the **same dp scale** as the app
+(360 dp → 540 px). Real differences found that way were fixed where they were:
+
+- the vitals cards;
+- the result-card text, which was 16/14 against the design's 14/12;
+- the dispatch banner, which was 16 against the design's 14.
+
+Tap targets stay 48 dp through padding.
+
+### Step 0: Record vitals, form, Home, Recording
+
+**Record vitals:**
+
+- Label, a two-line "Not measured" and the value sit on one row. All six vitals show at
+  360×640; only the second row of consciousness chips needs about 68 dp of scroll.
+- On narrow screens or with large text, the layout is stacked (as before).
+- "See result – N left" counts blood pressure (one item), heart rate, breathing rate,
+  temperature and consciousness, so it shows 5 when nothing is filled. SpO₂ is never counted,
+  shows "(optional)", and may be left blank.
+- Blood pressure has one card and one "Not measured" for both fields. An empty pair gives one
+  message.
+- The "Normal adult band…" helper is gone. "From device ›" is a small link in the Heart rate
+  card.
+- See result stays enabled. With gaps, it scrolls to the first missing or wrong vital, marks
+  its card red and announces it by name (for example, "Consciousness missing. Choose a level
+  or tick Not measured.").
+- Form's own generic first-error announcement is switched off for this form, so a screen
+  reader hears one message.
+- Tests: `test/vitals_required_test.dart`.
+
+**Referral form:**
+
+- There is one bottom button: "Send referral" with vitals, or "Send now (vitals not taken)"
+  without. The second uses the existing skip-vitals path and hospital notice. The red button
+  is gone.
+- The button is disabled until a type is chosen.
+- The vitals row reads "Not recorded – Record vitals ›".
+- Send to is one line plus a small "Tap to confirm" until confirmed; the confirm behaviour is
+  unchanged. The origin line and the CHPS name are off the form; the picker still shows the
+  origin.
+- Tests: `test/referral_form_layout_test.dart`. Type chips, Send to and the vitals row scroll
+  fully clear of the bottom area at 360 dp and at 320 dp with 130% text.
+
+**Home:** the design's Lucide heart-pulse for Record vitals.
+
+**Recording:**
+
+- Before, the rings only reached the box edge at about −5 dBFS, so with real breathing they
+  stayed near the circle. They also faded to 8%.
+- Now:
+  - −55 to −20 dBFS spans the level;
+  - the rings travel the full way from about −30 dBFS, as in pulse frame 3;
+  - silence keeps them near the circle, as in frame 1;
+  - the faintest ring is about 18%.
+- The silence hint threshold is unchanged at −50 dBFS.
+- Tested with a fake microphone stream (`test/recording_pulse_test.dart`).
+- Audio was not played into an emulator microphone: the emulator would not start this round
+  (see Step 3).
+
+### Step 1: decisions
+
+1. **Acoustic Home** shows Emergency referral, Check breathing, Record vitals, in that order.
+   This order follows the decision; the design's Screen A puts Record vitals second.
+   - A referral without a breathing check sends `ai_screen_result` `NOT_SCREENED`. That covers
+     a referral straight from Home and one via Record vitals from Home.
+   - The form says "No breathing check – the hospital will be told".
+   - The hospital SMS adds "Breathing check: not screened" (`tests/test_not_screened.py`).
+   - MOEWS-only builds are unchanged.
+2. **After FAILED:**
+   - `GET /dispatch/{id}` returns `late_claim_until`: `initiated_at` plus
+     `LATE_CLAIM_WINDOW_MINUTES` (45), in UTC. The orchestrator now uses the same function to
+     accept late claims.
+   - Until that time, the status screen checks every 30 s and says "Still checking: a driver
+     can accept until 12:42".
+   - A late acceptance shows as accepted ("Accepted after the alerts had stopped").
+   - After the window it stops.
+3. **Call a driver instead:**
+   - There is no confirm before the call.
+   - A tel: call from the status screen before any driver accepted arms one question for when
+     the CHO returns to the app: "Did a driver agree to come?". Yes runs the existing cancel;
+     No keeps waiting.
+   - It is asked once per call.
+4. **Critical / Elevated / Stable** is now question 6 in `docs/PARAMETERS_SIGNOFF.md`.
+
+### Step 2: fidelity on the remaining screens
+
+Fixed:
+
+- **Result:**
+  - Buttons are in sentence case.
+  - Stable's secondary button is "Confirm referral".
+  - Stable lists BP, heart rate, breathing rate and temperature "– normal" with grey dots.
+  - The Incomplete card has no subtitle.
+  - Missing systolic and diastolic are one "Blood pressure" row.
+- **Dispatch status:**
+  - With no driver, not sent yet or no connection, the banner and the Call/SMS rows come
+    first.
+  - Rows are compact: name and role on the left, Call and SMS on the right, drivers first,
+    then the hospital.
+  - The current step is in the tertiary colour with a halo.
+  - The driver is shown in a bordered card.
+  - There is more space between steps.
+  - The spinner line and the raw "Request: …" id are removed.
+  - The banner text is 14 bold.
+- **Breathing:**
+  - The dashed border on "Couldn't tell" was painted behind the white fill and never showed;
+    it is now drawn in front.
+  - Card text is at the design's sizes.
+  - "settings" is lower case.
+- **Copy:** no raw codes, plurals or dates were found on these screens beyond the "Request:"
+  id, which is removed.
+
+Differences left on purpose. Each is a decision above or an earlier documented correction:
+
+1. **Colour:** the design-system palette (round 4) instead of the renders' teal, and the
+   design-system amber.
+2. **MOEWS name** under the risk word, and the disclaimer line (round 1, for CHO
+   familiarity and safety).
+3. **Critical/Elevated:** the design's bottom area repeats the Why list (a design bug); the app
+   has its buttons there.
+4. **Timeline wording:**
+   - Future-tense labels and the darker future labels (round 3, contrast and wording rules).
+   - Times follow the phone's 12/24-hour setting. The shots show "9:12 AM" because the
+     renderer's locale is 12-hour.
+5. **Dispatch extras:**
+   - Ref, "Going to: <hospital>" (the destination changes on a diversion), "Back to Home"
+     (the design gives no way back) and "Cancel referral" (round-3 brief).
+   - "Contacts last updated" stays, because the rows are a cached copy.
+6. **Analysing subtitle:** "You can keep using the phone." instead of "Analyzing breath rate
+   and sound patterns". The model does not measure breath rate, so the design's line would
+   claim something false.
+7. **Breathing result footer:** the Ready screen's "This is advice only…" instead of "Field
+   guidance: Results do not replace nurse auscultation" (CHOs are not nurses).
+8. **Dashed border:** grey-500 instead of slate-300, for 3:1 non-text contrast.
+9. **MOEWS Home Emergency button:** sized to Screen A (round 4) rather than the older
+   home-minimal render.
+
+### Accessibility
+
+The semantics-tree check (`expectSeparateNamedControls`), the 48 dp and label guidelines and
+rendered contrast now also run on:
+
+- Analysing;
+- both breathing results;
+- hospital confirmed and arrived;
+- the late acceptance;
+- "Did a driver agree to come?";
+- acoustic Home with three actions, offline.
+
+These join every screen from rounds 1–4.
+
+### Step 3: side-by-sides and checks
+
+- **Side-by-sides:** in `docs/testing/screenshots/ui-redesign/fidelity/`, replacing round 4's:
+  1. Home MOEWS (offline);
+  2. Home acoustic;
+  3. Recording against pulse frames 1 and 3;
+  4. Record vitals (empty, and after See result with gaps);
+  5. Referral form (no type, type chosen, vitals recorded);
+  6. Result (four variants and the advisory row);
+  7. Dispatch status (waiting, accepted, confirmed, arrived, no driver, late acceptance, "Did
+     a driver agree?");
+  8. Breathing (ready, analysing, both results, microphone blocked).
+
+  Every Stitch phone is at the same dp scale as the app.
+- **How the app images were made:** the API 34 emulator crashed during cold boot three times
+  (exit 139). That happened on the NVIDIA GPU with and without Vulkan, while KVM and NVIDIA
+  OpenGL both checked out fine. So the app images are **Flutter renders**: the same engine,
+  the bundled Atkinson Hyperlegible Next and Material Icons, at 360×640 dp ×3. They come from
+  `test/shots/*_shot.dart`, which is not part of the default test run. They have no system
+  status bar, and the back arrow is missing because each screen is shown as the first route.
+  A device pass is still owed.
+- **`flutter analyze`:** no issues.
+- **`flutter test`:** 509 passed (default), 510 passed (`MOEWS_ONLY=false`).
+- **Backend:** `test_not_screened`, `test_dispatch_step_times` (with `late_claim_until`),
+  `test_skip_vitals`, `test_hospital_privacy`, `test_diversion` and `test_parameters` pass
+  (run with `AT_WEBHOOK_SECRET=`).
+
+### Open questions (round 5)
+
+1. Why does the API 34 emulator now crash during cold boot (exit 139)? It worked in round 4.
+   Needs a look before the device pass.
+2. Should "Going to: <hospital>" and "Back to Home" on the status screen stay? The design has
+   neither.
+3. The design's "Driver A – motorbike ambulance" needs the vehicle from the API (round 3,
+   conflict 2).
