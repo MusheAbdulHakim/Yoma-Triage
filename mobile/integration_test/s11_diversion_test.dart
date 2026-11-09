@@ -47,7 +47,8 @@ void main() {
     );
     expect(find.text('From $facilityName, by the hospital'), findsOneWidget);
     expect(find.byKey(const Key('dispatch_status_HOSPITAL_NOTIFIED')), findsOneWidget);
-    expect(find.byType(CircularProgressIndicator), findsOneWidget, reason: 'still polling');
+    // Still polling: the hospital's CONFIRM below shows up without any tap (the spinner
+    // line was removed in round 5).
     await tester.shot('s11_2_diverted');
 
     final newCode = await hospitalCode(dispatchId);
