@@ -180,8 +180,15 @@ void main() {
 
     testWidgets('untouched form asks for each answer', (tester) async {
       await open(tester);
+      // Send stays disabled until a type is chosen, and says so.
+      final send = find.byKey(const Key('referral_send'));
+      expect(tester.widget<FilledButton>(send).onPressed, isNull);
+      expect(find.byKey(const Key('referral_send_hint')), findsOneWidget);
+      await tester.tap(find.byKey(const Key('referral_type_pph')));
+      await tester.pump();
+      expect(tester.widget<FilledButton>(send).onPressed, isNotNull);
       // Facility confirmation is checked after validation.
-      await tester.tap(find.text('Confirm Referral'));
+      await tester.tap(send);
       await tester.pumpAndSettle();
       expect(find.text('Enter the name, or type Unknown'), findsOneWidget);
       expect(find.text('Enter a value or tick Not measured'), findsNWidgets(6));

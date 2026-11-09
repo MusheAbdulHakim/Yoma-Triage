@@ -1142,13 +1142,13 @@ def release_confirm_timing(device: Device, runs: int = 3) -> None:
         confirm = None
         for _ in range(12):
             nodes = device.dump()
-            confirm = find_node(nodes, "Confirm Referral", exact=True)
+            confirm = find_node(nodes, "Send referral", exact=True)
             if confirm:
                 break
             device.shell("input swipe 300 1000 300 300 300")
             time.sleep(0.5)
         if confirm is None:
-            raise RuntimeError(f"No Confirm Referral. Screen: {screen_text(device.dump())[:500]}")
+            raise RuntimeError(f"No Send referral. Screen: {screen_text(device.dump())[:500]}")
         started = time.monotonic()
         tap_node(device, confirm)
         wait_screen(device, "TIER1_NOTIFIED", 45)

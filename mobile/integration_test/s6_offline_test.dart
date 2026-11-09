@@ -27,7 +27,7 @@ void main() {
     await tester.openReferralForm();
     await tester.fillPatientName(_patient);
     await tester.fillVitals('referral');
-    final confirm = find.text('Confirm Referral');
+    final confirm = find.byKey(const Key('referral_send'));
     await tester.tapOn(confirm);
 
     await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));

@@ -8,6 +8,7 @@ import '../services/api_client.dart';
 import '../services/catalog_store.dart';
 import '../services/cho_store.dart';
 import '../services/geo.dart';
+import '../services/moews_calculator.dart';
 import '../services/offline_queue.dart';
 import '../services/patient_token.dart';
 import '../services/vital_limits.dart';
@@ -503,34 +504,9 @@ class _ReferralScreenState extends State<ReferralScreen> {
                   ),
                 ),
               ),
-            const SizedBox(height: 12),
-            FilledButton(
-              key: const Key('referral_skip_vitals'),
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(56),
-                backgroundColor: YomaColors.danger,
-                textStyle: Theme.of(context).textTheme.labelLarge?.copyWith(fontSize: 18),
-              ),
-              onPressed: _submitting ? null : _skipVitals,
-              child: const Text('Emergency: skip vitals'),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              'Dispatches now. Needs only the emergency type and facility.',
-              textAlign: TextAlign.center,
-              style: TextStyle(color: Colors.grey.shade700, fontSize: 13),
-            ),
-            if (_skipError != null) ...[
-              const SizedBox(height: 8),
-              Text(
-                _skipError!,
-                key: const Key('referral_skip_error'),
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  color: YomaColors.danger,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+            if (_vitalsSummary() case final summary?) ...[
+              const SizedBox(height: 12),
+              summary,
             ],
             const SizedBox(height: 16),
             const Divider(),
@@ -556,6 +532,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
               label: 'Systolic BP',
               unit: 'mmHg',
               fieldKey: 'referral_sbp',
+              onChanged: () => setState(() {}),
             ),
             VitalField(
               input: _dbp,
@@ -563,6 +540,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
               label: 'Diastolic BP',
               unit: 'mmHg',
               fieldKey: 'referral_dbp',
+              onChanged: () => setState(() {}),
             ),
             VitalField(
               input: _hr,
@@ -570,6 +548,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
               label: 'Heart rate',
               unit: 'bpm',
               fieldKey: 'referral_hr',
+              onChanged: () => setState(() {}),
             ),
             VitalField(
               input: _rr,
@@ -577,6 +556,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
               label: 'Respiratory rate',
               unit: '/min',
               fieldKey: 'referral_rr',
+              onChanged: () => setState(() {}),
             ),
             VitalField(
               input: _temp,
@@ -584,6 +564,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
               label: 'Temperature',
               unit: '°C',
               fieldKey: 'referral_temp',
+              onChanged: () => setState(() {}),
               decimal: true,
             ),
             VitalField(
@@ -592,6 +573,7 @@ class _ReferralScreenState extends State<ReferralScreen> {
               label: 'SpO2',
               unit: '%',
               fieldKey: 'referral_spo2',
+              onChanged: () => setState(() {}),
             ),
             AvpuField(
               key: const Key('referral_avpu'),
@@ -609,16 +591,125 @@ class _ReferralScreenState extends State<ReferralScreen> {
                     ),
               ),
             ],
-            const SizedBox(height: 24),
-            FilledButton(
-              style: FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(52),
-              ),
-              onPressed: _submitting ? null : _submit,
-              child: Text(_submitting ? 'Submitting…' : 'Confirm Referral'),
-            ),
+            const SizedBox(height: 16),
           ],
         ),
+      ),
+      bottomNavigationBar: DecoratedBox(
+        decoration: const BoxDecoration(
+          color: YomaColors.surface,
+          border: Border(top: BorderSide(color: YomaColors.grey100)),
+        ),
+        child: SafeArea(
+          top: false,
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Pinned, so the one-tap emergency path is always on screen.
+                FilledButton(
+                  key: const Key('referral_skip_vitals'),
+                  style: FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(52),
+                    backgroundColor: YomaColors.danger,
+                  ),
+                  onPressed: _submitting ? null : _skipVitals,
+                  child: const Text('Emergency: skip vitals'),
+                ),
+                Padding(
+                  padding: const EdgeInsets.symmetric(vertical: 4),
+                  child: Text(
+                    'Vitals not taken – the hospital will be told',
+                    key: const Key('referral_vitals_not_taken'),
+                    textAlign: TextAlign.center,
+                    style: Theme.of(context)
+                        .textTheme
+                        .bodySmall
+                        ?.copyWith(color: YomaColors.grey700),
+                  ),
+                ),
+                if (_skipError != null)
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 6),
+                    child: Text(
+                      _skipError!,
+                      key: const Key('referral_skip_error'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context).textTheme.bodySmall?.copyWith(
+                            color: YomaColors.error,
+                            fontWeight: FontWeight.w600,
+                          ),
+                    ),
+                  ),
+                const SizedBox(height: 4),
+                FilledButton(
+                  key: const Key('referral_send'),
+                  // Grey until an emergency type is chosen; every other check runs on tap.
+                  onPressed: _submitting || _emergencyType == null ? null : _submit,
+                  child: Text(_submitting ? 'Submitting…' : 'Send referral'),
+                ),
+                if (_emergencyType == null)
+                  Padding(
+                    padding: const EdgeInsets.only(top: 6),
+                    child: Text(
+                      'Choose the emergency type to send',
+                      key: const Key('referral_send_hint'),
+                      textAlign: TextAlign.center,
+                      style: Theme.of(context)
+                          .textTheme
+                          .bodySmall
+                          ?.copyWith(color: YomaColors.grey700),
+                    ),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  /// The risk level of the vitals in this form, scored live by the app's own MOEWS, so it
+  /// can never disagree with the fields below it. Shown when the form came from the
+  /// vitals step, or once any vital has been answered here.
+  Widget? _vitalsSummary() {
+    final inputs = [_sbp, _dbp, _hr, _rr, _temp, _spo2];
+    final anyAnswered = inputs.any((i) => i.answered) || _avpu != null;
+    if (widget.initialVitals == null && !anyAnswered) return null;
+    final moews = calculateMoews(
+      sbp: _sbp.intValue,
+      dbp: _dbp.intValue,
+      hr: _hr.intValue,
+      rr: _rr.intValue,
+      temp: _temp.doubleValue,
+      spo2: _spo2.intValue,
+      consciousness: AvpuField.apiValue(_avpu),
+    );
+    final level = TriageLevel.fromMoews(moews.riskLevel);
+    if (level == null) return null;
+    return Container(
+      key: const Key('referral_vitals_summary'),
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: YomaColors.surface,
+        borderRadius: BorderRadius.circular(YomaRadii.md),
+        border: Border.all(color: YomaColors.grey200),
+        boxShadow: YomaShadows.sm,
+      ),
+      child: Wrap(
+        alignment: WrapAlignment.spaceBetween,
+        crossAxisAlignment: WrapCrossAlignment.center,
+        spacing: 8,
+        runSpacing: 6,
+        children: [
+          Text('Vitals:', style: Theme.of(context).textTheme.labelMedium),
+          RiskBadge(
+            level: level,
+            score: level == TriageLevel.incomplete ? null : moews.score,
+          ),
+        ],
       ),
     );
   }

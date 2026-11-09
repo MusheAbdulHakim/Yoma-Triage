@@ -173,10 +173,18 @@ void main() {
     addTearDown(tester.view.resetDevicePixelRatio);
     await open(tester);
 
-    await tester.tap(find.text('Confirm Referral'));
+    // No type yet: Send can't be tapped, so nothing can go out.
+    final send = find.byKey(const Key('referral_send'));
+    expect(tester.widget<FilledButton>(send).onPressed, isNull);
+    await tester.tap(send, warnIfMissed: false);
     await tester.pumpAndSettle();
+    expect(api.sent, isEmpty);
 
-    expect(find.text('Choose the emergency type'), findsOneWidget);
+    // With a type, the rest of the form is still checked on tap.
+    await tester.tap(find.byKey(const Key('referral_type_pph')));
+    await tester.pump();
+    await tester.tap(send);
+    await tester.pumpAndSettle();
     expect(find.text('Enter the name, or type Unknown'), findsOneWidget);
     expect(api.sent, isEmpty);
   });

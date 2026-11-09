@@ -31,8 +31,8 @@ void main() {
     await tester.fillPatientName('Zebra Testpatient');
     await tester.shot('s4_3_form');
 
-    // Spec timing: from tapping Confirm Referral to the screen showing drivers notified.
-    final confirm = find.text('Confirm Referral');
+    // Spec timing: from tapping Send referral to the screen showing drivers notified.
+    final confirm = find.byKey(const Key('referral_send'));
     await tester.closeKeyboard();
     await tester.reveal(confirm);
     await tester.wait(const Duration(milliseconds: 300));
