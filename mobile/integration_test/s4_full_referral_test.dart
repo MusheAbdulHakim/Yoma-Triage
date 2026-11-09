@@ -17,7 +17,7 @@ void main() {
       (tester) async {
     await tester.setUpCho();
 
-    await tester.tapOn(find.text('Record Vitals'));
+    await tester.tapOn(find.text('Record vitals'));
     await tester.waitFor(find.byKey(const Key('vitals_sbp')));
     await tester.fillVitals('vitals');
     await tester.shot('s4_1_vitals');

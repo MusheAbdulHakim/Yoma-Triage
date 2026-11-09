@@ -322,7 +322,7 @@ void main() {
       await tester.pumpWidget(const YomaApp());
       await settle(tester);
       expect(find.byType(HomeScreen), findsOneWidget);
-      await tester.tap(find.text('Emergency Referral'));
+      await tester.tap(find.text('Emergency referral'));
       await settle(tester);
       expect(find.byType(ReferralScreen), findsOneWidget);
 

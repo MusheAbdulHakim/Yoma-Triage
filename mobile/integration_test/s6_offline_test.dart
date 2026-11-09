@@ -102,7 +102,7 @@ void main() {
     // A4 with no Call or SMS: a second referral queues offline and, when signal returns,
     // the screen moves on to drivers notified by itself.
     await tester.tapOn(find.text('Back to Home'));
-    await tester.waitFor(find.text('Community Health Officer'));
+    await tester.waitFor(find.byKey(const Key('home_emergency_referral')));
     await Host.airplane(true);
     await tester.wait(const Duration(seconds: 2));
     await tester.openReferralForm();

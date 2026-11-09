@@ -34,7 +34,7 @@ void main() {
     await tester.pumpWidget(
       const MaterialApp(home: HomeScreen(acousticEnabled: true)),
     );
-    await tester.tap(find.text('Screen Breathing'));
+    await tester.tap(find.text('Check breathing'));
     // Screening starts recording + breath pulse (infinite animation).
     await pumpUntilFound(tester, find.text('Stop & Analyze Early'));
     expect(find.text('Stop & Analyze Early'), findsOneWidget);

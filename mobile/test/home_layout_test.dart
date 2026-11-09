@@ -9,6 +9,7 @@ import 'package:yoma_triage/screens/home_screen.dart';
 import 'package:yoma_triage/screens/referral_screen.dart';
 import 'package:yoma_triage/services/api_client.dart';
 import 'package:yoma_triage/services/offline_queue.dart';
+import 'package:yoma_triage/theme/yoma_theme.dart';
 
 import 'helpers/cho_helper.dart';
 
@@ -66,9 +67,21 @@ void _screen(WidgetTester tester, Size size) {
   addTearDown(tester.view.resetDevicePixelRatio);
 }
 
-Future<void> _openHome(WidgetTester tester, OfflineQueue queue) async {
+Future<void> _openHome(
+  WidgetTester tester,
+  OfflineQueue queue, {
+  bool acoustic = false,
+  double textScale = 1.0,
+}) async {
   await tester.pumpWidget(
-    MaterialApp(home: HomeScreen(api: _offline(), queue: queue, acousticEnabled: false)),
+    MaterialApp(
+      theme: buildYomaTheme(),
+      builder: (context, child) => MediaQuery(
+        data: MediaQuery.of(context).copyWith(textScaler: TextScaler.linear(textScale)),
+        child: child!,
+      ),
+      home: HomeScreen(api: _offline(), queue: queue, acousticEnabled: acoustic),
+    ),
   );
   // Counts and the catalog check arrive asynchronously.
   for (var i = 0; i < 10; i++) {
@@ -132,14 +145,14 @@ void main() {
 
         // The rest of Home is still reachable, by scrolling.
         await tester.scrollUntilVisible(
-          find.text('Record Vitals'),
+          find.text('Record vitals'),
           200,
           scrollable: find.descendant(
             of: find.byKey(const Key('home_scroll')),
             matching: find.byType(Scrollable),
           ),
         );
-        expect(find.text('Record Vitals'), findsOneWidget);
+        expect(find.text('Record vitals'), findsOneWidget);
         expect(tester.getRect(_button), before, reason: 'still pinned after scrolling');
       });
 
@@ -197,6 +210,91 @@ void main() {
       await _openHome(tester, queue);
       // Stale beats expiring and the catalog, whatever order they arrived in.
       expect(find.text('Still needs transport?'), findsOneWidget);
+    });
+  });
+
+  group('layout (Home layout update)', () {
+    final checkBreathing = find.byKey(const Key('home_check_breathing'));
+    final recordVitals = find.byKey(const Key('home_record_vitals'));
+
+    testWidgets('acoustic mode: Emergency referral first, then Check breathing, '
+        'directly under the top bar', (tester) async {
+      _screen(tester, const Size(360, 640));
+      await _openHome(tester, _Queue(), acoustic: true);
+
+      expect(checkBreathing, findsOneWidget);
+      final emergency = tester.getRect(_button);
+      final breathing = tester.getRect(checkBreathing);
+      expect(emergency.bottom, lessThanOrEqualTo(breathing.top), reason: 'order');
+      // Normal spacing, no large empty area between them.
+      expect(breathing.top - emergency.bottom, lessThanOrEqualTo(16));
+      // Emergency referral sits under the top bar, not pushed down the screen.
+      expect(emergency.top, lessThan(100));
+      // Still the largest action.
+      expect(emergency.height, greaterThan(breathing.height));
+      expect(find.text('Advisory'), findsOneWidget);
+    });
+
+    testWidgets('MOEWS-only mode: no Check breathing, and no gap where it would be',
+        (tester) async {
+      _screen(tester, const Size(360, 640));
+      await _openHome(tester, _Queue(), acoustic: false);
+
+      expect(checkBreathing, findsNothing);
+      expect(find.text('Check breathing'), findsNothing);
+      expect(recordVitals, findsOneWidget);
+      final emergency = tester.getRect(_button);
+      final vitals = tester.getRect(recordVitals);
+      expect(emergency.bottom, lessThanOrEqualTo(vitals.top), reason: 'order');
+      expect(vitals.top - emergency.bottom, lessThanOrEqualTo(16), reason: 'no gap');
+      expect(emergency.height, greaterThan(vitals.height));
+    });
+
+    for (final acoustic in const [false, true]) {
+      final mode = acoustic ? 'acoustic' : 'MOEWS-only';
+      testWidgets('$mode: at 320 dp and 130% text, with every warning showing and open, '
+          'Emergency referral is fully visible and tappable', (tester) async {
+        const size = Size(320, 568);
+        _screen(tester, size);
+        await _openHome(tester, _everyWarning(), acoustic: acoustic, textScale: 1.3);
+        expect(tester.takeException(), isNull, reason: 'no overflow');
+        _expectFullyVisible(tester, size);
+
+        await tester.tap(find.byKey(const Key('home_warnings_summary')));
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: 'no overflow when open');
+        _expectFullyVisible(tester, size);
+
+        await tester.tap(_button);
+        for (var i = 0; i < 10; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+        expect(find.byType(ReferralScreen), findsOneWidget);
+      });
+    }
+
+    testWidgets('the strip is navy for a failure and light while only waiting',
+        (tester) async {
+      _screen(tester, const Size(360, 640));
+      SharedPreferences.setMockInitialValues({
+        ...registeredChoPrefs(),
+        'catalog_synced_at': DateTime.now().toIso8601String(),
+      });
+      await _openHome(tester, _Queue(failedN: 1));
+      Material strip() =>
+          tester.widget<Material>(find.byKey(const Key('home_warnings_summary')));
+      expect(strip().color, YomaColors.navy);
+
+      await tester.pumpWidget(const SizedBox()); // a fresh Home, with a fresh queue
+      await _openHome(tester, _Queue(expiringN: 1));
+      expect(strip().color, YomaColors.surface);
+    });
+
+    testWidgets('the clinic name shows under Yoma Care', (tester) async {
+      _screen(tester, const Size(360, 640));
+      await _openHome(tester, _Queue());
+      expect(find.text('Yoma Care'), findsOneWidget);
+      expect(find.byKey(const Key('home_clinic_name')), findsOneWidget);
     });
   });
 }

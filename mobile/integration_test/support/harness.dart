@@ -256,7 +256,7 @@ extension Drive on WidgetTester {
     // which happens here when a CHO retries after a refusal.
     widget<TextField>(find.byKey(const Key('setup_phone'))).controller!.text = phone;
     await tapOn(find.text('Continue'));
-    await waitFor(find.text('Community Health Officer'), reason: 'Home after setup');
+    await waitFor(find.byKey(const Key('home_emergency_referral')), reason: 'Home after setup');
   }
 
   Future<void> chooseFacility() async {
@@ -302,7 +302,7 @@ extension Drive on WidgetTester {
 
   /// From Home, to the Emergency Referral form with facility and type chosen.
   Future<void> openReferralForm() async {
-    await tapOn(find.text('Emergency Referral'));
+    await tapOn(find.text('Emergency referral'));
     await chooseFacility();
     await chooseEmergency();
   }

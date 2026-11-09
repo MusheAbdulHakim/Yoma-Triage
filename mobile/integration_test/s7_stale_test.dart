@@ -30,7 +30,7 @@ void main() {
       await tester.tapOn(find.byKey(const Key('referral_skip_vitals')));
       await tester.waitFor(find.text('Referral Queued'), timeout: const Duration(seconds: 45));
       await tester.tapOn(find.text('Back to Home'));
-      await tester.waitFor(find.text('Community Health Officer'));
+      await tester.waitFor(find.byKey(const Key('home_emergency_referral')));
     }
     await tester.shot('s7_1_three_queued');
 

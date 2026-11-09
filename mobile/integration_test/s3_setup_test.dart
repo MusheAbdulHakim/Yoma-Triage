@@ -22,7 +22,7 @@ void main() {
     final message = tester.widget<Text>(error).data!;
     await Host.note('Unregistered phone is told: "$message"');
     expect(message, contains('not registered'));
-    expect(find.text('Community Health Officer'), findsNothing);
+    expect(find.byKey(const Key('home_emergency_referral')), findsNothing);
     await tester.shot('s3_2_unregistered');
 
     await tester.setUpCho();
@@ -32,7 +32,7 @@ void main() {
       '${find.text(compoundName).evaluate().isNotEmpty}',
     );
 
-    await tester.tapOn(find.text('Emergency Referral'));
+    await tester.tapOn(find.text('Emergency referral'));
     await tester.waitFor(find.text(compoundName), reason: 'the CHO\'s compound');
     await tester.shot('s3_4_compound');
   });
