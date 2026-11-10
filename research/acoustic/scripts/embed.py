@@ -137,10 +137,14 @@ def run(model, dataset, cond, limit=None):
     d = CACHE / "emb" / dataset / model / cond
     d.mkdir(parents=True, exist_ok=True)
     fn = None
+    missing = 0
     t0 = time.time()
     for s in range(0, len(rows), SHARD):
         p = d / f"shard_{s // SHARD:04d}.npz"
         if p.exists():
+            continue
+        if not all(Path(r["wav"]).exists() for r in rows[s:s + SHARD]):
+            missing += 1                       # audio still downloading: pick it up next run
             continue
         if fn is None:
             fn = {"yamnet_app": YamnetApp, "yamnet_float": YamnetFloat}.get(model)
@@ -157,7 +161,11 @@ def run(model, dataset, cond, limit=None):
               f"({time.time() - t0:.0f}s)", flush=True)
     del fn
     gc.collect()
+    if missing:
+        print(f"{dataset}/{model}/{cond}: {missing} shard(s) waiting for audio; not merged")
+        return False
     merge(d)
+    return True
 
 
 def merge(d: Path):

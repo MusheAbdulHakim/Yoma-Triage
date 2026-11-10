@@ -96,10 +96,13 @@ def task_data(task):
 
 
 def aggregate(rec_score, rec_unit, uids, how):
-    """Unit scores: identity for recordings, max/mean over a patient's recordings."""
-    if how is None:
-        return rec_score
+    """Unit scores over all `uids` (NaN where a unit has no recording in `rec_unit`):
+    the recording's own score for recording units, max/mean over a patient's recordings."""
     order = {u: i for i, u in enumerate(uids)}
+    if how is None:
+        out = np.full(len(uids), np.nan)
+        out[[order[u] for u in rec_unit]] = rec_score
+        return out
     out = np.full(len(uids), np.nan)
     buckets = [[] for _ in uids]
     for s, u in zip(rec_score, rec_unit):

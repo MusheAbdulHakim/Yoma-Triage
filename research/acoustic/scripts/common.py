@@ -44,18 +44,21 @@ def sprsound_manifest():
     """One row per unique recording in the year folders that has a patient ID and is usable."""
     repo = DATA / "sprsound" / "repo"
     rows = {}
-    for jp in sorted(repo.glob("BioCAS20*/*_json/*.json")):
+    # BioCAS2022/test2022_json/ has inter_test_json/ and intra_test_json/ subfolders; the
+    # matching audio is flat in test2022_wav/. So: year folder / first *_json level -> *_wav.
+    for jp in sorted(repo.glob("BioCAS20*/*_json/**/*.json")):
         m = SPR_RE.match(jp.stem)
         if not m:
             continue
         pid, age, sex, loc, rid = m.groups()
-        wav = DATA / "sprsound" / "wav" / jp.parent.parent.name / jp.parent.name.replace("_json", "_wav") / f"{jp.stem}.wav"
+        year, top = jp.relative_to(repo).parts[:2]
+        wav = DATA / "sprsound" / "wav" / year / top.replace("_json", "_wav") / f"{jp.stem}.wav"
         j = json.loads(jp.read_text())
         ev = [e for e in (j.get("event_annotation") or [])]
         rec = j.get("record_annotation")
         r = rows.setdefault(rid, {"rid": rid, "pid": pid, "age": float(age), "loc": loc,
                                   "wav": str(wav), "events": [], "record": None,
-                                  "split": jp.parent.name})
+                                  "split": top})
         r["events"] += [{"start": float(e["start"]), "end": float(e["end"]), "type": e["type"]}
                         for e in ev]
         r["record"] = r["record"] or rec

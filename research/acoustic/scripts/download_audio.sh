@@ -7,8 +7,8 @@
 #   circor    PhysioNet, ODC-By 1.0: every training recording's .wav and .tsv (segmentation)
 #   sprsound  GitHub, CC BY 4.0: the year folders' wav files (6,567 recordings, ~1.2 GB).
 #             Classification/, Detection/ and Compression/ only duplicate them (checked).
-#   coswara   GitHub, CC BY 4.0: date folders in COSWARA_DATES (default the two smallest,
-#             20200911 and 20200505, ~115 MB), extracted. Used only as real phone audio.
+#   coswara   GitHub, CC BY 4.0: date folders in COSWARA_DATES (default the four smallest,
+#             20200911, 20200505, 20210206, 20201130, ~275 MB), extracted. Real phone audio only.
 #   icbhi     Not downloaded: decision 2 (expired TLS certificate; skipped, see the report).
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -43,13 +43,14 @@ sprsound)
   R="$D/sprsound/repo"
   [ -d "$R/.git" ] || bash scripts/download_metadata.sh
   SPR_COMMIT=bca1e51422a42a042441010081519610ef3845d0
-  (cd "$R" && ls BioCAS20*/*_json/*.json) | sed -E 's#_json/(.*)\.json$#_wav/\1.wav#' |
+  # test2022_json/ has inter_test_json/ and intra_test_json/ subfolders; the wavs are flat.
+  (cd "$R" && find BioCAS20* -name '*.json' | sed -E 's#^(BioCAS20[0-9]+/[a-z0-9]+)_json/(.*/)?([^/]*)\.json$#\1_wav/\3.wav#') |
     fetch_list "https://raw.githubusercontent.com/SJTU-YONGFU-RESEARCH-GRP/SPRSound/$SPR_COMMIT" \
       "$D/sprsound/wav"
   echo "sprsound: $(find "$D/sprsound/wav" -name '*.wav' | wc -l) wav files" ;;
 coswara)
   C="$D/coswara"
-  for d in ${COSWARA_DATES:-20200911 20200505}; do
+  for d in ${COSWARA_DATES:-20200911 20200505 20210206 20201130}; do
     curl -sS "https://api.github.com/repos/iiscleap/Coswara-Data/git/trees/master?recursive=1" |
       python3 -c "import json,sys; [print(x['path']) for x in json.load(sys.stdin)['tree'] \
         if x['type']=='blob' and x['path'].startswith('$d/')]" |
