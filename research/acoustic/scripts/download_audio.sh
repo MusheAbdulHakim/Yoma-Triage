@@ -9,7 +9,9 @@
 #             Classification/, Detection/ and Compression/ only duplicate them (checked).
 #   coswara   GitHub, CC BY 4.0: date folders in COSWARA_DATES (default the four smallest,
 #             20200911, 20200505, 20210206, 20201130, ~275 MB), extracted. Real phone audio only.
-#   icbhi     Not downloaded: decision 2 (expired TLS certificate; skipped, see the report).
+#   icbhi     Not downloaded by this script: the official site's TLS certificate has expired and
+#             certificate checks are not disabled. Obtain ICBHI_final_database.zip yourself and
+#             unzip it to data/icbhi/ICBHI_final_database/ (the project lead did this by hand).
 set -euo pipefail
 cd "$(dirname "$0")/.."
 D=data
@@ -60,7 +62,8 @@ coswara)
   done
   echo "coswara: $(find "$C/audio" -name '*.wav' | wc -l) wav files" ;;
 icbhi)
-  echo "ICBHI: skipped (expired TLS certificate; certificate checks are not disabled)." ;;
+  n=$(ls "$D/icbhi/ICBHI_final_database/"*.wav 2>/dev/null | wc -l)
+  echo "ICBHI: $n wav files in $D/icbhi/ICBHI_final_database (place them there by hand; 920 expected)" ;;
 *) echo "unknown dataset: $what" >&2; exit 2 ;;
 esac
 done

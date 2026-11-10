@@ -32,7 +32,8 @@ TASK_TITLE = {
 }
 COND_NAME = {"clean": "clean", "hp100": "high-pass 100 Hz", "hp150": "high-pass 150 Hz",
              "noise10": "clinic-like noise, 10 dB SNR", "noise5": "clinic-like noise, 5 dB SNR",
-             "level-20": "level -20 dB (noise floor -70 dBFS, 16-bit)"}
+             "level-20": "level -20 dB (noise floor -70 dBFS, 16-bit)",
+             "bl4k": "band-limited to 4 kHz (as SPRSound)"}
 
 
 def f(x, ci=None, pct=False):
@@ -77,6 +78,20 @@ def main():
             for b, m in e["bands"].items():
                 w(f"| {EXP_NAME[exp]} | {LICENCE[MODEL[exp]]} | {b} | {m['n_patients']} ({m['n_pos_patients']}) | "
                   f"{m['n_units']} ({m['n_pos_units']}) | {row(m, 'auroc')} | {row(m, 'sens')} | {row(m, 'spec')} |")
+    # external validation on ICBHI children
+    w("\n### External validation: trained on SPRSound, tested on ICBHI 2017 children\n")
+    for task in ["wheeze", "crackle"]:
+        w(f"\n#### {task.capitalize()} (per recording; 49 children, 76 recordings)\n")
+        w("| Experiment | Weight licence | ICBHI audio | Patients (positive) | Recordings (positive) | AUROC (95% CI) | Sensitivity (95% CI) | Specificity (95% CI) |")
+        w("|---|---|---|---|---|---|---|---|")
+        for exp in EXP_NAME:
+            e = ex.get(f"icbhi_{task}|{exp}")
+            if not e:
+                continue
+            for c, m in e["conditions"].items():
+                w(f"| {EXP_NAME[exp]} | {LICENCE[MODEL[exp]]} | {'full band (44.1 kHz)' if c == 'clean' else COND_NAME[c]} | "
+                  f"{m['n_patients']} ({m['n_pos_patients']}) | {m['n_units']} ({m['n_pos_units']}) | "
+                  f"{row(m, 'auroc')} | {row(m, 'sens')} | {row(m, 'spec')} |")
     # degradation
     w("\n### Phone-degradation test (models trained on clean audio)\n")
     for task, title in TASK_TITLE.items():
@@ -121,17 +136,21 @@ def main():
         for k, v in b.items():
             kind, c = k.split("|")
             a = v["all"]
-            name = "Breathing rate (breaths/min)" if kind == "breath" else "Heart rate (beats/min)"
+            name = {"breath": "Breathing rate, SPRSound (breaths/min; event-rate proxy reference)",
+                    "breath_icbhi": "Breathing rate, ICBHI children (breaths/min; annotated cycles)",
+                    "heart": "Heart rate, CirCor (beats/min; S1 segmentation)"}[kind]
             w(f"| {name} | n/a (no model) | {COND_NAME[c]} | {v['n_estimated']} / {v['n_total']} | {a['n_patients']} | "
               f"{a['mae']:.1f} ({a['mae_ci'][0]:.1f}–{a['mae_ci'][1]:.1f}) | {a['median_ae']:.1f} | "
               f"{a['bias']:+.1f} | {a['within_5'] * 100:.0f}% |")
         w("\n| Measure | Weight licence | Age band | Recordings | Patients | MAE (95% CI) | Within ±5 /min |")
         w("|---|---|---|---|---|---|---|")
-        for kind in ["breath", "heart"]:
+        for kind in ["breath", "breath_icbhi", "heart"]:
             v = b.get(f"{kind}|clean")
             if v:
                 for band, a in v["bands"].items():
-                    w(f"| {'Breathing rate' if kind == 'breath' else 'Heart rate'} | n/a (no model) | {band} | {a['n']} | "
+                    lab = {"breath": "Breathing rate, SPRSound", "breath_icbhi": "Breathing rate, ICBHI",
+                           "heart": "Heart rate, CirCor"}[kind]
+                    w(f"| {lab} | n/a (no model) | {band} | {a['n']} | "
                       f"{a['n_patients']} | {a['mae']:.1f} ({a['mae_ci'][0]:.1f}–{a['mae_ci'][1]:.1f}) | {a['within_5'] * 100:.0f}% |")
         w("\n| Condition | Weight licence | Recordings | Spearman ρ, estimated vs reference beat-interval CV | Reference CV median | Estimated CV median |")
         w("|---|---|---|---|---|---|")

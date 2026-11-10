@@ -31,7 +31,7 @@ from scipy.signal import butter, find_peaks, sosfiltfilt
 from scipy.stats import spearmanr
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import NATIVE_SR, RESULTS, SR, degrade, load16k, manifest  # noqa: E402
+from common import NATIVE_SR, RESULTS, SR, degrade, load16k, manifest, native_sr  # noqa: E402
 
 CONDS = ["clean", "hp150", "noise10", "noise5"]
 
@@ -139,6 +139,23 @@ def main():
         res[k] = err_summary(est, [ref_breath(r) for r in spr], [r["pid"] for r in spr],
                              [r["band"] for r in spr])
         res[k]["reference_rate_median"] = float(np.median([ref_breath(r) for r in spr]))
+        print(k, json.dumps(res[k]["all"]), flush=True)
+        out_p.write_text(json.dumps(res, indent=1))
+    # ICBHI children: the annotation gives each respiratory cycle's start and end, so this is
+    # a true breath-cycle reference: rate = 60 / median cycle duration (recordings with >= 3).
+    icb = [r for r in manifest("icbhi") if len(r["cycles"]) >= 3]
+
+    def ref_icbhi(r):
+        c = np.asarray(r["cycles"])
+        return 60 / np.median(c[:, 1] - c[:, 0])
+    for c in ["clean", "bl4k", "hp150", "noise10", "noise5"]:
+        k = f"breath_icbhi|{c}"
+        if k in res:
+            continue
+        est = [breath_rate(degrade(load16k(r["wav"]), c, r["rid"], native_sr(r))) for r in icb]
+        res[k] = err_summary(est, [ref_icbhi(r) for r in icb], [r["pid"] for r in icb],
+                             [r["band"] for r in icb], n_boot=1000)
+        res[k]["reference_rate_median"] = float(np.median([ref_icbhi(r) for r in icb]))
         print(k, json.dumps(res[k]["all"]), flush=True)
         out_p.write_text(json.dumps(res, indent=1))
     cir = []

@@ -232,6 +232,55 @@ def summarise(y, s, p, pid, n_boot):
     return m
 
 
+def run_external(task, exp, n_boot):
+    """Train on ALL of SPRSound (C and threshold chosen by inner patient-grouped CV on SPRSound
+    only), then score ICBHI's children unchanged: full band ("clean") and band-limited to 4 kHz
+    like SPRSound ("bl4k"). Per recording; CIs by bootstrapping ICBHI patients."""
+    t = TASKS[task]
+    model, key, kind = FEATURES[exp]
+    if kind == "zero_resp" or exp in ("c_opera_win_lr", "c_opera_first8_lr"):
+        return None
+    tr_feats = load_feats("sprsound", model, key)
+    if tr_feats is None:
+        return None
+    rows = manifest("sprsound")
+    y = np.array([r[t["label"]] for r in rows])
+    pid = np.array([r["pid"] for r in rows])
+    X = np.stack([tr_feats[r["rid"]] for r in rows]).astype(np.float64)
+    if kind == "zero":
+        X = X[:, t["zs"]]
+        thr, model_fn, C = youden(y, X), None, None
+    else:
+        inner = StratifiedGroupKFold(3, shuffle=True, random_state=1)
+        sc = {C: np.full(len(y), np.nan) for C in CS}
+        for itr, ite in inner.split(np.zeros(len(y)), y, pid):
+            for C in CS:
+                sc[C][ite] = fit_lr(X[itr], y[itr], C).predict_proba(X[ite])[:, 1]
+        C = max(CS, key=lambda c: roc_auc_score(y, sc[c]))
+        thr = youden(y, sc[C])
+        model_fn = fit_lr(X, y, C)
+    te_rows = manifest("icbhi")
+    ty = np.array([r[t["label"]] for r in te_rows])
+    tpid = np.array([r["pid"] for r in te_rows])
+    tband = np.array([r["band"] for r in te_rows])
+    entry = {"task": f"icbhi_{task}", "experiment": exp, "licence": LICENCE[MODEL_OF[exp]],
+             "zero_shot_class": t["zs_name"] if exp.startswith("a_") else None,
+             "chosen_C": C, "conditions": {}, "bands": {}}
+    for cond in ["clean", "bl4k"]:
+        f = load_feats("icbhi", model, key, cond)
+        if f is None:
+            continue
+        Xt = np.stack([f[r["rid"]] for r in te_rows]).astype(np.float64)
+        s = Xt[:, t["zs"]] if kind == "zero" else model_fn.predict_proba(Xt)[:, 1]
+        p = (s >= thr).astype(int)
+        entry["conditions"][cond] = summarise(ty, s, p, tpid, n_boot)
+        if cond == "bl4k":
+            for b in sorted(set(tband)):
+                k = tband == b
+                entry["bands"][b] = summarise(ty[k], s[k], p[k], tpid[k], n_boot)
+    return entry if entry["conditions"] else None
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--boot", type=int, default=1000)
@@ -264,6 +313,20 @@ def main():
             print(f"{task:8s} {exp:18s} AUROC {c['auroc']}  sens {c['sens']}  spec {c['spec']}  "
                   f"C={r['chosen_C']}", flush=True)
             out_p.write_text(json.dumps(res, indent=1))   # save after each, so it resumes
+    # External validation on ICBHI's children (wheeze, crackles)
+    for task in [t for t in ("wheeze", "crackle") if t in tasks]:
+        for exp in FEATURES:
+            k = f"icbhi_{task}|{exp}"
+            if k in res and not a.force:
+                continue
+            e = run_external(task, exp, a.boot)
+            if e is None:
+                continue
+            res[k] = e
+            c = e["conditions"].get("bl4k") or e["conditions"]["clean"]
+            print(f"icbhi_{task:8s} {exp:18s} AUROC(4 kHz) {c['auroc']}  sens {c['sens']}  "
+                  f"spec {c['spec']}", flush=True)
+            out_p.write_text(json.dumps(res, indent=1))
 
 
 if __name__ == "__main__":

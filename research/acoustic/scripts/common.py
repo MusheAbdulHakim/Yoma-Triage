@@ -108,8 +108,52 @@ def circor_manifest():
     return out
 
 
+def icbhi_manifest():
+    """ICBHI 2017 children only (age < 19 years, the paper's definition): one row per recording.
+    Labels from the per-cycle annotation files: a recording is positive if any cycle has
+    crackles (or wheezes). Cycle start/end times are kept for the breathing-rate baseline.
+    The official list names one file 226_1b1_Pl_sc_Meditron, but the database has it as
+    226_1b1_Pl_sc_LittC2SE (not in filename_differences.txt): same patient, site and index, so
+    it is matched by its name without the device suffix."""
+    import soundfile as sf
+    d = DATA / "icbhi"
+    db = d / "ICBHI_final_database"
+    age = {}
+    for line in (d / "ICBHI_Challenge_demographic_information.txt").read_text().splitlines():
+        f = line.split()
+        if f:
+            age[f[0]] = None if f[1] == "NA" else float(f[1])
+    out = []
+    for line in (d / "ICBHI_challenge_train_test.txt").read_text().splitlines():
+        if not line.strip():
+            continue
+        name = line.split()[0]
+        pid = name.split("_")[0]
+        if age.get(pid) is None or age[pid] >= 19:
+            continue
+        wav = db / f"{name}.wav"
+        if not wav.exists():
+            cand = sorted(db.glob(name.rsplit("_", 1)[0] + "_*.wav"))
+            if len(cand) != 1:
+                continue
+            wav = cand[0]
+        ann = np.loadtxt(wav.with_suffix(".txt"), ndmin=2)
+        out.append({"rid": name, "pid": pid, "dataset": "icbhi", "wav": str(wav),
+                    "native_sr": sf.info(wav).samplerate,
+                    "cycles": ann[:, :2].tolist(),
+                    "y_crackle": int(ann[:, 2].any()), "y_wheeze": int(ann[:, 3].any()),
+                    "y_stridor": 0, "band": band_years(age[pid]), "age": age[pid]})
+    return out
+
+
 def manifest(dataset):
-    return sprsound_manifest() if dataset == "sprsound" else circor_manifest()
+    return {"sprsound": sprsound_manifest, "circor": circor_manifest,
+            "icbhi": icbhi_manifest}[dataset]()
+
+
+def native_sr(row):
+    """The recording's own sample rate (ICBHI varies per file), for band-limiting noise."""
+    return row.get("native_sr") or NATIVE_SR[row["dataset"]]
 
 
 # ------------------------------------------------------------------ audio
@@ -149,6 +193,10 @@ def degrade(y, cond, key, native_sr):
     from scipy.signal import butter, sosfiltfilt
     if cond == "clean":
         return y
+    if cond == "bl4k":   # band-limit to 4 kHz, as SPRSound's 8 kHz audio is (same resampler)
+        import librosa
+        return librosa.resample(librosa.resample(y, orig_sr=SR, target_sr=8000),
+                                orig_sr=8000, target_sr=SR).astype(np.float32)
     rng = np.random.default_rng(_seed(key, cond))
     if cond.startswith("hp"):
         fc = float(cond[2:])

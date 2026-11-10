@@ -26,7 +26,7 @@ from pathlib import Path
 import numpy as np
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common import CACHE, HERE, NATIVE_SR, SR, degrade, load16k, manifest  # noqa: E402
+from common import CACHE, HERE, SR, degrade, load16k, manifest, native_sr  # noqa: E402
 
 SHARD = 200
 YAMNET_FLOAT = CACHE / "yamnet" / "yamnet_tflite_1.tflite"
@@ -194,7 +194,7 @@ def run(model, dataset, cond, limit=None):
         feats = {}
         for r in rows[s:s + SHARD]:
             y = load16k(r["wav"])
-            y = degrade(y, cond, r["rid"], NATIVE_SR[dataset])
+            y = degrade(y, cond, r["rid"], native_sr(r))
             for k, v in fn(y).items():
                 feats.setdefault(k, []).append(np.asarray(v, np.float32))
         np.savez(p, rid=np.array([r["rid"] for r in rows[s:s + SHARD]]),
@@ -221,7 +221,7 @@ def merge(d: Path):
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
     ap.add_argument("--model", required=True, choices=["yamnet_app", "yamnet_float", "opera", "hear"])
-    ap.add_argument("--dataset", required=True, choices=["sprsound", "circor"])
+    ap.add_argument("--dataset", required=True, choices=["sprsound", "circor", "icbhi"])
     ap.add_argument("--cond", default="clean")
     ap.add_argument("--limit", type=int)
     a = ap.parse_args()
