@@ -56,10 +56,11 @@ FEATURES = {  # experiment -> (model cache dir, array key, kind)
     "c_opera_lr": ("opera", "emb", "lr"),
     "c_opera_win_lr": ("opera", "emb_win", "lr"),
     "c_opera_first8_lr": ("opera", "emb_first8", "lr"),
+    "d_hear_lr": ("hear", "emb", "lr"),
 }
 MODEL_OF = {"a_app": "yamnet_app", "a_app_resp": "yamnet_app", "a_float": "yamnet_float",
             "b_yamnet_lr": "yamnet_float", "c_opera_lr": "opera", "c_opera_win_lr": "opera_win",
-            "c_opera_first8_lr": "opera_first8"}
+            "c_opera_first8_lr": "opera_first8", "d_hear_lr": "hear"}
 
 
 def load_feats(dataset, model, key, cond="clean"):

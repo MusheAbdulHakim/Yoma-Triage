@@ -19,6 +19,7 @@ NATIVE_SR = {"sprsound": 8000, "circor": 4000}
 # Weight licences, shown in every results table (decision 3).
 LICENCE = {"yamnet_app": "Apache 2.0", "yamnet_float": "Apache 2.0",
            "opera": "CC BY-NC 4.0", "opera_win": "CC BY-NC 4.0", "opera_first8": "CC BY-NC 4.0",
+           "hear": "HAI-DEF terms of use (not an open licence)",
            "envelope": "n/a (no model)"}
 
 CONDITIONS = ["clean", "hp100", "hp150", "noise10", "noise5", "level-20"]

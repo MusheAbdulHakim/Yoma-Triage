@@ -18,10 +18,11 @@ EXP_NAME = {
     "c_opera_lr": "(c) OPERA-CE embeddings + LR",
     "c_opera_win_lr": "(c) OPERA-CE, mean of 8 s windows + LR",
     "c_opera_first8_lr": "(c) OPERA-CE, first 8 s + LR",
+    "d_hear_lr": "(d) HeAR embeddings (8 s budget) + LR",
 }
 MODEL = {"a_app": "yamnet_app", "a_app_resp": "yamnet_app", "a_float": "yamnet_float",
          "b_yamnet_lr": "yamnet_float", "c_opera_lr": "opera", "c_opera_win_lr": "opera_win",
-         "c_opera_first8_lr": "opera_first8"}
+         "c_opera_first8_lr": "opera_first8", "d_hear_lr": "hear"}
 TASK_TITLE = {
     "stridor": "Stridor (SPRSound, per recording). EXPLORATORY: only 9 patients with stridor",
     "wheeze": "Wheeze (SPRSound, per recording)",
@@ -69,7 +70,7 @@ def main():
         w(f"\n#### {title}\n")
         w("| Experiment | Weight licence | Age band | Patients (positive) | Units (positive) | AUROC (95% CI) | Sensitivity (95% CI) | Specificity (95% CI) |")
         w("|---|---|---|---|---|---|---|---|")
-        for exp in ["a_app", "b_yamnet_lr", "c_opera_lr"]:
+        for exp in ["a_app", "b_yamnet_lr", "c_opera_lr", "d_hear_lr"]:
             e = ex.get(f"{task}|{exp}")
             if not e:
                 continue

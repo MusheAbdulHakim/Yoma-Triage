@@ -31,7 +31,8 @@ from common import CACHE, HERE, NATIVE_SR, SR, degrade, load16k, manifest  # noq
 SHARD = 200
 YAMNET_FLOAT = CACHE / "yamnet" / "yamnet_tflite_1.tflite"
 YAMNET_APP = HERE.parents[1] / "mobile" / "assets" / "models" / "yamnet.tflite"
-APP_RESP = [36, 37, 39, 40, 41, 42]   # yamnetRespiratoryClassIndices in the app
+APP_RESP = [36, 37, 39, 40, 41, 42]
+MAX_HEAR_WINDOWS = 4   # yamnetRespiratoryClassIndices in the app
 
 
 class YamnetApp:
@@ -130,6 +131,47 @@ class Opera:
         return out
 
 
+class Hear:
+    """Google HeAR (PyTorch port, HF google/hear-pytorch, HAI-DEF terms). Official usage from
+    the model card / quick-start notebook: preprocess_audio (google-health/hear, Apache 2.0) on
+    2 s 16 kHz clips -> ViT-L -> pooler_output (512). Per recording: non-overlapping 2 s windows
+    (a final remainder under 0.5 s is dropped unless it is the only window; shorter windows are
+    zero-padded), at most MAX_HEAR_WINDOWS of them evenly spaced, embeddings averaged.
+    ViT-L runs at ~1.2 s per window on this CPU (8 threads), so whole clips (~70k windows) were
+    out of reach; 4 windows = 8 s, the same audio length as the app's OPERA-CE input."""
+
+    def __init__(self):
+        import torch
+        from transformers import AutoModel
+        torch.set_num_threads(int(os.environ.get("TORCH_THREADS", "4")))
+        sys.path.insert(0, str(CACHE / "hear" / "repo"))
+        from python.data_processing.audio_utils import preprocess_audio
+        self.pre = preprocess_audio
+        self.torch = torch
+        self.m, info = AutoModel.from_pretrained(str(CACHE / "hear" / "pytorch"),
+                                                 output_loading_info=True)
+        bad = {k: v for k, v in info.items() if v}   # missing/unexpected/mismatched keys
+        if bad:
+            raise RuntimeError(f"HeAR weights did not load cleanly: {bad}")
+        self.m.eval()
+
+    def __call__(self, y):
+        n = 2 * SR
+        wins = [y[o:o + n] for o in range(0, len(y), n)]
+        if len(wins) > 1 and len(wins[-1]) < SR // 2:
+            wins = wins[:-1]
+        if len(wins) > MAX_HEAR_WINDOWS:   # compute budget: evenly spaced windows, 8 s in all
+            wins = [wins[i] for i in np.linspace(0, len(wins) - 1, MAX_HEAR_WINDOWS).round().astype(int)]
+        wins = [np.pad(w, (0, n - len(w))) for w in wins]
+        embs = []
+        with self.torch.no_grad():
+            for b in range(0, len(wins), 16):
+                x = self.torch.tensor(np.stack(wins[b:b + 16]), dtype=self.torch.float32)
+                out = self.m.forward(self.pre(x), return_dict=True, output_hidden_states=True)
+                embs.append(out.pooler_output.numpy())
+        return {"emb": np.concatenate(embs).mean(0)}
+
+
 def run(model, dataset, cond, limit=None):
     rows = manifest(dataset)
     if limit:
@@ -147,7 +189,7 @@ def run(model, dataset, cond, limit=None):
             missing += 1                       # audio still downloading: pick it up next run
             continue
         if fn is None:
-            fn = {"yamnet_app": YamnetApp, "yamnet_float": YamnetFloat}.get(model)
+            fn = {"yamnet_app": YamnetApp, "yamnet_float": YamnetFloat, "hear": Hear}.get(model)
             fn = fn() if fn else Opera(rules=(cond == "clean"))
         feats = {}
         for r in rows[s:s + SHARD]:
@@ -178,7 +220,7 @@ def merge(d: Path):
 
 if __name__ == "__main__":
     ap = argparse.ArgumentParser()
-    ap.add_argument("--model", required=True, choices=["yamnet_app", "yamnet_float", "opera"])
+    ap.add_argument("--model", required=True, choices=["yamnet_app", "yamnet_float", "opera", "hear"])
     ap.add_argument("--dataset", required=True, choices=["sprsound", "circor"])
     ap.add_argument("--cond", default="clean")
     ap.add_argument("--limit", type=int)
